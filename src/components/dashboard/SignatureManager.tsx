@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, Eye, FileText } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, FileText, ExternalLink, Send, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ExchangeIntegration } from "./ExchangeIntegration";
 
 interface SignatureManagerProps {
   profile: any;
@@ -29,6 +31,8 @@ export const SignatureManager = ({ profile }: SignatureManagerProps) => {
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingSignature, setEditingSignature] = useState<EmailSignature | null>(null);
+  const [exchangeConnected, setExchangeConnected] = useState(false);
+  const [isDeploying, setIsDeploying] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -178,6 +182,55 @@ export const SignatureManager = ({ profile }: SignatureManagerProps) => {
     }
   };
 
+  const deployToExchange = async (signature: EmailSignature) => {
+    if (!exchangeConnected) {
+      toast({
+        title: "Exchange Not Connected",
+        description: "Please connect to Microsoft Exchange first in the Exchange Integration tab.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDeploying(signature.id);
+    
+    try {
+      // Get stored access token (in a real app, you'd manage this more securely)
+      const accessToken = localStorage.getItem('microsoft_access_token');
+      if (!accessToken) {
+        throw new Error("No access token found. Please reconnect to Exchange.");
+      }
+
+      const { data, error } = await supabase.functions.invoke('deploy-signature', {
+        body: {
+          access_token: accessToken,
+          signature_html: signature.html_content,
+          user_email: profile?.email,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Signature Deployed",
+          description: `Email signature "${signature.template_name}" deployed to Exchange successfully`,
+        });
+      } else {
+        throw new Error(data.error || "Deployment failed");
+      }
+    } catch (error: any) {
+      console.error("Exchange deployment error:", error);
+      toast({
+        title: "Deployment Failed",
+        description: error.message || "Failed to deploy signature to Exchange. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeploying(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -202,13 +255,20 @@ export const SignatureManager = ({ profile }: SignatureManagerProps) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium">Email Signatures</h3>
-          <p className="text-muted-foreground">
-            Manage email signatures for your organization
-          </p>
-        </div>
+      <Tabs defaultValue="signatures" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="signatures">Signatures</TabsTrigger>
+          <TabsTrigger value="exchange">Exchange Integration</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="signatures" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium">Email Signatures</h3>
+              <p className="text-muted-foreground">
+                Manage email signatures for your organization
+              </p>
+            </div>
 
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
@@ -341,6 +401,20 @@ export const SignatureManager = ({ profile }: SignatureManagerProps) => {
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    {exchangeConnected && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => deployToExchange(signature)}
+                        disabled={isDeploying === signature.id}
+                      >
+                        {isDeploying === signature.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={() => toggleActive(signature)}>
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -361,7 +435,22 @@ export const SignatureManager = ({ profile }: SignatureManagerProps) => {
             </Card>
           ))
         )}
-      </div>
+        </div>
+        </TabsContent>
+        
+        <TabsContent value="exchange" className="space-y-6">
+          <ExchangeIntegration 
+            onUserConnected={(user) => {
+              setExchangeConnected(true);
+              localStorage.setItem('microsoft_access_token', user.access_token);
+              toast({
+                title: "Exchange Connected",
+                description: "You can now deploy signatures directly to Exchange mailboxes.",
+              });
+            }}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
