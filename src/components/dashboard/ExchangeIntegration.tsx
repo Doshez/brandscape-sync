@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,9 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
       const state = crypto.randomUUID();
       localStorage.setItem('microsoft_auth_state', state);
       
-      const clientId = "YOUR_MICROSOFT_CLIENT_ID"; // This will be configured via secrets
+      // Get Microsoft Client ID from environment/secrets
+      // For now, we'll use a placeholder that needs to be configured in Azure
+      const clientId = "1e3d8b7c-4a5f-9e2d-8c3a-7b9f2e1d5c8a"; // Replace with your actual Client ID
       const redirectUri = `${window.location.origin}/dashboard`;
       const scope = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
       
@@ -136,7 +138,7 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
   };
 
   // Check for auth callback on component mount
-  useState(() => {
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
@@ -146,7 +148,7 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
       localStorage.removeItem('microsoft_auth_state');
       handleAuthCallback(code);
     }
-  });
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -166,8 +168,11 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  To use this feature, you need to connect your Microsoft Exchange account. 
-                  This will allow automatic deployment of email signatures to users' mailboxes.
+                  <strong>Setup Required:</strong> Before connecting, you need to:
+                  <br />• Create a Microsoft App Registration in Azure Portal
+                  <br />• Configure redirect URI: <code>{window.location.origin}/dashboard</code>
+                  <br />• Update the client ID in the code with your App Registration ID
+                  <br />• Add required API permissions (Mail.ReadWrite, User.Read)
                 </AlertDescription>
               </Alert>
               
