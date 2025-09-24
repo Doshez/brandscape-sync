@@ -585,7 +585,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                         required
                       />
                       <p className="text-xs text-muted-foreground">
-                        Available variables: {{FIRST_NAME}}, {{LAST_NAME}}, {{EMAIL}}, {{PHONE}}, {{MOBILE}}, {{JOB_TITLE}}, {{DEPARTMENT}}, {{COMPANY_NAME}}
+                        Available variables: {`{{FIRST_NAME}}, {{LAST_NAME}}, {{EMAIL}}, {{PHONE}}, {{MOBILE}}, {{JOB_TITLE}}, {{DEPARTMENT}}, {{COMPANY_NAME}}`}
                       </p>
                     </div>
 
