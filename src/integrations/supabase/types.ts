@@ -59,6 +59,13 @@ export type Database = {
             foreignKeyName: "analytics_events_banner_id_fkey"
             columns: ["banner_id"]
             isOneToOne: false
+            referencedRelation: "banner_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_events_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
             referencedRelation: "banners"
             referencedColumns: ["id"]
           },
@@ -77,13 +84,19 @@ export type Database = {
           click_url: string | null
           created_at: string | null
           created_by: string | null
+          current_clicks: number | null
+          device_targeting: string[] | null
           end_date: string | null
+          geo_targeting: string[] | null
           html_content: string
           id: string
           image_url: string | null
           is_active: boolean | null
+          max_clicks: number | null
           name: string
+          priority: number | null
           start_date: string | null
+          target_audience: Json | null
           target_departments: string[] | null
           updated_at: string | null
         }
@@ -92,13 +105,19 @@ export type Database = {
           click_url?: string | null
           created_at?: string | null
           created_by?: string | null
+          current_clicks?: number | null
+          device_targeting?: string[] | null
           end_date?: string | null
+          geo_targeting?: string[] | null
           html_content: string
           id?: string
           image_url?: string | null
           is_active?: boolean | null
+          max_clicks?: number | null
           name: string
+          priority?: number | null
           start_date?: string | null
+          target_audience?: Json | null
           target_departments?: string[] | null
           updated_at?: string | null
         }
@@ -107,13 +126,19 @@ export type Database = {
           click_url?: string | null
           created_at?: string | null
           created_by?: string | null
+          current_clicks?: number | null
+          device_targeting?: string[] | null
           end_date?: string | null
+          geo_targeting?: string[] | null
           html_content?: string
           id?: string
           image_url?: string | null
           is_active?: boolean | null
+          max_clicks?: number | null
           name?: string
+          priority?: number | null
           start_date?: string | null
+          target_audience?: Json | null
           target_departments?: string[] | null
           updated_at?: string | null
         }
@@ -286,6 +311,56 @@ export type Database = {
         }
         Relationships: []
       }
+      exchange_connections: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          display_name: string
+          email: string
+          id: string
+          is_active: boolean | null
+          microsoft_user_id: string
+          refresh_token: string
+          token_expires_at: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          display_name: string
+          email: string
+          id?: string
+          is_active?: boolean | null
+          microsoft_user_id: string
+          refresh_token: string
+          token_expires_at: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          display_name?: string
+          email?: string
+          id?: string
+          is_active?: boolean | null
+          microsoft_user_id?: string
+          refresh_token?: string
+          token_expires_at?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exchange_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -333,10 +408,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      banner_analytics: {
+        Row: {
+          click_count: number | null
+          click_through_rate: number | null
+          created_at: string | null
+          current_clicks: number | null
+          id: string | null
+          impression_count: number | null
+          is_active: boolean | null
+          max_clicks: number | null
+          name: string | null
+          total_events: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      increment_banner_clicks: {
+        Args: { banner_uuid: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
