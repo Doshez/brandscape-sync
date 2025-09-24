@@ -32,14 +32,16 @@ export const MicrosoftAuthSetup = () => {
               </a></p>
               <p>2. Click "New registration"</p>
               <p>3. Enter your app name (e.g., "Email Signature Manager")</p>
-              <p>4. Set redirect URI to: <Badge variant="outline" className="font-mono text-xs">{window.location.origin}/dashboard</Badge></p>
+              <p><strong>4. CRITICAL:</strong> Set redirect URI type to <Badge variant="outline">Web</Badge></p>
+              <p><strong>5. Set redirect URI to:</strong> <Badge variant="outline" className="font-mono text-xs">{window.location.origin}/dashboard</Badge></p>
+              <p className="text-amber-600">⚠️ The redirect URI must match EXACTLY (including the protocol https://)</p>
             </div>
           </div>
 
           <div className="space-y-2">
             <h4 className="font-medium">Step 2: Configure API Permissions</h4>
             <div className="text-sm text-muted-foreground space-y-1">
-              <p>Add these Microsoft Graph permissions:</p>
+              <p>Add these Microsoft Graph <strong>Delegated</strong> permissions:</p>
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li><Badge variant="outline">Mail.ReadWrite</Badge> - To manage email signatures</li>
                 <li><Badge variant="outline">User.Read</Badge> - To read user profile</li>
@@ -52,17 +54,22 @@ export const MicrosoftAuthSetup = () => {
           <div className="space-y-2">
             <h4 className="font-medium">Step 3: Get Your Credentials</h4>
             <div className="text-sm text-muted-foreground space-y-1">
-              <p>1. Copy your <strong>Application (client) ID</strong></p>
+              <p>1. Copy your <strong>Application (client) ID</strong> - it should look like: <code className="text-xs">12345678-1234-1234-1234-123456789012</code></p>
               <p>2. Go to "Certificates & secrets" and create a new client secret</p>
               <p>3. Copy the client secret value (you'll only see it once!)</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-medium">Step 4: Update Configuration</h4>
-            <div className="text-sm text-muted-foreground">
-              <p>Replace the client ID in the ExchangeIntegration component with your actual Client ID from Azure Portal.</p>
-              <p className="text-amber-600">⚠️ For production use, store credentials securely in environment variables.</p>
+            <h4 className="font-medium">Step 4: Troubleshooting "Refused to Connect"</h4>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>If you get "login.microsoftonline.com refused to connect":</p>
+              <ul className="list-disc list-inside ml-4 space-y-1">
+                <li>Verify the redirect URI in Azure matches: <code className="text-xs">{window.location.origin}/dashboard</code></li>
+                <li>Ensure platform type is set to "Web" (not SPA)</li>
+                <li>Check that your Client ID is in the correct GUID format</li>
+                <li>Make sure the app registration is not restricted to specific tenants</li>
+              </ul>
             </div>
           </div>
         </div>

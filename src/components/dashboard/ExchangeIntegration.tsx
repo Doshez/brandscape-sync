@@ -44,6 +44,18 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
         setIsConnecting(false);
         return;
       }
+
+      // Validate Client ID format (should be a GUID)
+      const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!guidRegex.test(clientId.trim())) {
+        toast({
+          title: "Invalid Client ID Format",
+          description: "Client ID should be in GUID format (e.g., 12345678-1234-1234-1234-123456789012)",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+        return;
+      }
       
       // Generate state parameter for security
       const state = crypto.randomUUID();
@@ -52,13 +64,24 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
       const redirectUri = `${window.location.origin}/dashboard`;
       const scope = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
       
+      // Log the configuration for debugging
+      console.log('Microsoft OAuth Configuration:', {
+        clientId: clientId.trim(),
+        redirectUri,
+        scope,
+        state
+      });
+      
       const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
-        `client_id=${clientId}&` +
+        `client_id=${encodeURIComponent(clientId.trim())}&` +
         `response_type=code&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `scope=${encodeURIComponent(scope)}&` +
-        `state=${state}&` +
-        `response_mode=query`;
+        `state=${encodeURIComponent(state)}&` +
+        `response_mode=query&` +
+        `prompt=consent`;
+      
+      console.log('Auth URL:', authUrl);
       
       // Open authorization URL
       window.location.href = authUrl;
@@ -66,7 +89,7 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
       console.error("Exchange connection error:", error);
       toast({
         title: "Connection Failed",
-        description: "Failed to connect to Microsoft Exchange. Please try again.",
+        description: "Failed to connect to Microsoft Exchange. Please check the console for details.",
         variant: "destructive",
       });
       setIsConnecting(false);
@@ -231,11 +254,26 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
                     </p>
                   </div>
 
+                  <div className="bg-muted p-3 rounded-lg space-y-2">
+                    <h4 className="text-sm font-medium">Configuration Check</h4>
+                    <div className="text-xs space-y-1">
+                      <p><strong>Current Redirect URI:</strong></p>
+                      <code className="bg-background px-2 py-1 rounded text-xs break-all">
+                        {window.location.origin}/dashboard
+                      </code>
+                      <p className="text-muted-foreground mt-2">
+                        ⚠️ Make sure this EXACT URI is added to "Redirect URIs" in your Azure Portal app registration
+                      </p>
+                    </div>
+                  </div>
+
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Enter your Microsoft Client ID above, then click Connect. 
-                      If you haven't set up your Azure app yet, check the Setup Guide tab.
+                      <strong>Common Issue:</strong> If you get "refused to connect", verify that:
+                      <br />• The redirect URI above matches exactly in Azure Portal
+                      <br />• Your app registration allows "Web" platform
+                      <br />• The Client ID is correct (36 characters with dashes)
                     </AlertDescription>
                   </Alert>
                   
