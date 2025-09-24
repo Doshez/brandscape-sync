@@ -57,14 +57,38 @@ const Dashboard = () => {
         .from("profiles")
         .select("*")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error("Error fetching profile:", error);
         return;
       }
 
-      setProfile(data);
+      // If no profile exists, create one
+      if (!data) {
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user) {
+          const { data: newProfile, error: createError } = await supabase
+            .from("profiles")
+            .insert({
+              user_id: userId,
+              email: userData.user.email,
+              first_name: userData.user.user_metadata?.first_name || '',
+              last_name: userData.user.user_metadata?.last_name || '',
+              department: userData.user.user_metadata?.department || ''
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error("Error creating profile:", createError);
+            return;
+          }
+          setProfile(newProfile);
+        }
+      } else {
+        setProfile(data);
+      }
     } catch (error) {
       console.error("Error:", error);
     }
