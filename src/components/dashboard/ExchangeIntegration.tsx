@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ExternalLink, CheckCircle, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, ExternalLink, CheckCircle, AlertCircle, Save } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MicrosoftAuthSetup } from "./MicrosoftAuthSetup";
@@ -25,18 +27,18 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectedUser, setConnectedUser] = useState<ExchangeUser | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
+  const [clientId, setClientId] = useState<string>(() => 
+    localStorage.getItem('microsoft_client_id') || ''
+  );
 
   const handleConnectExchange = async () => {
     setIsConnecting(true);
     
     try {
-      // For demo purposes - in production, this should be properly configured
-      const clientId = "your-actual-client-id-here"; // Replace with your actual Client ID
-      
-      if (!clientId || clientId === "your-actual-client-id-here") {
+      if (!clientId || clientId.trim() === '') {
         toast({
-          title: "Configuration Required",
-          description: "Please complete the Microsoft Graph API setup first. See the Setup tab for instructions.",
+          title: "Client ID Required",
+          description: "Please enter your Microsoft Client ID in the Connection tab first.",
           variant: "destructive",
         });
         setIsConnecting(false);
@@ -174,6 +176,16 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
     }
   }, []);
 
+  const saveClientId = () => {
+    if (clientId.trim()) {
+      localStorage.setItem('microsoft_client_id', clientId.trim());
+      toast({
+        title: "Configuration Saved",
+        description: "Microsoft Client ID has been saved. You can now connect to Exchange.",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Tabs defaultValue="connection" className="w-full">
@@ -196,19 +208,42 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
             <CardContent className="space-y-4">
               {!connectedUser ? (
                 <div className="space-y-4">
+                  <div className="space-y-3">
+                    <Label htmlFor="clientId">Microsoft Client ID</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="clientId"
+                        value={clientId}
+                        onChange={(e) => setClientId(e.target.value)}
+                        placeholder="Enter your Microsoft Application (Client) ID"
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={saveClientId}
+                        variant="outline"
+                        disabled={!clientId.trim()}
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Get this from your Azure Portal app registration
+                    </p>
+                  </div>
+
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      To use this feature, you need to connect your Microsoft Exchange account. 
-                      This will allow automatic deployment of email signatures to users' mailboxes.
-                      Make sure you've completed the setup process first.
+                      Enter your Microsoft Client ID above, then click Connect. 
+                      If you haven't set up your Azure app yet, check the Setup Guide tab.
                     </AlertDescription>
                   </Alert>
                   
                   <Button 
                     onClick={handleConnectExchange}
-                    disabled={isConnecting}
+                    disabled={isConnecting || !clientId.trim()}
                     size="lg"
+                    className="w-full"
                   >
                     {isConnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Connect Microsoft Exchange
