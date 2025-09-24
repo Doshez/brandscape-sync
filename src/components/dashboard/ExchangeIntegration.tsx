@@ -3,9 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ExternalLink, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { MicrosoftAuthSetup } from "./MicrosoftAuthSetup";
 
 interface ExchangeUser {
   email: string;
@@ -28,13 +30,23 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
     setIsConnecting(true);
     
     try {
+      // For demo purposes - in production, this should be properly configured
+      const clientId = "your-actual-client-id-here"; // Replace with your actual Client ID
+      
+      if (!clientId || clientId === "your-actual-client-id-here") {
+        toast({
+          title: "Configuration Required",
+          description: "Please complete the Microsoft Graph API setup first. See the Setup tab for instructions.",
+          variant: "destructive",
+        });
+        setIsConnecting(false);
+        return;
+      }
+      
       // Generate state parameter for security
       const state = crypto.randomUUID();
       localStorage.setItem('microsoft_auth_state', state);
       
-      // Get Microsoft Client ID from environment/secrets
-      // For now, we'll use a placeholder that needs to be configured in Azure
-      const clientId = "1e3d8b7c-4a5f-9e2d-8c3a-7b9f2e1d5c8a"; // Replace with your actual Client ID
       const redirectUri = `${window.location.origin}/dashboard`;
       const scope = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
       
@@ -55,7 +67,6 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
         description: "Failed to connect to Microsoft Exchange. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsConnecting(false);
     }
   };
@@ -95,7 +106,7 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
       console.error("Auth callback error:", error);
       toast({
         title: "Authentication Failed",
-        description: "Failed to authenticate with Microsoft Exchange.",
+        description: "Failed to authenticate with Microsoft Exchange. Please check your setup and try again.",
         variant: "destructive",
       });
     }
@@ -125,7 +136,7 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
       } else {
         throw new Error(data.error || "Deployment failed");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Signature deployment error:", error);
       toast({
         title: "Deployment Failed",
@@ -142,7 +153,20 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const state = urlParams.get('state');
+    const error = urlParams.get('error');
+    const errorDescription = urlParams.get('error_description');
     const storedState = localStorage.getItem('microsoft_auth_state');
+    
+    if (error) {
+      toast({
+        title: "Microsoft Authentication Failed",
+        description: errorDescription || `Authentication failed: ${error}`,
+        variant: "destructive",
+      });
+      // Clean up URL
+      window.history.replaceState({}, document.title, "/dashboard");
+      return;
+    }
     
     if (code && state && state === storedState) {
       localStorage.removeItem('microsoft_auth_state');
@@ -152,63 +176,74 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ExternalLink className="h-5 w-5" />
-            Microsoft Exchange Integration
-          </CardTitle>
-          <CardDescription>
-            Connect to Microsoft Exchange to automatically deploy email signatures
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!connectedUser ? (
-            <div className="space-y-4">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Setup Required:</strong> Before connecting, you need to:
-                  <br />• Create a Microsoft App Registration in Azure Portal
-                  <br />• Configure redirect URI: <code>{window.location.origin}/dashboard</code>
-                  <br />• Update the client ID in the code with your App Registration ID
-                  <br />• Add required API permissions (Mail.ReadWrite, User.Read)
-                </AlertDescription>
-              </Alert>
-              
-              <Button 
-                onClick={handleConnectExchange}
-                disabled={isConnecting}
-                size="lg"
-              >
-                {isConnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Connect Microsoft Exchange
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <div>
-                    <p className="font-medium">{connectedUser.displayName}</p>
-                    <p className="text-sm text-muted-foreground">{connectedUser.email}</p>
-                  </div>
+      <Tabs defaultValue="connection" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="connection">Connection</TabsTrigger>
+          <TabsTrigger value="setup">Setup Guide</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="connection" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ExternalLink className="h-5 w-5" />
+                Microsoft Exchange Integration
+              </CardTitle>
+              <CardDescription>
+                Connect to Microsoft Exchange to automatically deploy email signatures
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!connectedUser ? (
+                <div className="space-y-4">
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      To use this feature, you need to connect your Microsoft Exchange account. 
+                      This will allow automatic deployment of email signatures to users' mailboxes.
+                      Make sure you've completed the setup process first.
+                    </AlertDescription>
+                  </Alert>
+                  
+                  <Button 
+                    onClick={handleConnectExchange}
+                    disabled={isConnecting}
+                    size="lg"
+                  >
+                    {isConnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Connect Microsoft Exchange
+                  </Button>
                 </div>
-                <Badge variant="secondary">Connected</Badge>
-              </div>
-              
-              <Alert>
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Exchange integration is active. You can now deploy signatures automatically 
-                  from the Signature Manager.
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <div>
+                        <p className="font-medium">{connectedUser.displayName}</p>
+                        <p className="text-sm text-muted-foreground">{connectedUser.email}</p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary">Connected</Badge>
+                  </div>
+                  
+                  <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Exchange integration is active. You can now deploy signatures automatically 
+                      from the Signature Manager.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="setup" className="space-y-4">
+          <MicrosoftAuthSetup />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
