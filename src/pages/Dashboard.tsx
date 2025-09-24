@@ -1,0 +1,145 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { User, Session } from "@supabase/supabase-js";
+import { Sidebar } from "@/components/dashboard/Sidebar";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { DashboardHome } from "@/components/dashboard/DashboardHome";
+import { SignatureManager } from "@/components/dashboard/SignatureManager";
+import { BannerManager } from "@/components/dashboard/BannerManager";
+import { AnalyticsDashboard } from "@/components/dashboard/AnalyticsDashboard";
+import { DomainManager } from "@/components/dashboard/DomainManager";
+import { CompanySettings } from "@/components/dashboard/CompanySettings";
+import { UserManager } from "@/components/dashboard/UserManager";
+
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "settings" | "users";
+
+const Dashboard = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [activeView, setActiveView] = useState<DashboardView>("home");
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (!session) {
+        navigate("/auth");
+      } else {
+        fetchProfile(session.user.id);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (!session) {
+        navigate("/auth");
+      } else {
+        fetchProfile(session.user.id);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching profile:", error);
+        return;
+      }
+
+      setProfile(data);
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate("/auth");
+    } catch (error) {
+      toast({
+        title: "Error signing out",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !session) {
+    return null;
+  }
+
+  const renderActiveView = () => {
+    switch (activeView) {
+      case "home":
+        return <DashboardHome profile={profile} />;
+      case "signatures":
+        return <SignatureManager profile={profile} />;
+      case "banners":
+        return <BannerManager profile={profile} />;
+      case "analytics":
+        return <AnalyticsDashboard profile={profile} />;
+      case "domains":
+        return <DomainManager profile={profile} />;
+      case "settings":
+        return <CompanySettings profile={profile} />;
+      case "users":
+        return <UserManager profile={profile} />;
+      default:
+        return <DashboardHome profile={profile} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-background">
+      <Sidebar 
+        activeView={activeView} 
+        setActiveView={setActiveView}
+        profile={profile}
+      />
+      
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <DashboardHeader 
+          user={user} 
+          profile={profile}
+          onSignOut={handleSignOut} 
+        />
+        
+        <main className="flex-1 overflow-auto p-6">
+          {renderActiveView()}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

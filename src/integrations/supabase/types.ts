@@ -14,7 +14,323 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      analytics_events: {
+        Row: {
+          banner_id: string | null
+          campaign_id: string | null
+          email_recipient: string | null
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          metadata: Json | null
+          referrer: string | null
+          timestamp: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          banner_id?: string | null
+          campaign_id?: string | null
+          email_recipient?: string | null
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          referrer?: string | null
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          banner_id?: string | null
+          campaign_id?: string | null
+          email_recipient?: string | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          referrer?: string | null
+          timestamp?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_events_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      banners: {
+        Row: {
+          campaign_id: string | null
+          click_url: string | null
+          created_at: string | null
+          created_by: string | null
+          end_date: string | null
+          html_content: string
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          name: string
+          start_date: string | null
+          target_departments: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          click_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string | null
+          html_content: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name: string
+          start_date?: string | null
+          target_departments?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          click_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          end_date?: string | null
+          html_content?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name?: string
+          start_date?: string | null
+          target_departments?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_banners_campaign"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          start_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          start_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      company_settings: {
+        Row: {
+          brand_colors: Json | null
+          company_address: string | null
+          company_name: string
+          company_phone: string | null
+          company_website: string | null
+          created_at: string | null
+          created_by: string | null
+          default_signature_template: string | null
+          id: string
+          legal_disclaimer: string | null
+          logo_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          brand_colors?: Json | null
+          company_address?: string | null
+          company_name: string
+          company_phone?: string | null
+          company_website?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          default_signature_template?: string | null
+          id?: string
+          legal_disclaimer?: string | null
+          logo_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          brand_colors?: Json | null
+          company_address?: string | null
+          company_name?: string
+          company_phone?: string | null
+          company_website?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          default_signature_template?: string | null
+          id?: string
+          legal_disclaimer?: string | null
+          logo_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      domains: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          dns_record_type: string | null
+          dns_record_value: string | null
+          domain_name: string
+          id: string
+          is_verified: boolean | null
+          organization_name: string | null
+          verification_token: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          dns_record_type?: string | null
+          dns_record_value?: string | null
+          domain_name: string
+          id?: string
+          is_verified?: boolean | null
+          organization_name?: string | null
+          verification_token: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          dns_record_type?: string | null
+          dns_record_value?: string | null
+          domain_name?: string
+          id?: string
+          is_verified?: boolean | null
+          organization_name?: string | null
+          verification_token?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
+      email_signatures: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          department: string | null
+          html_content: string
+          id: string
+          is_active: boolean | null
+          signature_type: string | null
+          template_name: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          department?: string | null
+          html_content: string
+          id?: string
+          is_active?: boolean | null
+          signature_type?: string | null
+          template_name: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          department?: string | null
+          html_content?: string
+          id?: string
+          is_active?: boolean | null
+          signature_type?: string | null
+          template_name?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          department: string | null
+          email: string | null
+          first_name: string | null
+          id: string
+          is_admin: boolean | null
+          job_title: string | null
+          last_name: string | null
+          mobile: string | null
+          phone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_admin?: boolean | null
+          job_title?: string | null
+          last_name?: string | null
+          mobile?: string | null
+          phone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_admin?: boolean | null
+          job_title?: string | null
+          last_name?: string | null
+          mobile?: string | null
+          phone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
