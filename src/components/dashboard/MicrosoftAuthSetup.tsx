@@ -61,15 +61,31 @@ export const MicrosoftAuthSetup = () => {
           </div>
 
           <div className="space-y-2">
-            <h4 className="font-medium">Step 4: Troubleshooting "Refused to Connect"</h4>
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>If you get "login.microsoftonline.com refused to connect":</p>
-              <ul className="list-disc list-inside ml-4 space-y-1">
-                <li>Verify the redirect URI in Azure matches: <code className="text-xs">{window.location.origin}/dashboard</code></li>
-                <li>Ensure platform type is set to "Web" (not SPA)</li>
-                <li>Check that your Client ID is in the correct GUID format</li>
-                <li>Make sure the app registration is not restricted to specific tenants</li>
-              </ul>
+            <h4 className="font-medium">Step 4: Common "Refused to Connect" Solutions</h4>
+            <div className="text-sm text-muted-foreground space-y-2">
+              <div className="bg-red-50 border border-red-200 rounded p-3">
+                <p className="font-medium text-red-800">If you're getting "refused to connect":</p>
+                <ol className="list-decimal list-inside mt-2 space-y-1 text-red-700">
+                  <li><strong>Check Platform Type</strong>: In Azure Portal → Authentication → Platform configurations → Make sure you have a "Web" platform (not SPA)</li>
+                  <li><strong>Verify Redirect URI</strong>: Must be exactly: <code className="bg-red-100 px-1 rounded">{window.location.origin}/dashboard</code></li>
+                  <li><strong>Client ID Format</strong>: Should be 36 characters with dashes: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</li>
+                  <li><strong>Account Types</strong>: Set to "Accounts in any organizational directory and personal Microsoft accounts"</li>
+                  <li><strong>Grant Admin Consent</strong>: In API Permissions, click "Grant admin consent"</li>
+                </ol>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <p className="font-medium text-blue-800">Alternative: Try These Steps</p>
+                <ol className="list-decimal list-inside mt-2 space-y-1 text-blue-700">
+                  <li>Delete your current app registration</li>
+                  <li>Create a new one with these exact settings:</li>
+                  <li className="ml-4">• Name: "Email Signature Manager"</li>
+                  <li className="ml-4">• Supported account types: "Accounts in any organizational directory and personal Microsoft accounts"</li>
+                  <li className="ml-4">• Redirect URI (Web): <code className="bg-blue-100 px-1 rounded">{window.location.origin}/dashboard</code></li>
+                  <li>Add API permissions: Mail.ReadWrite, User.Read, offline_access</li>
+                  <li>Grant admin consent</li>
+                </ol>
+              </div>
             </div>
           </div>
         </div>

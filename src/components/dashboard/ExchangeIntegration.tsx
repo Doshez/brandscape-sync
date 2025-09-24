@@ -286,6 +286,57 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
                     {isConnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Connect Microsoft Exchange
                   </Button>
+
+                  <div className="pt-2 border-t">
+                    <Button 
+                      onClick={() => {
+                        if (!clientId.trim()) {
+                          toast({
+                            title: "Client ID Required",
+                            description: "Please enter your Client ID first",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        
+                        const redirectUri = `${window.location.origin}/dashboard`;
+                        const scope = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
+                        const state = crypto.randomUUID();
+                        
+                        const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+                          `client_id=${encodeURIComponent(clientId.trim())}&` +
+                          `response_type=code&` +
+                          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+                          `scope=${encodeURIComponent(scope)}&` +
+                          `state=${encodeURIComponent(state)}&` +
+                          `response_mode=query&` +
+                          `prompt=consent`;
+                        
+                        // Copy URL to clipboard and show it
+                        navigator.clipboard.writeText(authUrl);
+                        toast({
+                          title: "Debug URL Copied",
+                          description: "The Microsoft auth URL has been copied to your clipboard. Open it in a new tab to see the exact error.",
+                        });
+                        
+                        // Also log it to console
+                        console.log('Microsoft Auth URL:', authUrl);
+                        console.log('Redirect URI:', redirectUri);
+                        console.log('Client ID:', clientId.trim());
+                        
+                        // Open in new tab
+                        window.open(authUrl, '_blank');
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      🔍 Debug: Test Auth URL in New Tab
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1 text-center">
+                      This will open the Microsoft login in a new tab and copy the URL to clipboard for debugging
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
