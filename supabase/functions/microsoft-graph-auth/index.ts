@@ -26,7 +26,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Exchange authorization code for access token
-    const tokenResponse = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+    const tokenResponse = await fetch("https://login.microsoftonline.com/organizations/oauth2/v2.0/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",

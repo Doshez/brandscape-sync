@@ -72,7 +72,7 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
         state
       });
       
-      const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+      const authUrl = `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?` +
         `client_id=${encodeURIComponent(clientId.trim())}&` +
         `response_type=code&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
@@ -303,7 +303,7 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
                         const scope = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
                         const state = crypto.randomUUID();
                         
-                        const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
+                        const authUrl = `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?` +
                           `client_id=${encodeURIComponent(clientId.trim())}&` +
                           `response_type=code&` +
                           `redirect_uri=${encodeURIComponent(redirectUri)}&` +
