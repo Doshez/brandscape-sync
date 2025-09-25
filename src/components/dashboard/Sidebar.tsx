@@ -71,8 +71,8 @@ export const Sidebar = ({ activeView, setActiveView, profile }: SidebarProps) =>
       </nav>
 
       {profile && (
-        <div className="absolute bottom-4 left-2 right-4">
-          <div className="bg-sidebar-accent rounded-lg pl-2 pr-3 py-3">
+        <div className="absolute bottom-4 left-4 right-8">
+          <div className="bg-sidebar-accent rounded-lg px-3 py-2 inline-block">
             <p className="text-sm font-medium text-sidebar-accent-foreground">
               {profile.first_name} {profile.last_name}
             </p>
