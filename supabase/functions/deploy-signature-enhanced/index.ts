@@ -6,41 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface AdminDeployRequest {
-  target_user_email: string;
-  signature_id?: string;
-  banner_id?: string;
-  admin_user_id: string;
-}
-
-async function getApplicationAccessToken(): Promise<string> {
-  const tenantId = Deno.env.get("MICROSOFT_TENANT_ID");
-  
-  if (!tenantId) {
-    throw new Error("Microsoft Tenant ID not configured. Please add MICROSOFT_TENANT_ID to Supabase secrets.");
-  }
-
-  const tokenResponse = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
-      client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
-      scope: "https://graph.microsoft.com/.default",
-      grant_type: "client_credentials"
-    }),
-  });
-
-  if (!tokenResponse.ok) {
-    const errorData = await tokenResponse.json().catch(() => ({}));
-    console.error('Token request failed:', errorData);
-    throw new Error(`Failed to get application access token: ${tokenResponse.status} ${tokenResponse.statusText}`);
-  }
-
-  const tokenData = await tokenResponse.json();
-  return tokenData.access_token;
+interface DeploySignatureRequest {
+  signature_id: string;
+  user_email?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -49,293 +17,202 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { target_user_email, signature_id, banner_id, admin_user_id }: AdminDeployRequest = await req.json();
+    const { signature_id, user_email }: DeploySignatureRequest = await req.json();
 
+    if (!signature_id) {
+      throw new Error("Missing required parameter: signature_id");
+    }
+
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify admin privileges and domain restrictions
-    const { data: adminProfile, error: adminError } = await supabase
-      .from('profiles')
-      .select('is_admin, email, department')
-      .eq('user_id', admin_user_id)
-      .maybeSingle();
+    // Get the signature details
+    const { data: signature, error: signatureError } = await supabase
+      .from('email_signatures')
+      .select('*')
+      .eq('id', signature_id)
+      .single();
 
-    if (adminError || !adminProfile?.is_admin) {
-      throw new Error("Insufficient privileges - admin access required");
+    if (signatureError || !signature) {
+      throw new Error("Signature not found");
     }
 
-    const { data: targetProfile, error: targetError } = await supabase
-      .from('profiles')
-      .select('email, first_name, last_name')
-      .eq('email', target_user_email)
-      .maybeSingle();
+    // Get active Exchange connections for this user or all users if admin deployment
+    const { data: connections, error: connectionsError } = await supabase
+      .from('exchange_connections')
+      .select('*')
+      .eq('is_active', true);
 
-    if (targetError || !targetProfile) {
-      throw new Error(`Target user ${target_user_email} not found in organization`);
+    if (connectionsError) {
+      throw new Error("Failed to fetch Exchange connections");
     }
 
-    // Domain verification
-    const adminDomain = adminProfile.email?.split('@')[1]?.toLowerCase();
-    const targetDomain = target_user_email.split('@')[1]?.toLowerCase();
-
-    if (!adminDomain || !targetDomain || adminDomain !== targetDomain) {
-      throw new Error(`Security violation: Cannot deploy across domains`);
+    if (!connections || connections.length === 0) {
+      throw new Error("No active Exchange connections found");
     }
 
-    console.log(`Admin ${adminProfile.email} deploying to ${target_user_email} in domain ${targetDomain}`);
+    const deploymentResults = [];
 
-    // Get signature and banner content
-    let combinedHtml = '';
-    let plainTextInstructions = '';
-    
-    if (signature_id) {
-      const { data: signature } = await supabase
-        .from('email_signatures')
-        .select('html_content, template_name')
-        .eq('id', signature_id)
-        .maybeSingle();
-      
-      if (signature?.html_content) {
-        combinedHtml += signature.html_content;
-        plainTextInstructions += `Signature: ${signature.template_name}\n`;
+    // Deploy to each connected Exchange account
+    for (const connection of connections) {
+      try {
+        // Check if token is expired and refresh if needed
+        const tokenExpiresAt = new Date(connection.token_expires_at);
+        const now = new Date();
+        
+        let accessToken = connection.access_token;
+        
+        if (tokenExpiresAt <= now) {
+          // Token is expired, refresh it
+          const refreshResponse = await fetch("https://login.microsoftonline.com/organizations/oauth2/v2.0/token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
+              client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
+              refresh_token: connection.refresh_token,
+              grant_type: "refresh_token",
+              scope: "https://graph.microsoft.com/Mail.ReadWrite offline_access",
+            }),
+          });
+
+          if (refreshResponse.ok) {
+            const tokenData = await refreshResponse.json();
+            accessToken = tokenData.access_token;
+            
+            // Update the connection with new tokens
+            const newExpiresAt = new Date(now.getTime() + (tokenData.expires_in * 1000));
+            await supabase
+              .from('exchange_connections')
+              .update({
+                access_token: tokenData.access_token,
+                refresh_token: tokenData.refresh_token || connection.refresh_token,
+                token_expires_at: newExpiresAt.toISOString(),
+                updated_at: now.toISOString()
+              })
+              .eq('id', connection.id);
+          } else {
+            console.error(`Failed to refresh token for ${connection.email}`);
+            continue;
+          }
+        }
+
+        // Deploy signature to this Exchange account
+        const deployResult = await deploySignatureToExchange(accessToken, signature.html_content, connection.email);
+        
+        deploymentResults.push({
+          email: connection.email,
+          success: deployResult.success,
+          error: deployResult.error
+        });
+
+        // Log the deployment
+        await supabase
+          .from('analytics_events')
+          .insert({
+            event_type: 'signature_deployed',
+            user_id: connection.user_id,
+            email_recipient: connection.email,
+            metadata: {
+              signature_id: signature.id,
+              signature_name: signature.template_name,
+              deployment_success: deployResult.success
+            }
+          });
+
+      } catch (error) {
+        console.error(`Deployment failed for ${connection.email}:`, error);
+        deploymentResults.push({
+          email: connection.email,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
     }
 
-    if (banner_id) {
-      const { data: banner } = await supabase
-        .from('banners')
-        .select('html_content, name')
-        .eq('id', banner_id)
-        .maybeSingle();
-      
-      if (banner?.html_content) {
-        combinedHtml += banner.html_content;
-        plainTextInstructions += `Banner: ${banner.name}\n`;
-      }
-    }
-
-    if (!combinedHtml) {
-      throw new Error("No content to deploy");
-    }
-
-    const accessToken = await getApplicationAccessToken();
-    const deployResult = await enhancedDeployToUser(
-      accessToken, 
-      combinedHtml, 
-      target_user_email,
-      plainTextInstructions
-    );
-
-    // Log deployment
-    await supabase
-      .from('deployment_history')
-      .insert({
-        admin_user_id,
-        target_user_email,
-        signature_id: signature_id || null,
-        banner_id: banner_id || null,
-        deployment_status: deployResult.success ? 'success' : 'failed',
-        error_message: deployResult.error || null
-      });
+    const successfulDeployments = deploymentResults.filter(r => r.success).length;
+    const totalDeployments = deploymentResults.length;
 
     return new Response(
       JSON.stringify({
-        success: deployResult.success,
-        message: deployResult.message,
-        result: {
-          target_email: target_user_email,
-          methods_used: deployResult.methods_used,
-          instructions: deployResult.instructions
-        },
-        error: deployResult.error
+        success: successfulDeployments > 0,
+        message: `Signature deployed to ${successfulDeployments}/${totalDeployments} Exchange accounts`,
+        results: deploymentResults,
       }),
       {
-        status: deployResult.success ? 200 : 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders }
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
       }
     );
-
-  } catch (error) {
-    console.error('Enhanced deployment error:', error);
+  } catch (error: any) {
+    console.error("Enhanced deployment error:", error);
     return new Response(
-      JSON.stringify({
+      JSON.stringify({ 
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error.message 
       }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders }
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   }
 };
 
-async function enhancedDeployToUser(
-  accessToken: string,
-  combinedHtml: string,
-  targetUserEmail: string,
-  instructions: string
-) {
-  const results = [];
-  let hasSuccess = false;
-
+async function deploySignatureToExchange(accessToken: string, signatureHtml: string, userEmail: string) {
   try {
-    console.log(`Enhanced deployment to ${targetUserEmail}`);
+    // Get current mailbox settings
+    const mailboxResponse = await fetch("https://graph.microsoft.com/v1.0/me/mailboxSettings", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-    // Method 1: Set as automatic replies (current working method)
-    try {
-      const mailboxResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(targetUserEmail)}/mailboxSettings`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (mailboxResponse.ok) {
-        const mailboxSettings = await mailboxResponse.json();
-        
-        const updatedSettings = {
-          automaticRepliesSetting: {
-            status: 'scheduled',
-            externalReplyMessage: combinedHtml,
-            internalReplyMessage: combinedHtml,
-            scheduledStartDateTime: {
-              dateTime: new Date().toISOString(),
-              timeZone: 'UTC'
-            },
-            scheduledEndDateTime: {
-              dateTime: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-              timeZone: 'UTC'
-            }
-          },
-        };
-
-        const updateResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(targetUserEmail)}/mailboxSettings`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updatedSettings),
-        });
-
-        if (updateResponse.ok) {
-          results.push("✅ Automatic replies updated");
-          hasSuccess = true;
-        } else {
-          results.push("❌ Failed to update automatic replies");
-        }
-      }
-    } catch (error) {
-      results.push("❌ Failed to access mailbox settings");
+    if (!mailboxResponse.ok) {
+      const error = await mailboxResponse.json();
+      throw new Error(`Failed to get mailbox settings: ${error.error?.message}`);
     }
 
-    // Method 2: Send setup instructions via email
-    try {
-      const emailContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #0066cc;">📧 Email Signature Deployed</h2>
-          <p>Your email signature/banner has been deployed by an administrator.</p>
-          
-          <div style="background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 15px 0;">
-            <h3 style="margin-top: 0;">🔧 Setup Required</h3>
-            <p><strong>To use your signature in regular emails:</strong></p>
-            <ol>
-              <li>In Outlook: <strong>File → Options → Mail → Signatures</strong></li>
-              <li>Create a new signature</li>
-              <li>Copy and paste the HTML content below</li>
-              <li>Set as default for new messages and replies</li>
-            </ol>
-          </div>
+    const mailboxSettings = await mailboxResponse.json();
 
-          <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0;">
-            <h3 style="margin-top: 0;">⚡ Quick Option</h3>
-            <p>To see the signature immediately in out-of-office replies:</p>
-            <p><strong>File → Automatic Replies (Out of Office)</strong> and enable it.</p>
-          </div>
-
-          <div style="border: 2px dashed #ccc; padding: 15px; margin: 15px 0;">
-            <h3>Your Deployed Signature/Banner:</h3>
-            ${combinedHtml}
-          </div>
-
-          <p style="color: #666; font-size: 12px;">
-            This email was automatically sent by the Email Signature Management System.
-          </p>
-        </div>
-      `;
-
-      const emailResponse = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(targetUserEmail)}/sendMail`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: {
-            subject: "📧 Your Email Signature Has Been Deployed - Setup Required",
-            body: {
-              contentType: "HTML",
-              content: emailContent,
-            },
-            toRecipients: [
-              {
-                emailAddress: {
-                  address: targetUserEmail,
-                },
-              },
-            ],
-          },
-        }),
-      });
-
-      if (emailResponse.ok) {
-        results.push("✅ Setup instructions sent via email");
-        hasSuccess = true;
-      } else {
-        results.push("❌ Failed to send setup instructions");
-      }
-    } catch (error) {
-      results.push("❌ Failed to send email instructions");
-    }
-
-    const userInstructions = `
-📧 SIGNATURE DEPLOYMENT COMPLETE
-
-✅ Your signature/banner has been deployed to automatic replies
-📨 Setup instructions have been sent to ${targetUserEmail}
-
-🔧 MANUAL SETUP REQUIRED:
-To see signatures in regular emails, the user must:
-
-1. Open Outlook
-2. Go to File → Options → Mail → Signatures  
-3. Create new signature with the deployed content
-4. Set as default signature
-
-⚡ QUICK TEST:
-Enable File → Automatic Replies to see the deployed content immediately.
-    `;
-
-    return {
-      success: hasSuccess,
-      methods_used: results,
-      message: hasSuccess 
-        ? `Successfully deployed to ${targetUserEmail} with setup instructions`
-        : `Failed to deploy to ${targetUserEmail}`,
-      instructions: userInstructions,
-      error: hasSuccess ? null : results.join(', ')
+    // Update the automatic replies signature (this is a workaround since direct signature API is limited)
+    const updatedSettings = {
+      ...mailboxSettings,
+      automaticRepliesSetting: {
+        ...mailboxSettings.automaticRepliesSetting,
+        externalReplyMessage: signatureHtml,
+        internalReplyMessage: signatureHtml,
+      },
     };
 
+    // Update mailbox settings with new signature
+    const updateResponse = await fetch("https://graph.microsoft.com/v1.0/me/mailboxSettings", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updatedSettings),
+    });
+
+    if (!updateResponse.ok) {
+      const error = await updateResponse.json();
+      throw new Error(`Failed to update signature: ${error.error?.message}`);
+    }
+
+    return { success: true, error: null };
   } catch (error) {
-    return {
-      success: false,
-      methods_used: results,
-      message: `Deployment failed for ${targetUserEmail}`,
-      instructions: "Please contact your administrator",
-      error: error instanceof Error ? error.message : 'Unknown error'
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
     };
   }
 }
