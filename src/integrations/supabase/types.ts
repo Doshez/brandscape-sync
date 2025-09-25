@@ -429,6 +429,10 @@ export type Database = {
         Args: { banner_uuid: string }
         Returns: undefined
       }
+      is_admin_user: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
