@@ -195,65 +195,29 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
     setIsRefreshing(connection.id);
     
     try {
-      // Test the connection by making a simple API call
-      const testResponse = await fetch("https://graph.microsoft.com/v1.0/me", {
-        headers: {
-          Authorization: `Bearer ${connection.access_token}`,
+      // Use the edge function to refresh the connection
+      const { data, error } = await supabase.functions.invoke('refresh-microsoft-token', {
+        body: {
+          connection_id: connection.id,
         },
       });
 
-      if (testResponse.ok) {
-        toast({
-          title: "Connection Active",
-          description: `Connection to ${connection.email} is working properly`,
-        });
-      } else {
-        // Try to refresh the token
-        const refreshResponse = await fetch("https://login.microsoftonline.com/organizations/oauth2/v2.0/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            client_id: clientId.trim(),
-            client_secret: "YOUR_CLIENT_SECRET", // This would need to be configured
-            refresh_token: connection.refresh_token,
-            grant_type: "refresh_token",
-            scope: "https://graph.microsoft.com/Mail.ReadWrite offline_access",
-          }),
-        });
+      if (error) throw error;
 
-        if (refreshResponse.ok) {
-          const tokenData = await refreshResponse.json();
-          
-          // Update the connection with new tokens
-          const { error: updateError } = await supabase
-            .from('exchange_connections')
-            .update({
-              access_token: tokenData.access_token,
-              refresh_token: tokenData.refresh_token || connection.refresh_token,
-              token_expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', connection.id);
+      toast({
+        title: data.token_status === 'valid' ? "Connection Active" : "Connection Refreshed",
+        description: data.message,
+      });
 
-          if (updateError) throw updateError;
-
-          toast({
-            title: "Connection Refreshed",
-            description: `Successfully refreshed connection for ${connection.email}`,
-          });
-
-          fetchConnections();
-        } else {
-          throw new Error("Failed to refresh access token");
-        }
+      // Refresh the connections list to show updated status
+      if (data.token_status === 'refreshed') {
+        fetchConnections();
       }
     } catch (error: any) {
       console.error("Connection refresh error:", error);
       toast({
         title: "Refresh Failed",
-        description: `Failed to refresh connection for ${connection.email}`,
+        description: error.message || `Failed to refresh connection for ${connection.email}`,
         variant: "destructive",
       });
     } finally {
