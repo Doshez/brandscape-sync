@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Eye, Upload, ExternalLink, BarChart3, Users, Calendar, Target } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HtmlEditor } from "@/components/ui/html-editor";
 
 interface EnhancedBannerManagerProps {
   profile: any;
@@ -441,30 +442,16 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="html_content">HTML Content</Label>
-                    <Textarea
-                      id="html_content"
-                      value={formData.html_content}
-                      onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
-                      placeholder={`<div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
+                  <HtmlEditor
+                    label="HTML Content"
+                    value={formData.html_content}
+                    onChange={(value) => setFormData({ ...formData, html_content: value })}
+                    placeholder={`<div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px;">
   <h2 style="margin: 0 0 10px 0;">🎉 Special Offer!</h2>
   <p style="margin: 0; font-size: 16px;">Get 25% off all products this month</p>
 </div>`}
-                      rows={8}
-                      required
-                    />
-                  </div>
-
-                  {formData.html_content && (
-                    <div className="space-y-2">
-                      <Label>Preview</Label>
-                      <div 
-                        className="border rounded p-4 bg-background"
-                        dangerouslySetInnerHTML={{ __html: formData.html_content }}
-                      />
-                    </div>
-                  )}
+                    height="400px"
+                  />
                 </TabsContent>
 
                 <TabsContent value="targeting" className="space-y-4">

@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Eye, FileText, Send, Loader2, Upload, Users, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { HtmlEditor } from "@/components/ui/html-editor";
 
 interface EnhancedSignatureManagerProps {
   profile: any;
@@ -564,13 +565,11 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                       )}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="html_content">HTML Content</Label>
-                      <Textarea
-                        id="html_content"
-                        value={formData.html_content}
-                        onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
-                        placeholder={`<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+                    <HtmlEditor
+                      label="HTML Content"
+                      value={formData.html_content}
+                      onChange={(value) => setFormData({ ...formData, html_content: value })}
+                      placeholder={`<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
   <p><strong>{{FIRST_NAME}} {{LAST_NAME}}</strong></p>
   <p><em>{{JOB_TITLE}}</em> | {{DEPARTMENT}}</p>
   <p>{{COMPANY_NAME}}</p>
@@ -581,17 +580,15 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
     This email and any attachments are confidential and may be legally privileged.
   </p>
 </div>`}
-                        rows={12}
-                        required
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Available variables: {`{{FIRST_NAME}}, {{LAST_NAME}}, {{EMAIL}}, {{PHONE}}, {{MOBILE}}, {{JOB_TITLE}}, {{DEPARTMENT}}, {{COMPANY_NAME}}`}
-                      </p>
-                    </div>
+                      height="500px"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Available variables: {`{{FIRST_NAME}}, {{LAST_NAME}}, {{EMAIL}}, {{PHONE}}, {{MOBILE}}, {{JOB_TITLE}}, {{DEPARTMENT}}, {{COMPANY_NAME}}`}
+                    </p>
 
                     {formData.html_content && (
-                      <div className="space-y-2">
-                        <Label>Preview</Label>
+                      <div className="space-y-2 mt-4">
+                        <Label>Final Preview</Label>
                         <div 
                           className="border rounded p-4 bg-background"
                           dangerouslySetInnerHTML={{ __html: formData.html_content }}
