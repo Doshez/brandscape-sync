@@ -1,4 +1,19 @@
 project_id = "ddoihmeqpjjiumqndjgk"
 
+[functions.microsoft-graph-auth]
+verify_jwt = false
+
+[functions.deploy-signature-enhanced]
+verify_jwt = false
+
 [functions.deploy-signature-with-banner]
+verify_jwt = false
+
+[functions.deploy-signature]
+verify_jwt = false
+
+[functions.deploy-signature-universal]
+verify_jwt = false
+
+[functions.track-banner-click]
 verify_jwt = false

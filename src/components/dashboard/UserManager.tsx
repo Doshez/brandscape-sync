@@ -181,27 +181,26 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     e.preventDefault();
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            department: formData.department,
-            job_title: formData.job_title,
-            phone: formData.phone,
-            mobile: formData.mobile,
-            is_admin: formData.is_admin,
-          }
-        }
-      });
+      // Create user profile without authentication (admin-created users can't login)
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: crypto.randomUUID(), // Generate a UUID for user_id (not linked to auth)
+          email: formData.email,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          department: formData.department,
+          job_title: formData.job_title,
+          phone: formData.phone,
+          mobile: formData.mobile,
+          is_admin: formData.is_admin,
+        });
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "User created successfully. They will receive an email to verify their account.",
+        description: "User profile created successfully. This user exists for signature/banner assignment but cannot login to the system.",
       });
 
       resetForm();
@@ -262,13 +261,14 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
       await Promise.all(promises);
 
-      // Deploy to Exchange if both signature and banner are assigned
+      // Deploy using universal deployment (admin can deploy to same domain users)
       if ((assignData.signature_id && assignData.signature_id !== "none") || 
           (assignData.banner_id && assignData.banner_id !== "none")) {
         try {
-          const { data, error } = await supabase.functions.invoke('deploy-signature-with-banner', {
+          const { data, error } = await supabase.functions.invoke('deploy-signature-universal', {
             body: {
-              user_id: selectedUserId,
+              target_user_id: selectedUserId,
+              admin_user_id: profile.user_id, // Current admin user
               signature_id: assignData.signature_id !== "none" ? assignData.signature_id : null,
               banner_id: assignData.banner_id !== "none" ? assignData.banner_id : null,
             }
@@ -278,13 +278,13 @@ export const UserManager = ({ profile }: UserManagerProps) => {
             console.error("Deployment error:", error);
             toast({
               title: "Warning",
-              description: "Resources assigned but deployment to email failed. Check Exchange connection.",
+              description: "Resources assigned but deployment to email failed. Ensure admin has Exchange connection with proper permissions.",
               variant: "destructive",
             });
           } else {
             toast({
               title: "Success",
-              description: `Resources assigned and deployed to ${data.results?.length || 0} email account(s)`,
+              description: `Resources assigned and deployed to ${data.result?.target_email || 'user'}`,
             });
           }
         } catch (deployError) {
@@ -413,9 +413,10 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('deploy-signature-with-banner', {
+      const { data, error } = await supabase.functions.invoke('deploy-signature-universal', {
         body: {
-          user_id: user.user_id,
+          target_user_id: user.user_id,
+          admin_user_id: profile.user_id, // Current admin user
           signature_id: signatureId,
           banner_id: bannerId,
         }
@@ -427,7 +428,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
       toast({
         title: "Success",
-        description: `Resources deployed to ${data.results?.length || 0} email account(s)`,
+        description: `Resources deployed to ${data.result?.target_email || user.email}`,
       });
     } catch (error: any) {
       console.error("Deployment error:", error);
@@ -494,7 +495,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
               <DialogHeader>
                 <DialogTitle>Create New User</DialogTitle>
                 <DialogDescription>
-                  Create a new user account for the system.
+                  Create a user profile for signature/banner assignment. Admin-created users cannot login to the system.
                 </DialogDescription>
               </DialogHeader>
 
@@ -529,18 +530,6 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="create_password">Temporary Password</Label>
-                  <Input
-                    id="create_password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required
-                    placeholder="User will need to change on first login"
                   />
                 </div>
 
