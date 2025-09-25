@@ -185,7 +185,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       const { error } = await supabase
         .from('profiles')
         .insert({
-          user_id: crypto.randomUUID(), // Generate a UUID for user_id (not linked to auth)
+          user_id: null, // Admin-created users have no auth record
           email: formData.email,
           first_name: formData.first_name,
           last_name: formData.last_name,
