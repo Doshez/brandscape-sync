@@ -11,10 +11,11 @@ import { EnhancedBannerManager } from "@/components/dashboard/EnhancedBannerMana
 import { AnalyticsReports } from "@/components/dashboard/AnalyticsReports";
 import { PermanentExchangeIntegration } from "@/components/dashboard/PermanentExchangeIntegration";
 import { DomainManager } from "@/components/dashboard/DomainManager";
+import { EmailDNSConfiguration } from "@/components/dashboard/EmailDNSConfiguration";
 import { CompanySettings } from "@/components/dashboard/CompanySettings";
 import { UserManager } from "@/components/dashboard/UserManager";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "settings" | "users" | "exchange";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -135,6 +136,8 @@ const Dashboard = () => {
         return <AnalyticsReports profile={profile} />;
       case "domains":
         return <DomainManager profile={profile} />;
+      case "dns":
+        return <EmailDNSConfiguration profile={profile} />;
       case "exchange":
         return <PermanentExchangeIntegration profile={profile} />;
       case "settings":

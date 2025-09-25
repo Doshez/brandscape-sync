@@ -9,10 +9,11 @@ import {
   Settings, 
   Users,
   Mail,
-  Cloud
+  Cloud,
+  Shield
 } from "lucide-react";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "settings" | "users" | "exchange";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange";
 
 interface SidebarProps {
   activeView: DashboardView;
@@ -27,6 +28,7 @@ const menuItems = [
   { id: "banners", label: "Banner Management", icon: Image, adminOnly: true },
   { id: "analytics", label: "Analytics", icon: BarChart3, adminOnly: true },
   { id: "domains", label: "Domain Verification", icon: Globe, adminOnly: true },
+  { id: "dns", label: "DNS Configuration", icon: Shield, adminOnly: true },
   { id: "users", label: "User Management", icon: Users, adminOnly: true },
   { id: "settings", label: "Company Settings", icon: Settings, adminOnly: true },
 ];
