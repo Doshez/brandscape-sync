@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Shield, 
   Copy, 
@@ -20,6 +22,14 @@ import {
   ExternalLink,
   Info
 } from "lucide-react";
+
+interface VerifiedDomain {
+  id: string;
+  domain_name: string;
+  organization_name: string | null;
+  is_verified: boolean;
+  verified_at: string | null;
+}
 
 interface DNSRecord {
   type: string;
@@ -36,27 +46,71 @@ interface EmailDNSConfigurationProps {
 }
 
 export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) => {
-  const [domain, setDomain] = useState("");
+  const [verifiedDomains, setVerifiedDomains] = useState<VerifiedDomain[]>([]);
+  const [selectedDomainId, setSelectedDomainId] = useState("");
+  const [selectedDomain, setSelectedDomain] = useState<VerifiedDomain | null>(null);
   const [selectorName, setSelectorName] = useState("selector1");
-  const [organizationName, setOrganizationName] = useState("");
   const [generatedRecords, setGeneratedRecords] = useState<DNSRecord[]>([]);
   const [verificationStatus, setVerificationStatus] = useState<Record<string, "pending" | "verified" | "failed">>({});
   const [dnsHealthStatus, setDnsHealthStatus] = useState<"inactive" | "partial" | "active">("inactive");
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Generate DNS records based on domain input
+  // Fetch verified domains on component mount
+  useEffect(() => {
+    if (profile?.is_admin) {
+      fetchVerifiedDomains();
+    }
+  }, [profile]);
+
+  const fetchVerifiedDomains = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("domains")
+        .select("id, domain_name, organization_name, is_verified, verified_at")
+        .eq("is_verified", true)
+        .order("domain_name", { ascending: true });
+
+      if (error) throw error;
+      
+      setVerifiedDomains(data || []);
+    } catch (error) {
+      console.error("Error fetching verified domains:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch verified domains",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle domain selection
+  const handleDomainSelect = (domainId: string) => {
+    setSelectedDomainId(domainId);
+    const domain = verifiedDomains.find(d => d.id === domainId);
+    setSelectedDomain(domain || null);
+    
+    // Clear existing records when changing domain
+    setGeneratedRecords([]);
+    setVerificationStatus({});
+    setDnsHealthStatus("inactive");
+  };
+
+  // Generate DNS records based on selected domain
   const generateDNSRecords = () => {
-    if (!domain.trim()) {
+    if (!selectedDomain) {
       toast({
         title: "Domain Required",
-        description: "Please enter a valid domain name to generate DNS records.",
+        description: "Please select a verified domain to generate DNS records.",
         variant: "destructive",
       });
       return;
     }
 
-    const cleanDomain = domain.trim().toLowerCase();
-    const orgName = organizationName.trim() || cleanDomain;
+    const cleanDomain = selectedDomain.domain_name.toLowerCase();
+    const orgName = selectedDomain.organization_name || cleanDomain;
 
     const records: DNSRecord[] = [
       // SPF Record
@@ -296,7 +350,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
               {dnsHealthStatus === "inactive" && <Globe className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />}
               
               <div>
-                <h4 className="font-medium mb-1">DNS Status for {domain}</h4>
+                <h4 className="font-medium mb-1">DNS Status for {selectedDomain?.domain_name}</h4>
                 <p className="text-sm text-muted-foreground mb-2">
                   {getDNSHealthDescription()}
                 </p>
@@ -344,51 +398,71 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <Label htmlFor="domain">Domain Name</Label>
-                  <Input
-                    id="domain"
-                    value={domain}
-                    onChange={(e) => setDomain(e.target.value)}
-                    placeholder="example.com"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter your organization's primary email domain
-                  </p>
+              {loading ? (
+                <div className="space-y-4">
+                  <div className="animate-pulse h-10 bg-muted rounded"></div>
+                  <div className="animate-pulse h-10 bg-muted rounded"></div>
+                  <div className="animate-pulse h-10 bg-muted rounded"></div>
                 </div>
+              ) : verifiedDomains.length === 0 ? (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    No verified domains found. Please verify a domain in the Domain Verification section first.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <Label htmlFor="domainSelect">Select Verified Domain</Label>
+                    <Select onValueChange={handleDomainSelect} value={selectedDomainId}>
+                      <SelectTrigger id="domainSelect">
+                        <SelectValue placeholder="Choose a verified domain" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {verifiedDomains.map((domain) => (
+                          <SelectItem key={domain.id} value={domain.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>{domain.domain_name}</span>
+                              <div className="flex items-center gap-1 ml-2">
+                                <CheckCircle className="h-3 w-3 text-green-500" />
+                                <span className="text-xs text-muted-foreground">Verified</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedDomain && (
+                      <p className="text-xs text-muted-foreground">
+                        Organization: {selectedDomain.organization_name || selectedDomain.domain_name}
+                      </p>
+                    )}
+                  </div>
 
-                <div className="space-y-3">
-                  <Label htmlFor="orgName">Organization Name</Label>
-                  <Input
-                    id="orgName"
-                    value={organizationName}
-                    onChange={(e) => setOrganizationName(e.target.value)}
-                    placeholder="Your Company Inc."
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Your company or organization name
-                  </p>
-                </div>
-              </div>
+                  <div className="space-y-3">
+                    <Label htmlFor="selector">DKIM Selector</Label>
+                    <Input
+                      id="selector"
+                      value={selectorName}
+                      onChange={(e) => setSelectorName(e.target.value)}
+                      placeholder="selector1"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      DKIM selector name (usually provided by your email service provider)
+                    </p>
+                  </div>
 
-              <div className="space-y-3">
-                <Label htmlFor="selector">DKIM Selector</Label>
-                <Input
-                  id="selector"
-                  value={selectorName}
-                  onChange={(e) => setSelectorName(e.target.value)}
-                  placeholder="selector1"
-                />
-                <p className="text-xs text-muted-foreground">
-                  DKIM selector name (usually provided by your email service provider)
-                </p>
-              </div>
-
-              <Button onClick={generateDNSRecords} className="w-full" disabled={!domain.trim()}>
-                <Globe className="h-4 w-4 mr-2" />
-                Generate DNS Records
-              </Button>
+                  <Button 
+                    onClick={generateDNSRecords} 
+                    className="w-full" 
+                    disabled={!selectedDomain}
+                  >
+                    <Globe className="h-4 w-4 mr-2" />
+                    Generate DNS Records
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -407,7 +481,9 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
           ) : (
             <>
               <div className="flex justify-between items-center">
-                <h4 className="text-lg font-medium">DNS Records for {domain}</h4>
+                <h4 className="text-lg font-medium">
+                  DNS Records for {selectedDomain?.domain_name || "Selected Domain"}
+                </h4>
                 <Button onClick={copyAllRecords} variant="outline">
                   <Copy className="h-4 w-4 mr-2" />
                   Copy All Records
