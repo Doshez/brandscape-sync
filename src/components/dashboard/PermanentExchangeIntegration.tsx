@@ -42,13 +42,21 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
   // DNS and Transport Rule Configuration
   const [domain, setDomain] = useState('');
   const [ruleName, setRuleName] = useState('Auto-Signature-Rule');
-  const [targetUsers, setTargetUsers] = useState('');
-  const [signatureHtml, setSignatureHtml] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedSignature, setSelectedSignature] = useState('');
+  const [selectedBanner, setSelectedBanner] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState<any>(null);
+  
+  // Data for dropdowns
+  const [users, setUsers] = useState<any[]>([]);
+  const [signatures, setSignatures] = useState<any[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
 
   useEffect(() => {
     fetchConnections();
+    fetchConfigurationData();
     
     // Check for auth callback on component mount
     const urlParams = new URLSearchParams(window.location.search);
@@ -97,6 +105,37 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchConfigurationData = async () => {
+    if (!profile?.is_admin) return;
+    
+    setLoadingData(true);
+    try {
+      // Fetch users, signatures, and banners in parallel
+      const [usersResult, signaturesResult, bannersResult] = await Promise.all([
+        supabase.from("profiles").select("user_id, first_name, last_name, email, department").order("first_name"),
+        supabase.from("email_signatures").select("id, template_name, signature_type, department").eq("is_active", true).order("template_name"),
+        supabase.from("banners").select("id, name, is_active").eq("is_active", true).order("name")
+      ]);
+
+      if (usersResult.error) throw usersResult.error;
+      if (signaturesResult.error) throw signaturesResult.error;
+      if (bannersResult.error) throw bannersResult.error;
+
+      setUsers(usersResult.data || []);
+      setSignatures(signaturesResult.data || []);
+      setBanners(bannersResult.data || []);
+    } catch (error) {
+      console.error("Error fetching configuration data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch configuration data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingData(false);
     }
   };
 
@@ -296,10 +335,19 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
   };
 
   const generateTransportRuleConfig = async () => {
-    if (!domain || !signatureHtml) {
+    if (!domain || (!selectedSignature && !selectedBanner)) {
       toast({
         title: "Missing Information",
-        description: "Please provide domain and signature HTML",
+        description: "Please provide domain and select at least one signature or banner",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedUsers.length === 0) {
+      toast({
+        title: "No Users Selected",
+        description: "Please select at least one user",
         variant: "destructive",
       });
       return;
@@ -307,12 +355,46 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
 
     setIsGenerating(true);
     try {
+      // Get selected signature HTML
+      let signatureHtml = '';
+      if (selectedSignature) {
+        const signature = signatures.find(s => s.id === selectedSignature);
+        if (signature) {
+          const { data: sigData } = await supabase
+            .from('email_signatures')
+            .select('html_content')
+            .eq('id', selectedSignature)
+            .single();
+          signatureHtml = sigData?.html_content || '';
+        }
+      }
+
+      // Get selected banner HTML
+      let bannerHtml = '';
+      if (selectedBanner) {
+        const { data: bannerData } = await supabase
+          .from('banners')
+          .select('html_content')
+          .eq('id', selectedBanner)
+          .single();
+        bannerHtml = bannerData?.html_content || '';
+      }
+
+      // Combine signature and banner HTML
+      const combinedHtml = `${signatureHtml}${bannerHtml ? '<br/>' + bannerHtml : ''}`.trim();
+
+      // Get selected user emails
+      const selectedUserEmails = users.filter(user => selectedUsers.includes(user.user_id)).map(user => user.email);
+
       const { data, error } = await supabase.functions.invoke('setup-exchange-transport-rules', {
         body: {
           domain: domain.trim(),
-          signature_html: signatureHtml,
+          signature_html: combinedHtml,
           rule_name: ruleName.trim(),
-          user_emails: targetUsers ? targetUsers.split(',').map(email => email.trim()).filter(Boolean) : undefined,
+          user_emails: selectedUserEmails,
+          selected_signature_id: selectedSignature,
+          selected_banner_id: selectedBanner,
+          target_user_ids: selectedUsers,
         },
       });
 
@@ -602,34 +684,108 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="targetUsers">Target Users (Optional)</Label>
-                <Input
-                  id="targetUsers"
-                  value={targetUsers}
-                  onChange={(e) => setTargetUsers(e.target.value)}
-                  placeholder="user1@example.com, user2@example.com (leave empty for all domain users)"
-                />
+                <Label>Select Users</Label>
+                {loadingData ? (
+                  <div className="text-sm text-muted-foreground">Loading users...</div>
+                ) : (
+                  <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        id="selectAll"
+                        checked={selectedUsers.length === users.length && users.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedUsers(users.map(u => u.user_id));
+                          } else {
+                            setSelectedUsers([]);
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <label htmlFor="selectAll" className="text-sm font-medium">
+                        Select All ({users.length} users)
+                      </label>
+                    </div>
+                    {users.map((user) => (
+                      <div key={user.user_id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={user.user_id}
+                          checked={selectedUsers.includes(user.user_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedUsers([...selectedUsers, user.user_id]);
+                            } else {
+                              setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <label htmlFor={user.user_id} className="text-sm flex-1">
+                          {user.first_name} {user.last_name} ({user.email})
+                          {user.department && <span className="text-muted-foreground"> - {user.department}</span>}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="signatureHtml">Signature HTML</Label>
-                <Textarea
-                  id="signatureHtml"
-                  value={signatureHtml}
-                  onChange={(e) => setSignatureHtml(e.target.value)}
-                  placeholder="Enter your HTML signature here..."
-                  rows={6}
-                  className="font-mono text-sm"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signature">Email Signature</Label>
+                  <select
+                    id="signature"
+                    value={selectedSignature}
+                    onChange={(e) => setSelectedSignature(e.target.value)}
+                    className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                  >
+                    <option value="">No signature</option>
+                    {signatures.map((signature) => (
+                      <option key={signature.id} value={signature.id}>
+                        {signature.template_name} ({signature.signature_type})
+                        {signature.department && ` - ${signature.department}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="banner">Banner</Label>
+                  <select
+                    id="banner"
+                    value={selectedBanner}
+                    onChange={(e) => setSelectedBanner(e.target.value)}
+                    className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                  >
+                    <option value="">No banner</option>
+                    {banners.map((banner) => (
+                      <option key={banner.id} value={banner.id}>
+                        {banner.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {selectedUsers.length > 0 && (
+                <div className="bg-muted p-3 rounded-lg">
+                  <div className="text-sm">
+                    <strong>Selected:</strong> {selectedUsers.length} users
+                    {selectedSignature && <span>, 1 signature</span>}
+                    {selectedBanner && <span>, 1 banner</span>}
+                  </div>
+                </div>
+              )}
 
               <Button 
                 onClick={generateTransportRuleConfig}
-                disabled={isGenerating || !domain || !signatureHtml}
+                disabled={isGenerating || !domain || selectedUsers.length === 0 || (!selectedSignature && !selectedBanner)}
                 className="w-full"
               >
                 {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Generate Configuration
+                Generate Configuration for {selectedUsers.length} Users
               </Button>
             </CardContent>
           </Card>
