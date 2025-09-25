@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Eye, Code, Type, Image, Bold, Italic, Link, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Upload, Eye, Code, Type, Image, Bold, Italic, Link, AlignLeft, AlignCenter, AlignRight, ImageIcon } from "lucide-react";
 
 interface HtmlEditorProps {
   value: string;
@@ -118,6 +118,14 @@ export const HtmlEditor: React.FC<HtmlEditorProps> = ({
   const insertAlignment = (align: string) => {
     const alignHtml = `<div style="text-align: ${align};">Content here</div>`;
     onChange(value + '\n' + alignHtml);
+  };
+
+  const insertCenteredImage = () => {
+    const imageUrl = prompt('Enter image URL (or upload an image using the Image button):');
+    if (imageUrl) {
+      const centeredImageHtml = `<div style="text-align: center; margin: 10px 0;"><img src="${imageUrl}" alt="Centered image" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
+      onChange(value + '\n' + centeredImageHtml);
+    }
   };
 
   return (
@@ -263,6 +271,15 @@ export const HtmlEditor: React.FC<HtmlEditorProps> = ({
                     ) : (
                       <Image className="h-4 w-4" />
                     )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={insertCenteredImage}
+                    title="Insert Centered Image"
+                  >
+                    <ImageIcon className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
