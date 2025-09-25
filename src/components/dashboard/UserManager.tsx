@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye, Send } from "lucide-react";
+import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye, Send, Target, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface UserManagerProps {
@@ -71,8 +72,14 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
+  const [showBulkDeployDialog, setShowBulkDeployDialog] = useState(false);
+  const [showChangeBannerDialog, setShowChangeBannerDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [bulkBannerId, setBulkBannerId] = useState<string>("");
+  const [changingBannerUser, setChangingBannerUser] = useState<UserProfile | null>(null);
+  const [newBannerId, setNewBannerId] = useState<string>("");
   const [viewingUser, setViewingUser] = useState<UserProfile | null>(null);
   const { toast } = useToast();
 
@@ -528,6 +535,136 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     }
   };
 
+  const handleBulkBannerDeploy = async () => {
+    if (selectedUserIds.size === 0 || !bulkBannerId) {
+      toast({
+        title: "Error",
+        description: "Please select users and a banner",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const selectedUsers = users.filter(u => selectedUserIds.has(u.id));
+      const deploymentPromises = [];
+
+      for (const user of selectedUsers) {
+        // Update banner assignment for each user
+        await supabase
+          .from("banners")
+          .update({ 
+            target_departments: [user.user_id || user.id]
+          })
+          .eq("id", bulkBannerId);
+
+        // Deploy banner to user
+        deploymentPromises.push(
+          supabase.functions.invoke('deploy-signature-admin', {
+            body: {
+              target_user_email: user.email,
+              admin_user_id: profile.user_id,
+              banner_id: bulkBannerId,
+            }
+          })
+        );
+      }
+
+      await Promise.all(deploymentPromises);
+      
+      toast({
+        title: "Success",
+        description: `Banner deployed to ${selectedUsers.length} users`,
+      });
+
+      setSelectedUserIds(new Set());
+      setBulkBannerId("");
+      setShowBulkDeployDialog(false);
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to deploy banner",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangeBanner = async () => {
+    if (!changingBannerUser || !newBannerId) {
+      toast({
+        title: "Error",
+        description: "Please select a banner",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Update banner assignment
+      await supabase
+        .from("banners")
+        .update({ 
+          target_departments: [changingBannerUser.user_id || changingBannerUser.id]
+        })
+        .eq("id", newBannerId);
+
+      // Deploy new banner
+      const { error } = await supabase.functions.invoke('deploy-signature-admin', {
+        body: {
+          target_user_email: changingBannerUser.email,
+          admin_user_id: profile.user_id,
+          banner_id: newBannerId,
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Warning",
+          description: "Banner assigned but deployment failed",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Banner changed and deployed to ${changingBannerUser.email}`,
+        });
+      }
+
+      setShowChangeBannerDialog(false);
+      setChangingBannerUser(null);
+      setNewBannerId("");
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to change banner",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    const newSelection = new Set(selectedUserIds);
+    if (newSelection.has(userId)) {
+      newSelection.delete(userId);
+    } else {
+      newSelection.add(userId);
+    }
+    setSelectedUserIds(newSelection);
+  };
+
+  const selectAllUsers = () => {
+    setSelectedUserIds(new Set(users.map(u => u.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedUserIds(new Set());
+  };
+
   if (!profile?.is_admin) {
     return (
       <div className="text-center py-8">
@@ -570,6 +707,67 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         </div>
 
         <div className="flex space-x-2">
+          <Dialog open={showBulkDeployDialog} onOpenChange={setShowBulkDeployDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Target className="h-4 w-4 mr-2" />
+                Bulk Deploy Banner
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Deploy Banner to Multiple Users</DialogTitle>
+                <DialogDescription>
+                  Select users and deploy one banner to all of them.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Selected Users ({selectedUserIds.size})</Label>
+                  <div className="flex space-x-2">
+                    <Button variant="outline" size="sm" onClick={selectAllUsers}>
+                      Select All
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={clearSelection}>
+                      Clear
+                    </Button>
+                  </div>
+                  {selectedUserIds.size > 0 && (
+                    <div className="text-sm text-muted-foreground">
+                      {users.filter(u => selectedUserIds.has(u.id)).map(u => `${u.first_name} ${u.last_name}`).join(', ')}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Select Banner</Label>
+                  <Select value={bulkBannerId} onValueChange={setBulkBannerId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a banner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {banners.filter(b => b.is_active).map((banner) => (
+                        <SelectItem key={banner.id} value={banner.id}>
+                          {banner.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setShowBulkDeployDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleBulkBannerDeploy} disabled={selectedUserIds.size === 0 || !bulkBannerId}>
+                    Deploy to {selectedUserIds.size} Users
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
               <Button>
@@ -872,6 +1070,45 @@ export const UserManager = ({ profile }: UserManagerProps) => {
             )}
           </DialogContent>
         </Dialog>
+
+        <Dialog open={showChangeBannerDialog} onOpenChange={setShowChangeBannerDialog}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Change Banner</DialogTitle>
+              <DialogDescription>
+                Change the banner for {changingBannerUser?.first_name} {changingBannerUser?.last_name}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Select New Banner</Label>
+                <Select value={newBannerId} onValueChange={setNewBannerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a banner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Remove banner</SelectItem>
+                    {banners.filter(b => b.is_active).map((banner) => (
+                      <SelectItem key={banner.id} value={banner.id}>
+                        {banner.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setShowChangeBannerDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleChangeBanner}>
+                  Change Banner
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
@@ -892,6 +1129,10 @@ export const UserManager = ({ profile }: UserManagerProps) => {
               users.map((user) => (
                 <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center space-x-4">
+                    <Checkbox
+                      checked={selectedUserIds.has(user.id)}
+                      onCheckedChange={() => toggleUserSelection(user.id)}
+                    />
                     <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-semibold">
                       {user.first_name?.[0]}{user.last_name?.[0]}
                     </div>
@@ -974,6 +1215,18 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                       disabled={loading}
                     >
                       <Send className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setChangingBannerUser(user);
+                        setShowChangeBannerDialog(true);
+                      }}
+                      title="Change Banner"
+                    >
+                      <RefreshCw className="h-4 w-4" />
                     </Button>
                     
                     <Button
