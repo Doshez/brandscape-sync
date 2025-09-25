@@ -53,6 +53,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   const [generatedRecords, setGeneratedRecords] = useState<DNSRecord[]>([]);
   const [verificationStatus, setVerificationStatus] = useState<Record<string, "pending" | "verified" | "failed">>({});
   const [dnsHealthStatus, setDnsHealthStatus] = useState<"inactive" | "partial" | "active">("inactive");
+  const [foundSelectors, setFoundSelectors] = useState<Array<{selector: string, found: boolean, record?: string}>>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -92,10 +93,11 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     const domain = verifiedDomains.find(d => d.id === domainId);
     setSelectedDomain(domain || null);
     
-    // Clear existing records when changing domain
+    // Clear existing records and selectors when changing domain
     setGeneratedRecords([]);
     setVerificationStatus({});
     setDnsHealthStatus("inactive");
+    setFoundSelectors([]);
   };
 
   // Generate DNS records based on selected domain
@@ -199,6 +201,52 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       title: "DNS Records Generated",
       description: `Generated ${records.length} DNS records for ${cleanDomain}`,
     });
+  };
+
+  // Function to find DKIM selectors
+  const findDKIMSelectors = async () => {
+    if (!selectedDomain) {
+      toast({
+        title: "Domain Required",
+        description: "Please select a verified domain first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true); 
+    try {
+      const { data, error } = await supabase.functions.invoke('find-dkim-selector', {
+        body: { domain: selectedDomain.domain_name }
+      });
+
+      if (error) throw error;
+
+      if (data.foundSelectors && data.foundSelectors.length > 0) {
+        setFoundSelectors(data.foundSelectors);
+        toast({
+          title: "DKIM Selectors Found",
+          description: `Found ${data.foundSelectors.length} DKIM selector(s) for ${selectedDomain.domain_name}`,
+        });
+      } else {
+        setFoundSelectors([]);
+        toast({
+          title: "No DKIM Selectors Found",
+          description: data.message || "No active DKIM selectors detected. You may need to configure DKIM with your email provider first.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error finding DKIM selectors:", error);
+      toast({
+        title: "Error",
+        description: "Failed to search for DKIM selectors",
+        variant: "destructive",
+      });
+      setFoundSelectors([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -441,16 +489,57 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="selector">DKIM Selector</Label>
-                    <Input
-                      id="selector"
-                      value={selectorName}
-                      onChange={(e) => setSelectorName(e.target.value)}
-                      placeholder="selector1"
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="selector">DKIM Selector</Label>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => findDKIMSelectors()}
+                        disabled={!selectedDomain || loading}
+                        className="h-8 px-3"
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Auto-Find
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        id="selector"
+                        value={selectorName}
+                        onChange={(e) => setSelectorName(e.target.value)}
+                        placeholder="selector1"
+                        className="flex-1"
+                      />
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      DKIM selector name (usually provided by your email service provider)
+                      DKIM selector name (usually provided by your email service provider). Click "Auto-Find" to detect existing selectors.
                     </p>
+                    
+                    {/* DKIM Selector Suggestions */}
+                    {foundSelectors.length > 0 && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                        <h4 className="text-sm font-medium text-green-800 mb-2 flex items-center gap-1">
+                          <CheckCircle className="h-4 w-4" />
+                          Found DKIM Selectors
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {foundSelectors.map((selector) => (
+                            <Button
+                              key={selector.selector}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectorName(selector.selector)}
+                              className="h-7 px-2 text-xs bg-white hover:bg-green-100 border-green-300"
+                            >
+                              {selector.selector}
+                            </Button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-green-700 mt-2">
+                          Click on a selector to use it for DNS record generation.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <Button 
