@@ -41,6 +41,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   const [organizationName, setOrganizationName] = useState("");
   const [generatedRecords, setGeneratedRecords] = useState<DNSRecord[]>([]);
   const [verificationStatus, setVerificationStatus] = useState<Record<string, "pending" | "verified" | "failed">>({});
+  const [dnsHealthStatus, setDnsHealthStatus] = useState<"inactive" | "partial" | "active">("inactive");
   const { toast } = useToast();
 
   // Generate DNS records based on domain input
@@ -138,6 +139,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       status[`${record.type}-${index}`] = "pending";
     });
     setVerificationStatus(status);
+    setDnsHealthStatus("inactive"); // Reset health status when new records are generated
 
     toast({
       title: "DNS Records Generated",
@@ -166,11 +168,44 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     // Simulate DNS verification (in real implementation, this would check actual DNS)
     setTimeout(() => {
       const isVerified = Math.random() > 0.3; // 70% success rate for demo
-      setVerificationStatus(prev => ({
-        ...prev,
-        [recordKey]: isVerified ? "verified" : "failed"
-      }));
+      const newStatus: "verified" | "failed" = isVerified ? "verified" : "failed";
+      
+      setVerificationStatus(prev => {
+        const updatedStatus = {
+          ...prev,
+          [recordKey]: newStatus
+        };
+        
+        // Update overall DNS health status based on verification results
+        updateDNSHealthStatus(updatedStatus);
+        
+        return updatedStatus;
+      });
     }, 2000);
+  };
+
+  // Calculate DNS health status based on verification results
+  const updateDNSHealthStatus = (statusMap: Record<string, "pending" | "verified" | "failed">) => {
+    const criticalRecords = generatedRecords.filter(record => record.importance === "critical");
+    const verifiedCritical = criticalRecords.filter((_, index) => 
+      statusMap[`${generatedRecords[index].type}-${index}`] === "verified"
+    ).length;
+    
+    const totalVerified = Object.values(statusMap).filter(status => status === "verified").length;
+    const totalRecords = generatedRecords.length;
+    
+    // All critical records verified = active
+    if (verifiedCritical === criticalRecords.length && criticalRecords.length > 0) {
+      setDnsHealthStatus("active");
+    }
+    // Some records verified but not all critical = partial
+    else if (totalVerified > 0) {
+      setDnsHealthStatus("partial");
+    }
+    // No records verified = inactive
+    else {
+      setDnsHealthStatus("inactive");
+    }
   };
 
   const getImportanceColor = (importance: string) => {
@@ -188,6 +223,43 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       case "recommended": return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Recommended</Badge>;
       case "optional": return <Badge variant="outline">Optional</Badge>;
       default: return <Badge variant="outline">Unknown</Badge>;
+    }
+  };
+
+  const getDNSHealthStatusBadge = () => {
+    switch (dnsHealthStatus) {
+      case "active":
+        return (
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+            <CheckCircle className="h-4 w-4" />
+            DNS Configuration Active
+          </div>
+        );
+      case "partial":
+        return (
+          <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+            <AlertTriangle className="h-4 w-4" />
+            DNS Partially Configured
+          </div>
+        );
+      case "inactive":
+        return (
+          <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
+            <Globe className="h-4 w-4" />
+            DNS Not Configured
+          </div>
+        );
+    }
+  };
+
+  const getDNSHealthDescription = () => {
+    switch (dnsHealthStatus) {
+      case "active":
+        return "All critical DNS records are verified and active. Your email authentication is properly configured.";
+      case "partial":
+        return "Some DNS records are verified, but critical authentication records may be missing. Email delivery may be affected.";
+      case "inactive":
+        return "DNS records are not yet configured. Please add the generated records to your DNS provider.";
     }
   };
 
@@ -212,7 +284,45 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
             Configure DNS records to ensure email validity, authenticity, and deliverability
           </p>
         </div>
+        {generatedRecords.length > 0 && getDNSHealthStatusBadge()}
       </div>
+
+      {generatedRecords.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              {dnsHealthStatus === "active" && <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />}
+              {dnsHealthStatus === "partial" && <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />}
+              {dnsHealthStatus === "inactive" && <Globe className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />}
+              
+              <div>
+                <h4 className="font-medium mb-1">DNS Status for {domain}</h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  {getDNSHealthDescription()}
+                </p>
+                
+                {dnsHealthStatus === "active" && (
+                  <div className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
+                    ✅ Email authentication is properly configured and active
+                  </div>
+                )}
+                
+                {dnsHealthStatus === "partial" && (
+                  <div className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded">
+                    ⚠️ Some critical records may be missing - verify all critical DNS records
+                  </div>
+                )}
+                
+                {dnsHealthStatus === "inactive" && (
+                  <div className="text-xs text-gray-700 bg-gray-50 px-2 py-1 rounded">
+                    📋 Add the generated DNS records to activate email authentication
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="setup" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
