@@ -8,6 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -20,7 +22,9 @@ import {
   Settings, 
   Lock,
   ExternalLink,
-  Info
+  Info,
+  Loader2,
+  Send
 } from "lucide-react";
 
 interface VerifiedDomain {
@@ -55,6 +59,16 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   const [dnsHealthStatus, setDnsHealthStatus] = useState<"inactive" | "partial" | "active">("inactive");
   const [foundSelectors, setFoundSelectors] = useState<Array<{selector: string, found: boolean, record?: string}>>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Test email states
+  const [testEmail, setTestEmail] = useState('');
+  const [testFromEmail, setTestFromEmail] = useState('');
+  const [includeSignature, setIncludeSignature] = useState(false);
+  const [includeBanner, setIncludeBanner] = useState(false);
+  const [signatureContent, setSignatureContent] = useState('');
+  const [bannerContent, setBannerContent] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
+  
   const { toast } = useToast();
 
   // Fetch verified domains on component mount
@@ -430,6 +444,53 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     }
   };
 
+  // Send test email
+  const sendTestEmail = async () => {
+    if (!testEmail || !testFromEmail || !selectedDomain) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-test-email', {
+        body: {
+          to: testEmail,
+          from: testFromEmail,
+          domain: selectedDomain.domain_name,
+          includeSignature,
+          includeBanner,
+          signatureContent: includeSignature ? signatureContent : undefined,
+          bannerContent: includeBanner ? bannerContent : undefined,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "Test Email Sent",
+          description: "Check your inbox to verify the email signature and banner are working correctly.",
+        });
+      } else {
+        throw new Error(data.error || "Failed to send test email");
+      }
+    } catch (error: any) {
+      console.error('Error sending test email:', error);
+      toast({
+        title: "Failed to Send Test Email",
+        description: error.message || "An error occurred while sending the test email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   const getImportanceColor = (importance: string) => {
     switch (importance) {
       case "critical": return "text-red-600 border-red-200 bg-red-50";
@@ -547,10 +608,11 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       )}
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="setup">Setup</TabsTrigger>
           <TabsTrigger value="records">DNS Records</TabsTrigger>
           <TabsTrigger value="verification">Verification</TabsTrigger>
+          <TabsTrigger value="test-email">Test Email</TabsTrigger>
           <TabsTrigger value="guide">Implementation Guide</TabsTrigger>
         </TabsList>
 
@@ -898,6 +960,116 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                   })}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="test-email" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5" />
+                Send Test Email
+              </CardTitle>
+              <CardDescription>
+                Send a test email to verify your DNS configuration, email signatures, and banners are working correctly.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="test-to-email">Send To Email *</Label>
+                  <Input
+                    id="test-to-email"
+                    type="email"
+                    placeholder="recipient@example.com"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="test-from-email">From Email *</Label>
+                  <Input
+                    id="test-from-email"
+                    type="email"
+                    placeholder={selectedDomain ? `test@${selectedDomain.domain_name}` : "from@yourdomain.com"}
+                    value={testFromEmail}
+                    onChange={(e) => setTestFromEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="include-signature"
+                    checked={includeSignature}
+                    onCheckedChange={(checked) => setIncludeSignature(checked as boolean)}
+                  />
+                  <Label htmlFor="include-signature">Include email signature</Label>
+                </div>
+
+                {includeSignature && (
+                  <div className="space-y-2">
+                    <Label htmlFor="signature-content">Signature HTML Content</Label>
+                    <Textarea
+                      id="signature-content"
+                      placeholder="Enter your email signature HTML content..."
+                      value={signatureContent}
+                      onChange={(e) => setSignatureContent(e.target.value)}
+                      rows={4}
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="include-banner"
+                    checked={includeBanner}
+                    onCheckedChange={(checked) => setIncludeBanner(checked as boolean)}
+                  />
+                  <Label htmlFor="include-banner">Include email banner</Label>
+                </div>
+
+                {includeBanner && (
+                  <div className="space-y-2">
+                    <Label htmlFor="banner-content">Banner HTML Content</Label>
+                    <Textarea
+                      id="banner-content"
+                      placeholder="Enter your email banner HTML content..."
+                      value={bannerContent}
+                      onChange={(e) => setBannerContent(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Make sure you have verified your sending domain in Resend before sending test emails. 
+                  The test email will show if your DNS configuration, signatures, and banners are working correctly.
+                </AlertDescription>
+              </Alert>
+
+              <Button
+                onClick={sendTestEmail}
+                disabled={sendingTest || !testEmail || !testFromEmail}
+                className="w-full"
+              >
+                {sendingTest ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending Test Email...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Test Email
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
