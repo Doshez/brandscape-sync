@@ -15,7 +15,13 @@ interface AdminDeployRequest {
 
 // This would use Client Credentials flow instead of Authorization Code flow
 async function getApplicationAccessToken(): Promise<string> {
-  const tokenResponse = await fetch("https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token", {
+  const tenantId = Deno.env.get("MICROSOFT_TENANT_ID");
+  
+  if (!tenantId) {
+    throw new Error("Microsoft Tenant ID not configured. Please add MICROSOFT_TENANT_ID to Supabase secrets.");
+  }
+
+  const tokenResponse = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -29,7 +35,9 @@ async function getApplicationAccessToken(): Promise<string> {
   });
 
   if (!tokenResponse.ok) {
-    throw new Error("Failed to get application access token");
+    const errorData = await tokenResponse.json().catch(() => ({}));
+    console.error('Token request failed:', errorData);
+    throw new Error(`Failed to get application access token: ${tokenResponse.status} ${tokenResponse.statusText}`);
   }
 
   const tokenData = await tokenResponse.json();
@@ -49,16 +57,37 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify admin privileges
+    // Verify admin privileges and domain restrictions
     const { data: adminProfile, error: adminError } = await supabase
       .from('profiles')
-      .select('is_admin, email')
+      .select('is_admin, email, department')
       .eq('user_id', admin_user_id)
-      .single();
+      .maybeSingle();
 
     if (adminError || !adminProfile?.is_admin) {
       throw new Error("Insufficient privileges - admin access required");
     }
+
+    // Enhanced security: Verify target user exists and domain matching
+    const { data: targetProfile, error: targetError } = await supabase
+      .from('profiles')
+      .select('email, first_name, last_name')
+      .eq('email', target_user_email)
+      .maybeSingle();
+
+    if (targetError || !targetProfile) {
+      throw new Error(`Target user ${target_user_email} not found in organization`);
+    }
+
+    // Domain verification for security
+    const adminDomain = adminProfile.email?.split('@')[1]?.toLowerCase();
+    const targetDomain = target_user_email.split('@')[1]?.toLowerCase();
+
+    if (!adminDomain || !targetDomain || adminDomain !== targetDomain) {
+      throw new Error(`Security violation: Cannot deploy across domains. Admin domain: ${adminDomain}, Target domain: ${targetDomain}`);
+    }
+
+    console.log(`Admin ${adminProfile.email} deploying to ${target_user_email} in domain ${targetDomain}`);
 
     // Get signature and banner content (same as current implementation)
     let combinedHtml = '';
