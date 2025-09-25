@@ -229,12 +229,15 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     try {
       const promises = [];
 
+      // Find the selected user to get their user_id for assignment
+      const selectedUser = users.find(u => u.id === selectedUserId);
+      
       // Assign signature if selected
       if (assignData.signature_id && assignData.signature_id !== "none") {
         promises.push(
           supabase
             .from("email_signatures")
-            .update({ user_id: selectedUserId })
+            .update({ user_id: selectedUser?.user_id || null })
             .eq("id", assignData.signature_id)
         );
       }
@@ -252,7 +255,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
             supabase
               .from("banners")
               .update({ 
-                target_departments: [selectedUserId] // Using user_id as targeting method
+                target_departments: [selectedUser?.user_id || selectedUserId] // Use user_id if available, otherwise use profile id
               })
               .eq("id", assignData.banner_id)
           );
@@ -267,7 +270,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         try {
           const { data, error } = await supabase.functions.invoke('deploy-signature-universal', {
             body: {
-              target_user_id: selectedUserId,
+              target_user_id: selectedUser?.user_id,
               admin_user_id: profile.user_id, // Current admin user
               signature_id: assignData.signature_id !== "none" ? assignData.signature_id : null,
               banner_id: assignData.banner_id !== "none" ? assignData.banner_id : null,
@@ -623,7 +626,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                     </SelectTrigger>
                     <SelectContent>
                       {users.map((user) => (
-                        <SelectItem key={user.user_id} value={user.user_id}>
+                        <SelectItem key={user.id} value={user.id}>
                           {user.first_name} {user.last_name} ({user.email})
                         </SelectItem>
                       ))}
@@ -838,7 +841,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setSelectedUserId(user.user_id);
+                        setSelectedUserId(user.id);
                         setShowAssignDialog(true);
                       }}
                       title="Assign Resources"
