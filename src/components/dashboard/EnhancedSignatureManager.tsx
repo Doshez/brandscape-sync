@@ -158,7 +158,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
       const signatureData = {
         ...formData,
         html_content: htmlContent,
-        user_id: formData.signature_type === "user" ? (formData.user_id || profile?.user_id) : null,
+        user_id: formData.signature_type === "user" ? (formData.user_id === "current" ? profile?.user_id : formData.user_id) : null,
         created_by: profile?.user_id,
       };
 
@@ -621,7 +621,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                             <SelectValue placeholder="Select user" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Current User</SelectItem>
+                            <SelectItem value="current">Current User</SelectItem>
                             {users.map((user) => (
                               <SelectItem key={user.user_id} value={user.user_id}>
                                 {user.first_name} {user.last_name} ({user.email})

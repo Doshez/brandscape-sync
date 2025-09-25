@@ -142,7 +142,7 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
         geo_targeting: formData.geo_targeting.length > 0 ? formData.geo_targeting : null,
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
-        campaign_id: formData.campaign_id || null,
+        campaign_id: formData.campaign_id === "none" ? null : formData.campaign_id || null,
         created_by: profile?.user_id,
       };
 
@@ -373,7 +373,7 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                           <SelectValue placeholder="Select campaign" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">No Campaign</SelectItem>
+                          <SelectItem value="none">No Campaign</SelectItem>
                           {campaigns.map((campaign) => (
                             <SelectItem key={campaign.id} value={campaign.id}>
                               {campaign.name}
