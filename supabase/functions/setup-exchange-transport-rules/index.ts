@@ -11,6 +11,9 @@ interface TransportRuleRequest {
   signature_html: string;
   rule_name: string;
   user_emails?: string[];
+  selected_signature_id?: string;
+  selected_banner_id?: string;
+  target_user_ids?: string[];
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -19,7 +22,15 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { domain, signature_html, rule_name, user_emails }: TransportRuleRequest = await req.json();
+    const { 
+      domain, 
+      signature_html, 
+      rule_name, 
+      user_emails, 
+      selected_signature_id, 
+      selected_banner_id, 
+      target_user_ids 
+    }: TransportRuleRequest = await req.json();
 
     if (!domain || !signature_html || !rule_name) {
       throw new Error("Missing required parameters");
@@ -28,6 +39,20 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get current user ID from JWT
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    
+    let currentUserId = null;
+    if (token) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        currentUserId = user?.id;
+      } catch (e) {
+        console.warn('Could not get user from token:', e);
+      }
+    }
 
     // Generate PowerShell script for Exchange Online transport rule
     const powershellScript = generateTransportRuleScript({
@@ -50,13 +75,38 @@ const handler = async (req: Request): Promise<Response> => {
         powershell_script: powershellScript,
         dns_records: dnsRecords,
         target_users: user_emails,
+        selected_signature_id,
+        selected_banner_id,
+        target_user_ids,
+        created_by: currentUserId,
         created_at: new Date().toISOString()
       })
       .select()
       .single();
 
     if (configError) {
+      console.error('Config save error:', configError);
       throw new Error("Failed to save configuration");
+    }
+
+    // Create user assignments if we have target users and configuration
+    if (target_user_ids && target_user_ids.length > 0 && config?.id) {
+      const assignments = target_user_ids.map(userId => ({
+        user_id: userId,
+        configuration_id: config.id,
+        signature_id: selected_signature_id || null,
+        banner_id: selected_banner_id || null,
+        assigned_by: currentUserId
+      }));
+
+      const { error: assignmentError } = await supabase
+        .from('user_assignments')
+        .insert(assignments);
+
+      if (assignmentError) {
+        console.error('Assignment error:', assignmentError);
+        // Don't fail the entire request, just log the error
+      }
     }
 
     return new Response(
@@ -64,8 +114,10 @@ const handler = async (req: Request): Promise<Response> => {
         success: true,
         message: "Exchange transport rule configuration generated",
         configuration: {
+          id: config.id,
           powershell_script: powershellScript,
           dns_records: dnsRecords,
+          assigned_users: user_emails?.length || 0,
           setup_instructions: [
             "1. Set up DNS records with your domain registrar",
             "2. Run the PowerShell script in Exchange Online PowerShell",

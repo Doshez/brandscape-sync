@@ -330,6 +330,54 @@ export type Database = {
         }
         Relationships: []
       }
+      email_configurations: {
+        Row: {
+          created_at: string
+          created_by: string
+          dns_records: Json | null
+          domain: string
+          id: string
+          powershell_script: string | null
+          rule_name: string
+          selected_banner_id: string | null
+          selected_signature_id: string | null
+          signature_html: string | null
+          target_user_ids: string[] | null
+          target_users: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          dns_records?: Json | null
+          domain: string
+          id?: string
+          powershell_script?: string | null
+          rule_name: string
+          selected_banner_id?: string | null
+          selected_signature_id?: string | null
+          signature_html?: string | null
+          target_user_ids?: string[] | null
+          target_users?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          dns_records?: Json | null
+          domain?: string
+          id?: string
+          powershell_script?: string | null
+          rule_name?: string
+          selected_banner_id?: string | null
+          selected_signature_id?: string | null
+          signature_html?: string | null
+          target_user_ids?: string[] | null
+          target_users?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_signatures: {
         Row: {
           created_at: string | null
@@ -463,6 +511,68 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      user_assignments: {
+        Row: {
+          assigned_by: string
+          banner_id: string | null
+          configuration_id: string
+          created_at: string
+          id: string
+          signature_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_by: string
+          banner_id?: string | null
+          configuration_id: string
+          created_at?: string
+          id?: string
+          signature_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_by?: string
+          banner_id?: string | null
+          configuration_id?: string
+          created_at?: string
+          id?: string
+          signature_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_assignments_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banner_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_assignments_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_assignments_configuration_id_fkey"
+            columns: ["configuration_id"]
+            isOneToOne: false
+            referencedRelation: "email_configurations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_assignments_signature_id_fkey"
+            columns: ["signature_id"]
+            isOneToOne: false
+            referencedRelation: "email_signatures"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
