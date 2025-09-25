@@ -11,6 +11,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MicrosoftAuthSetup } from "./MicrosoftAuthSetup";
 import { MicrosoftSecretsManager } from "./MicrosoftSecretsManager";
+import { ExchangeConnectionTester } from "./ExchangeConnectionTester";
 
 interface ExchangeConnection {
   id: string;
@@ -298,9 +299,10 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
       </div>
 
       <Tabs defaultValue="connections" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="connections">Active Connections</TabsTrigger>
           <TabsTrigger value="setup">Setup & Connect</TabsTrigger>
+          <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
         
         <TabsContent value="connections" className="space-y-4">
@@ -453,6 +455,10 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
           </Card>
 
           <MicrosoftAuthSetup />
+        </TabsContent>
+
+        <TabsContent value="diagnostics" className="space-y-4">
+          <ExchangeConnectionTester />
         </TabsContent>
       </Tabs>
 
