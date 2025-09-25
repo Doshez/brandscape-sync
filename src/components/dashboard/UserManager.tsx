@@ -42,18 +42,38 @@ interface Banner {
   name: string;
   html_content: string;
   is_active: boolean;
+  target_departments: string[] | null;
+}
+
+interface DeploymentHistory {
+  id: string;
+  target_user_email: string;
+  deployment_status: string;
+  deployed_at: string;
+  signature_id: string | null;
+  banner_id: string | null;
+  error_message: string | null;
+}
+
+interface UserAssignments {
+  signatures: EmailSignature[];
+  banners: Banner[];
+  lastDeployment: DeploymentHistory | null;
 }
 
 export const UserManager = ({ profile }: UserManagerProps) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [signatures, setSignatures] = useState<EmailSignature[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [userAssignments, setUserAssignments] = useState<Record<string, UserAssignments>>({});
   const [loading, setLoading] = useState(true);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [viewingUser, setViewingUser] = useState<UserProfile | null>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -94,6 +114,9 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       setUsers(usersResult.data || []);
       setSignatures(signaturesResult.data || []);
       setBanners(bannersResult.data || []);
+      
+      // Fetch assignments for each user
+      await fetchUserAssignments(usersResult.data || []);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast({
@@ -104,6 +127,52 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchUserAssignments = async (usersList: UserProfile[]) => {
+    const assignments: Record<string, UserAssignments> = {};
+
+    for (const user of usersList) {
+      try {
+        // Get assigned signatures
+        const { data: userSignatures } = await supabase
+          .from("email_signatures")
+          .select("*")
+          .eq("user_id", user.user_id)
+          .eq("is_active", true);
+
+        // Get assigned banners (check if user is in target_departments)
+        const { data: userBanners } = await supabase
+          .from("banners")
+          .select("*")
+          .or(`target_departments.is.null,target_departments.cs.{${user.id}}`)
+          .eq("is_active", true);
+
+        // Get latest deployment
+        const { data: latestDeployment } = await supabase
+          .from("deployment_history")
+          .select("*")
+          .eq("target_user_email", user.email)
+          .order("deployed_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        assignments[user.id] = {
+          signatures: userSignatures || [],
+          banners: userBanners || [],
+          lastDeployment: latestDeployment
+        };
+      } catch (error) {
+        console.error(`Error fetching assignments for ${user.email}:`, error);
+        assignments[user.id] = {
+          signatures: [],
+          banners: [],
+          lastDeployment: null
+        };
+      }
+    }
+
+    setUserAssignments(assignments);
   };
 
   const handleEdit = (user: UserProfile) => {
@@ -175,6 +244,16 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     });
     setSelectedUserId("");
     setShowAssignDialog(false);
+  };
+
+  const resetAssignmentDialog = () => {
+    setViewingUser(null);
+    setShowAssignmentDialog(false);
+  };
+
+  const handleViewAssignments = (user: UserProfile) => {
+    setViewingUser(user);
+    setShowAssignmentDialog(true);
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -434,6 +513,9 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         title: "Success",
         description: `Resources deployed to ${data.result?.target_email || user.email}`,
       });
+      
+      // Refresh assignments to show updated deployment status
+      await fetchUserAssignments([user]);
     } catch (error: any) {
       console.error("Deployment error:", error);
       toast({
@@ -834,10 +916,44 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                         {user.job_title && `${user.job_title}`}
                         {user.department && ` • ${user.department}`}
                       </p>
+                      
+                      {/* Show assignment status */}
+                      <div className="flex items-center space-x-2 mt-2">
+                        {userAssignments[user.id]?.signatures?.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            <FileText className="h-3 w-3 mr-1" />
+                            {userAssignments[user.id].signatures.length} Signature(s)
+                          </Badge>
+                        )}
+                        {userAssignments[user.id]?.banners?.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            <Mail className="h-3 w-3 mr-1" />
+                            {userAssignments[user.id].banners.length} Banner(s)
+                          </Badge>
+                        )}
+                        {userAssignments[user.id]?.lastDeployment && (
+                          <Badge 
+                            variant={userAssignments[user.id].lastDeployment?.deployment_status === 'success' ? 'default' : 'destructive'} 
+                            className="text-xs"
+                          >
+                            <Send className="h-3 w-3 mr-1" />
+                            {userAssignments[user.id].lastDeployment?.deployment_status === 'success' ? 'Deployed' : 'Failed'}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewAssignments(user)}
+                      title="View Assignments"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    
                     <Button
                       variant="outline"
                       size="sm"
@@ -899,6 +1015,114 @@ export const UserManager = ({ profile }: UserManagerProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Assignment View Dialog */}
+      <Dialog open={showAssignmentDialog} onOpenChange={setShowAssignmentDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Assignments & Status - {viewingUser?.first_name} {viewingUser?.last_name}
+            </DialogTitle>
+            <DialogDescription>
+              View current assignments and deployment status for {viewingUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Assigned Signatures */}
+            <div>
+              <h4 className="font-medium mb-2">Assigned Signatures</h4>
+              {viewingUser && userAssignments[viewingUser.id]?.signatures?.length > 0 ? (
+                <div className="space-y-2">
+                  {userAssignments[viewingUser.id].signatures.map((signature) => (
+                    <Card key={signature.id}>
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{signature.template_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Type: {signature.signature_type}
+                            </p>
+                          </div>
+                          <Badge variant="outline">Active</Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No signatures assigned</p>
+              )}
+            </div>
+
+            {/* Assigned Banners */}
+            <div>
+              <h4 className="font-medium mb-2">Assigned Banners</h4>
+              {viewingUser && userAssignments[viewingUser.id]?.banners?.length > 0 ? (
+                <div className="space-y-2">
+                  {userAssignments[viewingUser.id].banners.map((banner) => (
+                    <Card key={banner.id}>
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{banner.name}</p>
+                            <div 
+                              className="text-xs text-muted-foreground mt-1"
+                              dangerouslySetInnerHTML={{ __html: banner.html_content.substring(0, 100) + '...' }}
+                            />
+                          </div>
+                          <Badge variant="outline">Active</Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No banners assigned</p>
+              )}
+            </div>
+
+            {/* Last Deployment Status */}
+            <div>
+              <h4 className="font-medium mb-2">Last Deployment</h4>
+              {viewingUser && userAssignments[viewingUser.id]?.lastDeployment ? (
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm">
+                          <span className="font-medium">Status:</span>{" "}
+                          <Badge 
+                            variant={userAssignments[viewingUser.id].lastDeployment?.deployment_status === 'success' ? 'default' : 'destructive'}
+                          >
+                            {userAssignments[viewingUser.id].lastDeployment?.deployment_status}
+                          </Badge>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(userAssignments[viewingUser.id].lastDeployment?.deployed_at || '').toLocaleString()}
+                        </p>
+                        {userAssignments[viewingUser.id].lastDeployment?.error_message && (
+                          <p className="text-xs text-destructive mt-1">
+                            Error: {userAssignments[viewingUser.id].lastDeployment?.error_message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <p className="text-muted-foreground">No deployments recorded</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={resetAssignmentDialog}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

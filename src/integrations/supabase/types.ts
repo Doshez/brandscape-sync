@@ -233,6 +233,64 @@ export type Database = {
         }
         Relationships: []
       }
+      deployment_history: {
+        Row: {
+          admin_user_id: string | null
+          banner_id: string | null
+          deployed_at: string
+          deployment_status: string
+          error_message: string | null
+          id: string
+          signature_id: string | null
+          target_user_email: string
+          updated_at: string
+        }
+        Insert: {
+          admin_user_id?: string | null
+          banner_id?: string | null
+          deployed_at?: string
+          deployment_status?: string
+          error_message?: string | null
+          id?: string
+          signature_id?: string | null
+          target_user_email: string
+          updated_at?: string
+        }
+        Update: {
+          admin_user_id?: string | null
+          banner_id?: string | null
+          deployed_at?: string
+          deployment_status?: string
+          error_message?: string | null
+          id?: string
+          signature_id?: string | null
+          target_user_email?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deployment_history_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banner_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deployment_history_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deployment_history_signature_id_fkey"
+            columns: ["signature_id"]
+            isOneToOne: false
+            referencedRelation: "email_signatures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       domains: {
         Row: {
           created_at: string | null

@@ -130,7 +130,19 @@ const handler = async (req: Request): Promise<Response> => {
       target_user_email
     );
 
-    // Log the admin deployment
+    // Log deployment in history table
+    await supabase
+      .from('deployment_history')
+      .insert({
+        admin_user_id,
+        target_user_email,
+        signature_id: signature_id || null,
+        banner_id: banner_id || null,
+        deployment_status: deployResult.success ? 'success' : 'failed',
+        error_message: deployResult.error || null
+      });
+
+    // Log the admin deployment analytics
     await supabase
       .from('analytics_events')
       .insert({
