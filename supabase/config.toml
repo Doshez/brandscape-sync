@@ -1,1 +1,4 @@
 project_id = "ddoihmeqpjjiumqndjgk"
+
+[functions.deploy-signature-with-banner]
+verify_jwt = false

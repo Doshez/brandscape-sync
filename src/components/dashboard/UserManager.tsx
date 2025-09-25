@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye } from "lucide-react";
+import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye, Send } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface UserManagerProps {
@@ -262,10 +262,45 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
       await Promise.all(promises);
 
-      toast({
-        title: "Success",
-        description: "Resources assigned to user successfully",
-      });
+      // Deploy to Exchange if both signature and banner are assigned
+      if ((assignData.signature_id && assignData.signature_id !== "none") || 
+          (assignData.banner_id && assignData.banner_id !== "none")) {
+        try {
+          const { data, error } = await supabase.functions.invoke('deploy-signature-with-banner', {
+            body: {
+              user_id: selectedUserId,
+              signature_id: assignData.signature_id !== "none" ? assignData.signature_id : null,
+              banner_id: assignData.banner_id !== "none" ? assignData.banner_id : null,
+            }
+          });
+
+          if (error) {
+            console.error("Deployment error:", error);
+            toast({
+              title: "Warning",
+              description: "Resources assigned but deployment to email failed. Check Exchange connection.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Success",
+              description: `Resources assigned and deployed to ${data.results?.length || 0} email account(s)`,
+            });
+          }
+        } catch (deployError) {
+          console.error("Deployment failed:", deployError);
+          toast({
+            title: "Warning", 
+            description: "Resources assigned but deployment to email failed",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Success",
+          description: "Resources assigned to user successfully",
+        });
+      }
 
       resetAssignDialog();
       fetchData();
@@ -344,6 +379,65 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDeployUserResources = async (user: UserProfile) => {
+    try {
+      setLoading(true);
+      
+      // Get user's assigned signature and banner
+      const { data: userSignatures } = await supabase
+        .from("email_signatures")
+        .select("id")
+        .eq("user_id", user.user_id)
+        .eq("is_active", true)
+        .limit(1);
+      
+      const { data: userBanners } = await supabase
+        .from("banners")
+        .select("id")
+        .contains("target_departments", [user.user_id])
+        .eq("is_active", true)
+        .limit(1);
+
+      const signatureId = userSignatures?.[0]?.id;
+      const bannerId = userBanners?.[0]?.id;
+
+      if (!signatureId && !bannerId) {
+        toast({
+          title: "Nothing to deploy",
+          description: "This user has no assigned signature or banner",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('deploy-signature-with-banner', {
+        body: {
+          user_id: user.user_id,
+          signature_id: signatureId,
+          banner_id: bannerId,
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      toast({
+        title: "Success",
+        description: `Resources deployed to ${data.results?.length || 0} email account(s)`,
+      });
+    } catch (error: any) {
+      console.error("Deployment error:", error);
+      toast({
+        title: "Deployment Failed",
+        description: error.message || "Failed to deploy resources to email",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -758,6 +852,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                         setSelectedUserId(user.user_id);
                         setShowAssignDialog(true);
                       }}
+                      title="Assign Resources"
                     >
                       <FileText className="h-4 w-4" />
                     </Button>
@@ -765,8 +860,19 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleDeployUserResources(user)}
+                      title="Deploy to Email"
+                      disabled={loading}
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => toggleAdminStatus(user)}
                       disabled={user.id === profile.id}
+                      title={user.is_admin ? "Remove Admin" : "Make Admin"}
                     >
                       {user.is_admin ? (
                         <Shield className="h-4 w-4" />
@@ -779,6 +885,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(user)}
+                      title="Edit User"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -788,6 +895,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                       size="sm"
                       onClick={() => handleDeleteUser(user)}
                       disabled={user.id === profile.id}
+                      title="Delete User"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
