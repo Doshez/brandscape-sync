@@ -43,8 +43,8 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
   const [domain, setDomain] = useState('');
   const [ruleName, setRuleName] = useState('Auto-Signature-Rule');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [selectedSignature, setSelectedSignature] = useState('');
-  const [selectedBanner, setSelectedBanner] = useState('');
+  const [userSignatureAssignments, setUserSignatureAssignments] = useState<Record<string, string>>({});
+  const [userBannerAssignments, setUserBannerAssignments] = useState<Record<string, string>>({});
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState<any>(null);
   
@@ -335,10 +335,10 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
   };
 
   const generateTransportRuleConfig = async () => {
-    if (!domain || (!selectedSignature && !selectedBanner)) {
+    if (!domain) {
       toast({
         title: "Missing Information",
-        description: "Please provide domain and select at least one signature or banner",
+        description: "Please provide domain",
         variant: "destructive",
       });
       return;
@@ -353,48 +353,71 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
       return;
     }
 
+    // Check if at least one user has a signature or banner assigned
+    const hasAssignments = selectedUsers.some(userId => 
+      userSignatureAssignments[userId] || userBannerAssignments[userId]
+    );
+
+    if (!hasAssignments) {
+      toast({
+        title: "No Assignments",
+        description: "Please assign at least one signature or banner to the selected users",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsGenerating(true);
     try {
-      // Get selected signature HTML
-      let signatureHtml = '';
-      if (selectedSignature) {
-        const signature = signatures.find(s => s.id === selectedSignature);
-        if (signature) {
+      // Build user assignments with their specific signatures and banners
+      const userAssignments = [];
+      
+      for (const userId of selectedUsers) {
+        const user = users.find(u => u.user_id === userId);
+        if (!user) continue;
+
+        let signatureHtml = '';
+        let bannerHtml = '';
+
+        // Get signature HTML if assigned
+        if (userSignatureAssignments[userId]) {
           const { data: sigData } = await supabase
             .from('email_signatures')
             .select('html_content')
-            .eq('id', selectedSignature)
+            .eq('id', userSignatureAssignments[userId])
             .single();
           signatureHtml = sigData?.html_content || '';
         }
+
+        // Get banner HTML if assigned
+        if (userBannerAssignments[userId]) {
+          const { data: bannerData } = await supabase
+            .from('banners')
+            .select('html_content')
+            .eq('id', userBannerAssignments[userId])
+            .single();
+          bannerHtml = bannerData?.html_content || '';
+        }
+
+        // Combine signature and banner HTML
+        const combinedHtml = `${signatureHtml}${bannerHtml ? '<br/>' + bannerHtml : ''}`.trim();
+
+        if (combinedHtml) {
+          userAssignments.push({
+            user_id: userId,
+            email: user.email,
+            signature_id: userSignatureAssignments[userId] || null,
+            banner_id: userBannerAssignments[userId] || null,
+            combined_html: combinedHtml
+          });
+        }
       }
-
-      // Get selected banner HTML
-      let bannerHtml = '';
-      if (selectedBanner) {
-        const { data: bannerData } = await supabase
-          .from('banners')
-          .select('html_content')
-          .eq('id', selectedBanner)
-          .single();
-        bannerHtml = bannerData?.html_content || '';
-      }
-
-      // Combine signature and banner HTML
-      const combinedHtml = `${signatureHtml}${bannerHtml ? '<br/>' + bannerHtml : ''}`.trim();
-
-      // Get selected user emails
-      const selectedUserEmails = users.filter(user => selectedUsers.includes(user.user_id)).map(user => user.email);
 
       const { data, error } = await supabase.functions.invoke('setup-exchange-transport-rules', {
         body: {
           domain: domain.trim(),
-          signature_html: combinedHtml,
           rule_name: ruleName.trim(),
-          user_emails: selectedUserEmails,
-          selected_signature_id: selectedSignature,
-          selected_banner_id: selectedBanner,
-          target_user_ids: selectedUsers,
+          user_assignments: userAssignments,
         },
       });
 
@@ -403,7 +426,7 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
       setGeneratedConfig(data.configuration);
       toast({
         title: "Configuration Generated",
-        description: "DNS records and PowerShell script have been generated",
+        description: `DNS records and PowerShell script generated for ${userAssignments.length} users`,
       });
     } catch (error: any) {
       toast({
@@ -684,11 +707,11 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
               </div>
 
               <div className="space-y-2">
-                <Label>Select Users</Label>
+                <Label>Select Users and Assign Signatures/Banners</Label>
                 {loadingData ? (
                   <div className="text-sm text-muted-foreground">Loading users...</div>
                 ) : (
-                  <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                  <div className="space-y-4">
                     <div className="flex items-center space-x-2 mb-2">
                       <input
                         type="checkbox"
@@ -699,6 +722,8 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                             setSelectedUsers(users.map(u => u.user_id));
                           } else {
                             setSelectedUsers([]);
+                            setUserSignatureAssignments({});
+                            setUserBannerAssignments({});
                           }
                         }}
                         className="rounded"
@@ -707,81 +732,103 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                         Select All ({users.length} users)
                       </label>
                     </div>
-                    {users.map((user) => (
-                      <div key={user.user_id} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={user.user_id}
-                          checked={selectedUsers.includes(user.user_id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedUsers([...selectedUsers, user.user_id]);
-                            } else {
-                              setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
-                            }
-                          }}
-                          className="rounded"
-                        />
-                        <label htmlFor={user.user_id} className="text-sm flex-1">
-                          {user.first_name} {user.last_name} ({user.email})
-                          {user.department && <span className="text-muted-foreground"> - {user.department}</span>}
-                        </label>
-                      </div>
-                    ))}
+                    
+                    <div className="space-y-3 max-h-96 overflow-y-auto border rounded-lg p-3">
+                      {users.map((user) => (
+                        <div key={user.user_id} className="border rounded-lg p-3 space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={user.user_id}
+                              checked={selectedUsers.includes(user.user_id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedUsers([...selectedUsers, user.user_id]);
+                                } else {
+                                  setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
+                                  // Clear assignments when user is deselected
+                                  const newSigAssignments = { ...userSignatureAssignments };
+                                  const newBannerAssignments = { ...userBannerAssignments };
+                                  delete newSigAssignments[user.user_id];
+                                  delete newBannerAssignments[user.user_id];
+                                  setUserSignatureAssignments(newSigAssignments);
+                                  setUserBannerAssignments(newBannerAssignments);
+                                }
+                              }}
+                              className="rounded"
+                            />
+                            <label htmlFor={user.user_id} className="text-sm font-medium flex-1">
+                              {user.first_name} {user.last_name} ({user.email})
+                              {user.department && <span className="text-muted-foreground"> - {user.department}</span>}
+                            </label>
+                          </div>
+                          
+                          {selectedUsers.includes(user.user_id) && (
+                            <div className="grid grid-cols-2 gap-3 ml-6">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Email Signature</Label>
+                                <select
+                                  value={userSignatureAssignments[user.user_id] || ''}
+                                  onChange={(e) => {
+                                    setUserSignatureAssignments({
+                                      ...userSignatureAssignments,
+                                      [user.user_id]: e.target.value
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1 border border-input bg-background rounded text-xs"
+                                >
+                                  <option value="">No signature</option>
+                                  {signatures.map((signature) => (
+                                    <option key={signature.id} value={signature.id}>
+                                      {signature.template_name}
+                                      {signature.department && ` (${signature.department})`}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              
+                              <div className="space-y-1">
+                                <Label className="text-xs">Banner</Label>
+                                <select
+                                  value={userBannerAssignments[user.user_id] || ''}
+                                  onChange={(e) => {
+                                    setUserBannerAssignments({
+                                      ...userBannerAssignments,
+                                      [user.user_id]: e.target.value
+                                    });
+                                  }}
+                                  className="w-full px-2 py-1 border border-input bg-background rounded text-xs"
+                                >
+                                  <option value="">No banner</option>
+                                  {banners.map((banner) => (
+                                    <option key={banner.id} value={banner.id}>
+                                      {banner.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signature">Email Signature</Label>
-                  <select
-                    id="signature"
-                    value={selectedSignature}
-                    onChange={(e) => setSelectedSignature(e.target.value)}
-                    className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
-                  >
-                    <option value="">No signature</option>
-                    {signatures.map((signature) => (
-                      <option key={signature.id} value={signature.id}>
-                        {signature.template_name} ({signature.signature_type})
-                        {signature.department && ` - ${signature.department}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="banner">Banner</Label>
-                  <select
-                    id="banner"
-                    value={selectedBanner}
-                    onChange={(e) => setSelectedBanner(e.target.value)}
-                    className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
-                  >
-                    <option value="">No banner</option>
-                    {banners.map((banner) => (
-                      <option key={banner.id} value={banner.id}>
-                        {banner.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
               {selectedUsers.length > 0 && (
                 <div className="bg-muted p-3 rounded-lg">
-                  <div className="text-sm">
-                    <strong>Selected:</strong> {selectedUsers.length} users
-                    {selectedSignature && <span>, 1 signature</span>}
-                    {selectedBanner && <span>, 1 banner</span>}
+                  <div className="text-sm space-y-1">
+                    <div><strong>Selected Users:</strong> {selectedUsers.length}</div>
+                    <div><strong>With Signatures:</strong> {Object.keys(userSignatureAssignments).filter(key => userSignatureAssignments[key]).length}</div>
+                    <div><strong>With Banners:</strong> {Object.keys(userBannerAssignments).filter(key => userBannerAssignments[key]).length}</div>
                   </div>
                 </div>
               )}
 
               <Button 
                 onClick={generateTransportRuleConfig}
-                disabled={isGenerating || !domain || selectedUsers.length === 0 || (!selectedSignature && !selectedBanner)}
+                disabled={isGenerating || !domain || selectedUsers.length === 0}
                 className="w-full"
               >
                 {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

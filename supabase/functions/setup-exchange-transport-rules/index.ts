@@ -8,12 +8,14 @@ const corsHeaders = {
 
 interface TransportRuleRequest {
   domain: string;
-  signature_html: string;
   rule_name: string;
-  user_emails?: string[];
-  selected_signature_id?: string;
-  selected_banner_id?: string;
-  target_user_ids?: string[];
+  user_assignments: Array<{
+    user_id: string;
+    email: string;
+    signature_id?: string;
+    banner_id?: string;
+    combined_html: string;
+  }>;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -24,15 +26,11 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { 
       domain, 
-      signature_html, 
       rule_name, 
-      user_emails, 
-      selected_signature_id, 
-      selected_banner_id, 
-      target_user_ids 
+      user_assignments 
     }: TransportRuleRequest = await req.json();
 
-    if (!domain || !signature_html || !rule_name) {
+    if (!domain || !rule_name || !user_assignments || user_assignments.length === 0) {
       throw new Error("Missing required parameters");
     }
 
@@ -54,12 +52,50 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Generate PowerShell script for Exchange Online transport rule
-    const powershellScript = generateTransportRuleScript({
-      domain,
-      signature_html,
-      rule_name,
-      user_emails
+    // Generate PowerShell scripts for each user (since each might have different signatures)
+    const powershellScripts: Array<{
+      rule_name: string;
+      script: string;
+      user_count: number;
+      users: string[];
+    }> = [];
+    const allUserEmails = user_assignments.map(ua => ua.email);
+
+    // If all users have the same signature/banner combination, create one rule
+    // Otherwise, create individual rules for different combinations
+    const signatureCombinations = new Map<string, Array<typeof user_assignments[0]>>();
+    
+    user_assignments.forEach(assignment => {
+      const key = `${assignment.signature_id || 'none'}_${assignment.banner_id || 'none'}`;
+      if (!signatureCombinations.has(key)) {
+        signatureCombinations.set(key, []);
+      }
+      signatureCombinations.get(key)!.push(assignment);
+    });
+
+    let ruleCounter = 1;
+    signatureCombinations.forEach((assignments, key) => {
+      const firstAssignment = assignments[0];
+      const userEmails = assignments.map(a => a.email);
+      const ruleName = signatureCombinations.size > 1 
+        ? `${rule_name}_${ruleCounter}` 
+        : rule_name;
+
+      const script = generateTransportRuleScript({
+        domain,
+        signature_html: firstAssignment.combined_html,
+        rule_name: ruleName,
+        user_emails: userEmails
+      });
+
+      powershellScripts.push({
+        rule_name: ruleName,
+        script,
+        user_count: userEmails.length,
+        users: userEmails
+      });
+
+      ruleCounter++;
     });
 
     // Generate DNS records needed for email authentication
@@ -70,14 +106,15 @@ const handler = async (req: Request): Promise<Response> => {
       .from('email_configurations')
       .insert({
         domain,
-        signature_html,
+        signature_html: JSON.stringify(user_assignments.map(ua => ({
+          email: ua.email,
+          html: ua.combined_html
+        }))),
         rule_name,
-        powershell_script: powershellScript,
+        powershell_script: powershellScripts.map(ps => ps.script).join('\n\n# --- Next Rule ---\n\n'),
         dns_records: dnsRecords,
-        target_users: user_emails,
-        selected_signature_id,
-        selected_banner_id,
-        target_user_ids,
+        target_users: allUserEmails,
+        target_user_ids: user_assignments.map(ua => ua.user_id),
         created_by: currentUserId,
         created_at: new Date().toISOString()
       })
@@ -89,13 +126,13 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to save configuration");
     }
 
-    // Create user assignments if we have target users and configuration
-    if (target_user_ids && target_user_ids.length > 0 && config?.id) {
-      const assignments = target_user_ids.map(userId => ({
-        user_id: userId,
+    // Create individual user assignments
+    if (config?.id) {
+      const assignments = user_assignments.map(ua => ({
+        user_id: ua.user_id,
         configuration_id: config.id,
-        signature_id: selected_signature_id || null,
-        banner_id: selected_banner_id || null,
+        signature_id: ua.signature_id || null,
+        banner_id: ua.banner_id || null,
         assigned_by: currentUserId
       }));
 
@@ -115,12 +152,14 @@ const handler = async (req: Request): Promise<Response> => {
         message: "Exchange transport rule configuration generated",
         configuration: {
           id: config.id,
-          powershell_script: powershellScript,
+          powershell_script: powershellScripts.map(ps => ps.script).join('\n\n# --- Next Rule ---\n\n'),
+          powershell_scripts: powershellScripts,
           dns_records: dnsRecords,
-          assigned_users: user_emails?.length || 0,
+          assigned_users: user_assignments.length,
+          rule_count: powershellScripts.length,
           setup_instructions: [
             "1. Set up DNS records with your domain registrar",
-            "2. Run the PowerShell script in Exchange Online PowerShell",
+            `2. Run the PowerShell script${powershellScripts.length > 1 ? 's' : ''} in Exchange Online PowerShell`,
             "3. Wait 15-30 minutes for transport rules to take effect",
             "4. Test by sending an email from affected users"
           ]
