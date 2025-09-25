@@ -89,8 +89,10 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
   // Handle domain selection
   const handleDomainSelect = (domainId: string) => {
+    console.log("Domain selected:", domainId);
     setSelectedDomainId(domainId);
     const domain = verifiedDomains.find(d => d.id === domainId);
+    console.log("Found domain:", domain);
     setSelectedDomain(domain || null);
     
     // Clear existing records and selectors when changing domain
@@ -664,9 +666,11 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                     onClick={generateDNSRecords} 
                     className="w-full" 
                     disabled={!selectedDomain}
+                    style={{ pointerEvents: selectedDomain ? 'auto' : 'none' }}
                   >
                     <Globe className="h-4 w-4 mr-2" />
                     Generate DNS Records
+                    {!selectedDomain && <span className="ml-2 text-xs">(Select domain first)</span>}
                   </Button>
                 </>
               )}
