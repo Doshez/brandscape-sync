@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface FindDKIMRequest {
   domain: string;
+  specificSelector?: string;
 }
 
 interface DKIMSelectorResult {
@@ -23,7 +24,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { domain }: FindDKIMRequest = await req.json();
+    const { domain, specificSelector }: FindDKIMRequest = await req.json();
     
     if (!domain || typeof domain !== 'string') {
       return new Response(
@@ -38,11 +39,19 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Finding DKIM selectors for domain: ${domain}`);
 
     // Common DKIM selectors to check
-    const commonSelectors = [
+    let commonSelectors = [
       'selector1', 'selector2', 'default', 'dkim', 'key1', 'key2',
       'google', 'gmail', 'office365', 'exchangeonline', 'mx1', 'mx2',
       's1', 's2', 'mail', 'email', 'k1', 'k2'
     ];
+
+    // If a specific selector is requested, prioritize it and add it if not in the list
+    if (specificSelector && !commonSelectors.includes(specificSelector)) {
+      commonSelectors.unshift(specificSelector);
+    } else if (specificSelector) {
+      // Move the specific selector to the front
+      commonSelectors = [specificSelector, ...commonSelectors.filter(s => s !== specificSelector)];
+    }
 
     const results: DKIMSelectorResult[] = [];
 
@@ -76,29 +85,69 @@ const handler = async (req: Request): Promise<Response> => {
 
         // Check if we have TXT records in the response
         if (dnsData.Status === 0 && dnsData.Answer) {
-          const txtRecords = dnsData.Answer.filter((record: any) => record.type === 16); // TXT records
+          const txtRecords = dnsData.Answer.filter((record: any) => record.type === 16 || record.type === 5); // TXT records and CNAME
           
           if (txtRecords.length > 0) {
+            let foundDKIMRecord = false;
+            
             for (const record of txtRecords) {
-              const recordData = record.data.replace(/"/g, ''); // Remove quotes
+              let recordData = '';
+              
+              // Handle CNAME records that might point to the actual DKIM record
+              if (record.type === 5) { // CNAME
+                // Follow the CNAME to get the actual TXT record
+                const cnameTarget = record.data;
+                console.log(`Following CNAME for ${selector}: ${cnameTarget}`);
+                
+                const cnameUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cnameTarget)}&type=TXT`;
+                const cnameResponse = await fetch(cnameUrl, {
+                  headers: { 'Accept': 'application/dns-json' }
+                });
+                
+                if (cnameResponse.ok) {
+                  const cnameData = await cnameResponse.json();
+                  if (cnameData.Status === 0 && cnameData.Answer) {
+                    const cnameTxtRecords = cnameData.Answer.filter((r: any) => r.type === 16);
+                    if (cnameTxtRecords.length > 0) {
+                      // Concatenate multiple TXT record parts if they exist
+                      recordData = cnameTxtRecords.map((r: any) => r.data.replace(/"/g, '')).join('');
+                    }
+                  }
+                }
+              } else {
+                // Handle direct TXT records - concatenate multiple parts if split
+                recordData = record.data.replace(/"/g, ''); // Remove quotes
+              }
+              
               console.log(`Found TXT record for ${selector}: ${recordData}`);
               
-              // Check if this looks like a DKIM record (contains v=DKIM1)
-              if (recordData.includes('v=DKIM1')) {
+              // Check if this looks like a DKIM record (contains v=DKIM1 or k=rsa)
+              if (recordData.includes('v=DKIM1') || recordData.includes('k=rsa')) {
                 console.log(`✅ Found valid DKIM record for selector: ${selector}`);
                 results.push({
                   selector,
                   found: true,
                   record: recordData
                 });
+                foundDKIMRecord = true;
                 break; // Found a valid DKIM record for this selector
               }
             }
+            
+            // If we didn't find a DKIM record for this selector, mark as not found
+            if (!foundDKIMRecord) {
+              results.push({
+                selector,
+                found: false
+              });
+            }
+          } else {
+            results.push({
+              selector,
+              found: false
+            });
           }
-        }
-        
-        // If we didn't find a DKIM record for this selector, mark as not found
-        if (!results.find(r => r.selector === selector && r.found)) {
+        } else {
           results.push({
             selector,
             found: false
