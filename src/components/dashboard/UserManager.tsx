@@ -231,7 +231,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       const promises = [];
 
       // Assign signature if selected
-      if (assignData.signature_id) {
+      if (assignData.signature_id && assignData.signature_id !== "none") {
         promises.push(
           supabase
             .from("email_signatures")
@@ -241,7 +241,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       }
 
       // Create user-specific banner assignment if banner selected
-      if (assignData.banner_id) {
+      if (assignData.banner_id && assignData.banner_id !== "none") {
         const { data: banner } = await supabase
           .from("banners")
           .select("*")
@@ -555,7 +555,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                       <SelectValue placeholder="Select a signature" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No signature</SelectItem>
+                      <SelectItem value="none">No signature</SelectItem>
                       {signatures.map((signature) => (
                         <SelectItem key={signature.id} value={signature.id}>
                           {signature.template_name}
@@ -572,7 +572,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                       <SelectValue placeholder="Select a banner" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No banner</SelectItem>
+                      <SelectItem value="none">No banner</SelectItem>
                       {banners.filter(b => b.is_active).map((banner) => (
                         <SelectItem key={banner.id} value={banner.id}>
                           {banner.name}
