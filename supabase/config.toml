@@ -3,6 +3,9 @@ project_id = "ddoihmeqpjjiumqndjgk"
 [functions.microsoft-graph-auth]
 verify_jwt = false
 
+[functions.refresh-microsoft-token]
+verify_jwt = true
+
 [functions.deploy-signature-enhanced]
 verify_jwt = false
 

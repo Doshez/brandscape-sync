@@ -16,28 +16,32 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new Error('Missing or invalid authorization header');
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase environment variables');
+      throw new Error('Server configuration error');
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from JWT token
-    const jwt = authHeader.substring(7);
+    // Get user from JWT token (handled automatically by Supabase when verify_jwt = true)
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+
+    const jwt = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
     
     if (userError || !user) {
+      console.error('User validation error:', userError);
       throw new Error('Invalid authentication token');
     }
+
+    console.log('User authenticated:', user.id);
 
     const { connection_id }: RefreshTokenRequest = await req.json();
 
