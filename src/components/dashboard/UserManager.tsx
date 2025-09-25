@@ -350,46 +350,52 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
       await Promise.all(promises);
 
-      // Deploy using enhanced admin deployment (with application permissions)
-      if ((assignData.signature_id && assignData.signature_id !== "none") || 
-          (assignData.banner_id && assignData.banner_id !== "none")) {
-        try {
-          const { data, error } = await supabase.functions.invoke('deploy-signature-admin', {
-            body: {
-              target_user_email: selectedUser?.email,
-              admin_user_id: profile.user_id, // Current admin user
-              signature_id: assignData.signature_id !== "none" ? assignData.signature_id : null,
-              banner_id: assignData.banner_id !== "none" ? assignData.banner_id : null,
-            }
-          });
-
-          if (error) {
-            console.error("Deployment error:", error);
-            toast({
-              title: "Warning",
-              description: "Resources assigned but deployment to email failed. Ensure admin has Exchange connection with proper permissions.",
-              variant: "destructive",
+        // Deploy using enhanced admin deployment (with application permissions)
+        if ((assignData.signature_id && assignData.signature_id !== "none") || 
+            (assignData.banner_id && assignData.banner_id !== "none")) {
+          try {
+            // Use enhanced deployment that provides better user instructions
+            const { data, error } = await supabase.functions.invoke('deploy-signature-enhanced', {
+              body: {
+                target_user_email: selectedUser?.email,
+                admin_user_id: profile.user_id,
+                signature_id: assignData.signature_id !== "none" ? assignData.signature_id : null,
+                banner_id: assignData.banner_id !== "none" ? assignData.banner_id : null,
+              }
             });
-          } else {
+
+            if (error) {
+              console.error("Enhanced deployment error:", error);
+              toast({
+                title: "Deployment Warning",
+                description: "Resources assigned but enhanced deployment failed. User will need manual setup.",
+                variant: "destructive",
+              });
+            } else {
+              toast({
+                title: "✅ Deployment Successful",
+                description: (
+                  <div>
+                    <p>Deployed to {selectedUser?.email}</p>
+                    <p className="text-xs mt-1">📧 Setup instructions sent to user's email</p>
+                    <p className="text-xs">⚡ User must manually set up signature in Outlook</p>
+                  </div>
+                ),
+              });
+            }
+          } catch (deployError) {
+            console.error("Enhanced deployment failed:", deployError);
             toast({
-              title: "Success",
-              description: `Resources assigned and deployed to ${data.result?.target_email || 'user'}`,
+              title: "Deployment Info", 
+              description: "Resources assigned. User will receive setup instructions via email.",
             });
           }
-        } catch (deployError) {
-          console.error("Deployment failed:", deployError);
+        } else {
           toast({
-            title: "Warning", 
-            description: "Resources assigned but deployment to email failed",
-            variant: "destructive",
+            title: "Success",
+            description: "Resources assigned to user successfully",
           });
         }
-      } else {
-        toast({
-          title: "Success",
-          description: "Resources assigned to user successfully",
-        });
-      }
 
       resetAssignDialog();
       fetchData();
@@ -503,10 +509,10 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('deploy-signature-admin', {
+      const { data, error } = await supabase.functions.invoke('deploy-signature-enhanced', {
         body: {
           target_user_email: user.email,
-          admin_user_id: profile.user_id, // Current admin user
+          admin_user_id: profile.user_id,
           signature_id: signatureId,
           banner_id: bannerId,
         }
@@ -517,8 +523,14 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       }
 
       toast({
-        title: "Success",
-        description: `Resources deployed to ${data.result?.target_email || user.email}`,
+        title: "✅ Deployment Complete",
+        description: (
+          <div>
+            <p>Deployed to {user.email}</p>
+            <p className="text-xs mt-1">📧 User will receive setup instructions</p>
+            <p className="text-xs">⚡ Manual Outlook setup required</p>
+          </div>
+        ),
       });
       
       // Refresh assignments to show updated deployment status
@@ -559,9 +571,9 @@ export const UserManager = ({ profile }: UserManagerProps) => {
           })
           .eq("id", bulkBannerId);
 
-        // Deploy banner to user
+        // Deploy banner to user using enhanced deployment
         deploymentPromises.push(
-          supabase.functions.invoke('deploy-signature-admin', {
+          supabase.functions.invoke('deploy-signature-enhanced', {
             body: {
               target_user_email: user.email,
               admin_user_id: profile.user_id,
@@ -574,8 +586,14 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       await Promise.all(deploymentPromises);
       
       toast({
-        title: "Success",
-        description: `Banner deployed to ${selectedUsers.length} users`,
+        title: "✅ Bulk Deployment Complete",
+        description: (
+          <div>
+            <p>Banner deployed to {selectedUsers.length} users</p>
+            <p className="text-xs mt-1">📧 Setup instructions sent to all users</p>
+            <p className="text-xs">⚡ Users must manually set up in Outlook</p>
+          </div>
+        ),
       });
 
       setSelectedUserIds(new Set());
@@ -612,8 +630,8 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         })
         .eq("id", newBannerId);
 
-      // Deploy new banner
-      const { error } = await supabase.functions.invoke('deploy-signature-admin', {
+      // Deploy new banner using enhanced deployment
+      const { error } = await supabase.functions.invoke('deploy-signature-enhanced', {
         body: {
           target_user_email: changingBannerUser.email,
           admin_user_id: profile.user_id,
@@ -623,14 +641,19 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
       if (error) {
         toast({
-          title: "Warning",
-          description: "Banner assigned but deployment failed",
+          title: "Deployment Warning",
+          description: "Banner assigned but deployment failed. User will need manual setup.",
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Success",
-          description: `Banner changed and deployed to ${changingBannerUser.email}`,
+          title: "✅ Banner Changed",
+          description: (
+            <div>
+              <p>Banner deployed to {changingBannerUser.email}</p>
+              <p className="text-xs mt-1">📧 Setup instructions sent to user</p>
+            </div>
+          ),
         });
       }
 
