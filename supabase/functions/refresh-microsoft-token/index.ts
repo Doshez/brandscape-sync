@@ -110,7 +110,7 @@ const handler = async (req: Request): Promise<Response> => {
         client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
         refresh_token: connection.refresh_token,
         grant_type: "refresh_token",
-        scope: "https://graph.microsoft.com/Mail.ReadWrite offline_access",
+        scope: "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite offline_access",
       }),
     });
 

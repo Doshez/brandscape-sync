@@ -122,7 +122,7 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
       localStorage.setItem('microsoft_auth_state', state);
       
       const redirectUri = `${window.location.origin}/dashboard`;
-      const scope = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/User.Read offline_access";
+      const scope = "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxSettings.ReadWrite https://graph.microsoft.com/User.Read offline_access";
       
       const authUrl = `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?` +
         `client_id=${encodeURIComponent(clientId.trim())}&` +
