@@ -52,31 +52,40 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Target user has no email address");
     }
 
-    // Get admin's Exchange connection
-    const { data: adminConnections, error: connectionsError } = await supabase
+    // Security check: Only allow users to deploy to themselves
+    // Get the admin user's profile to compare
+    const { data: adminUser, error: adminError } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('user_id', admin_user_id)
+      .single();
+
+    if (adminError || !adminUser) {
+      throw new Error("Admin user not found");
+    }
+
+    // Only allow deployment if target user is the same as admin user
+    if (targetUser.email !== adminUser.email) {
+      throw new Error("You can only deploy signatures and banners to your own mailbox. To deploy to other users, they must sign in and deploy to themselves.");
+    }
+
+    // Get the user's own Exchange connection (not admin connection)
+    const { data: userConnections, error: connectionsError } = await supabase
       .from('exchange_connections')
       .select('*')
-      .eq('user_id', admin_user_id)
+      .eq('user_id', target_user_id || admin_user_id)  // Use the target user's connection
       .eq('is_active', true);
 
     if (connectionsError) {
-      throw new Error("Failed to fetch admin Exchange connections");
+      throw new Error("Failed to fetch user Exchange connections");
     }
 
-    if (!adminConnections || adminConnections.length === 0) {
-      throw new Error("Admin has no active Exchange connections");
+    if (!userConnections || userConnections.length === 0) {
+      throw new Error("User has no active Exchange connections. Please connect to Microsoft Exchange first.");
     }
 
-    // Use the first admin connection
-    const adminConnection = adminConnections[0];
-
-    // Extract domain from admin and target emails
-    const adminDomain = adminConnection.email.split('@')[1].toLowerCase();
-    const targetDomain = targetUser.email.split('@')[1].toLowerCase();
-
-    if (adminDomain !== targetDomain) {
-      throw new Error(`Cannot deploy to user from different domain. Admin: ${adminDomain}, Target: ${targetDomain}`);
-    }
+    // Use the user's own connection
+    const userConnection = userConnections[0];
 
     // Get signature if provided
     let signatureHtml = '';
@@ -144,11 +153,11 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`No signature or banner content to deploy. Signature ID: ${signature_id}, Banner ID: ${banner_id}`);
     }
 
-    // Check if admin token is expired and refresh if needed
-    const tokenExpiresAt = new Date(adminConnection.token_expires_at);
+    // Check if user token is expired and refresh if needed
+    const tokenExpiresAt = new Date(userConnection.token_expires_at);
     const now = new Date();
     
-    let accessToken = adminConnection.access_token;
+    let accessToken = userConnection.access_token;
     
     if (tokenExpiresAt <= now) {
       // Token is expired, refresh it
@@ -160,7 +169,7 @@ const handler = async (req: Request): Promise<Response> => {
         body: new URLSearchParams({
           client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
           client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
-          refresh_token: adminConnection.refresh_token,
+          refresh_token: userConnection.refresh_token,
           grant_type: "refresh_token",
           scope: "https://graph.microsoft.com/Mail.ReadWrite offline_access",
         }),
@@ -176,22 +185,22 @@ const handler = async (req: Request): Promise<Response> => {
           .from('exchange_connections')
           .update({
             access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token || adminConnection.refresh_token,
+            refresh_token: tokenData.refresh_token || userConnection.refresh_token,
             token_expires_at: newExpiresAt.toISOString(),
             updated_at: now.toISOString()
           })
-          .eq('id', adminConnection.id);
+          .eq('id', userConnection.id);
       } else {
-        throw new Error("Failed to refresh admin access token");
+        throw new Error("Failed to refresh user access token");
       }
     }
 
-    // Deploy to target user's Exchange mailbox using admin's token
+    // Deploy to user's own Exchange mailbox using their own token
     const deployResult = await deployToTargetUserExchange(
       accessToken, 
       combinedHtml, 
       targetUser.email,
-      adminConnection.email
+      userConnection.email
     );
 
     // Log the deployment
@@ -205,7 +214,7 @@ const handler = async (req: Request): Promise<Response> => {
           signature_id: signature_id,
           banner_id: banner_id,
           target_user_id: target_user_id,
-          admin_email: adminConnection.email,
+          admin_email: userConnection.email,
           deployment_success: deployResult.success
         }
       });
@@ -217,10 +226,10 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Signature and banner deployed to ${targetUser.email} using admin connection ${adminConnection.email}`,
+        message: `Signature and banner deployed to ${targetUser.email} using user connection ${userConnection.email}`,
         result: {
           target_email: targetUser.email,
-          admin_email: adminConnection.email,
+          admin_email: userConnection.email,
           success: deployResult.success
         }
       }),
