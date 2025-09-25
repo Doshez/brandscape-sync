@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck } from "lucide-react";
+import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface UserManagerProps {
@@ -28,17 +29,38 @@ interface UserProfile {
   created_at: string;
 }
 
+interface EmailSignature {
+  id: string;
+  template_name: string;
+  html_content: string;
+  signature_type: string;
+  user_id: string | null;
+}
+
+interface Banner {
+  id: string;
+  name: string;
+  html_content: string;
+  is_active: boolean;
+}
+
 export const UserManager = ({ profile }: UserManagerProps) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [signatures, setSignatures] = useState<EmailSignature[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
     email: "",
+    password: "",
     department: "",
     job_title: "",
     phone: "",
@@ -46,26 +68,37 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     is_admin: false,
   });
 
+  const [assignData, setAssignData] = useState({
+    signature_id: "",
+    banner_id: "",
+  });
+
   useEffect(() => {
     if (profile?.is_admin) {
-      fetchUsers();
+      fetchData();
     }
   }, [profile]);
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const [usersResult, signaturesResult, bannersResult] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("email_signatures").select("*").order("created_at", { ascending: false }),
+        supabase.from("banners").select("*").order("created_at", { ascending: false })
+      ]);
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (usersResult.error) throw usersResult.error;
+      if (signaturesResult.error) throw signaturesResult.error;
+      if (bannersResult.error) throw bannersResult.error;
+
+      setUsers(usersResult.data || []);
+      setSignatures(signaturesResult.data || []);
+      setBanners(bannersResult.data || []);
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("Error fetching data:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch users",
+        description: "Failed to fetch data",
         variant: "destructive",
       });
     } finally {
@@ -78,6 +111,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       first_name: user.first_name || "",
       last_name: user.last_name || "",
       email: user.email || "",
+      password: "",
       department: user.department || "",
       job_title: user.job_title || "",
       phone: user.phone || "",
@@ -107,7 +141,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       });
 
       resetForm();
-      fetchUsers();
+      fetchData();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -122,6 +156,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       first_name: "",
       last_name: "",
       email: "",
+      password: "",
       department: "",
       job_title: "",
       phone: "",
@@ -130,6 +165,117 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     });
     setEditingUser(null);
     setShowEditDialog(false);
+    setShowCreateDialog(false);
+  };
+
+  const resetAssignDialog = () => {
+    setAssignData({
+      signature_id: "",
+      banner_id: "",
+    });
+    setSelectedUserId("");
+    setShowAssignDialog(false);
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            department: formData.department,
+            job_title: formData.job_title,
+            phone: formData.phone,
+            mobile: formData.mobile,
+            is_admin: formData.is_admin,
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "User created successfully. They will receive an email to verify their account.",
+      });
+
+      resetForm();
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAssignToUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedUserId) {
+      toast({
+        title: "Error",
+        description: "Please select a user",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const promises = [];
+
+      // Assign signature if selected
+      if (assignData.signature_id) {
+        promises.push(
+          supabase
+            .from("email_signatures")
+            .update({ user_id: selectedUserId })
+            .eq("id", assignData.signature_id)
+        );
+      }
+
+      // Create user-specific banner assignment if banner selected
+      if (assignData.banner_id) {
+        const { data: banner } = await supabase
+          .from("banners")
+          .select("*")
+          .eq("id", assignData.banner_id)
+          .single();
+
+        if (banner) {
+          promises.push(
+            supabase
+              .from("banners")
+              .update({ 
+                target_departments: [selectedUserId] // Using user_id as targeting method
+              })
+              .eq("id", assignData.banner_id)
+          );
+        }
+      }
+
+      await Promise.all(promises);
+
+      toast({
+        title: "Success",
+        description: "Resources assigned to user successfully",
+      });
+
+      resetAssignDialog();
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const toggleAdminStatus = async (user: UserProfile) => {
@@ -155,7 +301,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         description: `User ${!user.is_admin ? "promoted to" : "removed from"} admin`,
       });
 
-      fetchUsers();
+      fetchData();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -191,7 +337,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         description: "User deleted successfully",
       });
 
-      fetchUsers();
+      fetchData();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -240,6 +386,211 @@ export const UserManager = ({ profile }: UserManagerProps) => {
           <p className="text-muted-foreground">
             Manage user accounts and permissions
           </p>
+        </div>
+
+        <div className="flex space-x-2">
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Create User
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New User</DialogTitle>
+                <DialogDescription>
+                  Create a new user account for the system.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleCreateUser} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="create_first_name">First Name</Label>
+                    <Input
+                      id="create_first_name"
+                      value={formData.first_name}
+                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="create_last_name">Last Name</Label>
+                    <Input
+                      id="create_last_name"
+                      value={formData.last_name}
+                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="create_email">Email</Label>
+                  <Input
+                    id="create_email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="create_password">Temporary Password</Label>
+                  <Input
+                    id="create_password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required
+                    placeholder="User will need to change on first login"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="create_department">Department</Label>
+                    <Input
+                      id="create_department"
+                      value={formData.department}
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="create_job_title">Job Title</Label>
+                    <Input
+                      id="create_job_title"
+                      value={formData.job_title}
+                      onChange={(e) => setFormData({ ...formData, job_title: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="create_phone">Phone</Label>
+                    <Input
+                      id="create_phone"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="create_mobile">Mobile</Label>
+                    <Input
+                      id="create_mobile"
+                      value={formData.mobile}
+                      onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Admin Privileges</Label>
+                  <Select 
+                    value={formData.is_admin ? "true" : "false"} 
+                    onValueChange={(value) => setFormData({ ...formData, is_admin: value === "true" })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="false">Regular User</SelectItem>
+                      <SelectItem value="true">Administrator</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Create User</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Mail className="h-4 w-4 mr-2" />
+                Assign Resources
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Assign Signature & Banner</DialogTitle>
+                <DialogDescription>
+                  Assign email signature and banner to a user.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleAssignToUser} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Select User</Label>
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id}>
+                          {user.first_name} {user.last_name} ({user.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Email Signature (Optional)</Label>
+                  <Select value={assignData.signature_id} onValueChange={(value) => setAssignData({ ...assignData, signature_id: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a signature" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No signature</SelectItem>
+                      {signatures.map((signature) => (
+                        <SelectItem key={signature.id} value={signature.id}>
+                          {signature.template_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Banner (Optional)</Label>
+                  <Select value={assignData.banner_id} onValueChange={(value) => setAssignData({ ...assignData, banner_id: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a banner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No banner</SelectItem>
+                      {banners.filter(b => b.is_active).map((banner) => (
+                        <SelectItem key={banner.id} value={banner.id}>
+                          {banner.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={resetAssignDialog}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Assign Resources</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
@@ -400,6 +751,17 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedUserId(user.user_id);
+                        setShowAssignDialog(true);
+                      }}
+                    >
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                    
                     <Button
                       variant="outline"
                       size="sm"
