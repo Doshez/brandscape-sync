@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ExternalLink, CheckCircle, AlertCircle, Unlink, RefreshCw, Users, Settings } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle, AlertCircle, Unlink, RefreshCw, Users, Settings, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MicrosoftAuthSetup } from "./MicrosoftAuthSetup";
@@ -227,25 +227,49 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
   };
 
   const disconnectExchange = async (connection: ExchangeConnection) => {
-    if (!confirm(`Are you sure you want to disconnect ${connection.email}?`)) return;
+    if (!confirm(`Are you sure you want to permanently remove ${connection.email}? This will delete the connection completely.`)) return;
 
     try {
       const { error } = await supabase
         .from('exchange_connections')
-        .update({ is_active: false })
+        .delete()
         .eq('id', connection.id);
 
       if (error) throw error;
 
       toast({
-        title: "Disconnected",
-        description: `Disconnected from ${connection.email}`,
+        title: "Connection Removed",
+        description: `Permanently removed connection for ${connection.email}`,
       });
 
       fetchConnections();
     } catch (error: any) {
       toast({
-        title: "Disconnect Failed",
+        title: "Remove Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const reactivateConnection = async (connection: ExchangeConnection) => {
+    try {
+      const { error } = await supabase
+        .from('exchange_connections')
+        .update({ is_active: true, updated_at: new Date().toISOString() })
+        .eq('id', connection.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Connection Reactivated",
+        description: `Reactivated connection for ${connection.email}`,
+      });
+
+      fetchConnections();
+    } catch (error: any) {
+      toast({
+        title: "Reactivation Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -345,25 +369,47 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => refreshConnection(connection)}
-                          disabled={isRefreshing === connection.id}
-                        >
-                          {isRefreshing === connection.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => disconnectExchange(connection)}
-                        >
-                          <Unlink className="h-4 w-4" />
-                        </Button>
+                        {connection.is_active ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => refreshConnection(connection)}
+                              disabled={isRefreshing === connection.id}
+                            >
+                              {isRefreshing === connection.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => disconnectExchange(connection)}
+                            >
+                              <Unlink className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => reactivateConnection(connection)}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Reactivate
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => disconnectExchange(connection)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
