@@ -54,13 +54,6 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   const [verificationStatus, setVerificationStatus] = useState<Record<string, "pending" | "verified" | "failed">>({});
   const [dnsHealthStatus, setDnsHealthStatus] = useState<"inactive" | "partial" | "active">("inactive");
   const [foundSelectors, setFoundSelectors] = useState<Array<{selector: string, found: boolean, record?: string}>>([]);
-  const [customDkimKey, setCustomDkimKey] = useState<{
-    selector: string;
-    privateKey: string;
-    publicKey: string;
-    dnsRecord: string;
-    instructions: any;
-  } | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -105,7 +98,6 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     setVerificationStatus({});
     setDnsHealthStatus("inactive");
     setFoundSelectors([]);
-    setCustomDkimKey(null);
   };
 
   // Generate DNS records based on selected domain
@@ -122,16 +114,11 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     const cleanDomain = selectedDomain.domain_name.toLowerCase();
     const orgName = selectedDomain.organization_name || cleanDomain;
 
-    // Check if we have a custom generated DKIM key or found selector
+    // Check if we have a found DKIM record for the selected selector
     const foundSelector = foundSelectors.find(s => s.selector === selectorName && s.found);
     let dkimValue = `v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...`; // Default placeholder
-    let actualSelector = selectorName;
     
-    if (customDkimKey) {
-      // Use custom generated DKIM key
-      dkimValue = customDkimKey.dnsRecord;
-      actualSelector = customDkimKey.selector;
-    } else if (foundSelector && foundSelector.record) {
+    if (foundSelector && foundSelector.record) {
       dkimValue = foundSelector.record;
     } else if (selectorName && selectorName !== "selector1") {
       // If a specific selector is chosen but not found, try to fetch it
@@ -175,10 +162,10 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       // DKIM Record
       {
         type: "TXT",
-        name: `${actualSelector}._domainkey`,
+        name: `${selectorName}._domainkey`,
         value: dkimValue,
         ttl: 3600,
-        description: `DKIM (DomainKeys Identified Mail) - Cryptographic signature for email authentication${customDkimKey ? ' (Generated Key)' : ''}`,
+        description: "DKIM (DomainKeys Identified Mail) - Cryptographic signature for email authentication",
         importance: "critical"
       },
       
@@ -238,46 +225,6 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       title: "DNS Records Generated",
       description: `Generated ${records.length} DNS records for ${cleanDomain}`,
     });
-  };
-
-  // Function to generate new DKIM keys
-  const generateCustomDKIMKeys = async () => {
-    if (!selectedDomain) {
-      toast({
-        title: "Domain Required",
-        description: "Please select a verified domain first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-dkim-keys', {
-        body: { 
-          selectorName: selectorName || 'custom',
-          domain: selectedDomain.domain_name,
-          keySize: 2048
-        }
-      });
-
-      if (error) throw error;
-
-      setCustomDkimKey(data.keyPair);
-      toast({
-        title: "DKIM Keys Generated",
-        description: `New DKIM key pair created with selector: ${data.keyPair.selector}`,
-      });
-    } catch (error) {
-      console.error("Error generating DKIM keys:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate DKIM keys",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
   };
 
   // Function to find DKIM selectors
@@ -710,104 +657,6 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                           Click on a selector to use it for DNS record generation.
                         </p>
                       </div>
-                    )}
-                   </div>
-
-                  <Separator />
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-base font-medium">Generate New DKIM Keys</Label>
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                        <Lock className="h-3 w-3 mr-1" />
-                        Secure Key Generation
-                      </Badge>
-                    </div>
-                    
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        Generate new DKIM keys that won't interfere with existing ones on your server. 
-                        Each key gets a unique timestamped selector to prevent conflicts.
-                      </AlertDescription>
-                    </Alert>
-
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={generateCustomDKIMKeys} 
-                        variant="secondary" 
-                        disabled={!selectedDomain || loading}
-                        className="flex-1"
-                      >
-                        <Lock className="h-4 w-4 mr-2" />
-                        Generate New DKIM Keys
-                      </Button>
-                    </div>
-
-                    {customDkimKey && (
-                      <Card className="border-green-200 bg-green-50">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm text-green-800 flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4" />
-                            DKIM Keys Generated Successfully
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div>
-                            <Label className="text-xs font-medium text-green-700">Unique Selector:</Label>
-                            <div className="flex items-center gap-2 mt-1">
-                              <code className="flex-1 px-2 py-1 bg-white border rounded text-sm font-mono">
-                                {customDkimKey.selector}
-                              </code>
-                              <Button
-                                onClick={() => copyToClipboard(customDkimKey.selector, "DKIM Selector")}
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div>
-                            <Label className="text-xs font-medium text-green-700">Private Key (For Your Server):</Label>
-                            <div className="mt-1">
-                              <div className="bg-white border rounded p-2 max-h-32 overflow-y-auto">
-                                <pre className="text-xs font-mono whitespace-pre-wrap">
-                                  {customDkimKey.privateKey}
-                                </pre>
-                              </div>
-                              <Button
-                                onClick={() => copyToClipboard(customDkimKey.privateKey, "Private Key")}
-                                size="sm"
-                                variant="outline"
-                                className="mt-2 w-full"
-                              >
-                                <Copy className="h-3 w-3 mr-1" />
-                                Copy Private Key
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div>
-                            <Label className="text-xs font-medium text-green-700">Server Configuration Instructions:</Label>
-                            <div className="mt-1 bg-white border rounded p-2">
-                              <pre className="text-xs whitespace-pre-wrap">
-                                {customDkimKey.instructions.serverConfig}
-                              </pre>
-                            </div>
-                          </div>
-
-                          <Alert className="border-yellow-200 bg-yellow-50">
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription className="text-yellow-800 text-xs">
-                              <strong>Important:</strong> Save the private key securely and configure it on your mail server before generating DNS records.
-                              The DNS record will use this key's public portion.
-                            </AlertDescription>
-                          </Alert>
-                        </CardContent>
-                      </Card>
                     )}
                   </div>
 
