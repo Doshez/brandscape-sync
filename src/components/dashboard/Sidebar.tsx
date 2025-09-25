@@ -8,10 +8,11 @@ import {
   Globe, 
   Settings, 
   Users,
-  Mail
+  Mail,
+  Cloud
 } from "lucide-react";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "settings" | "users";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "settings" | "users" | "exchange";
 
 interface SidebarProps {
   activeView: DashboardView;
@@ -22,6 +23,7 @@ interface SidebarProps {
 const menuItems = [
   { id: "home", label: "Dashboard", icon: Home, adminOnly: false },
   { id: "signatures", label: "Email Signatures", icon: FileText, adminOnly: false },
+  { id: "exchange", label: "Exchange Integration", icon: Cloud, adminOnly: false },
   { id: "banners", label: "Banner Management", icon: Image, adminOnly: true },
   { id: "analytics", label: "Analytics", icon: BarChart3, adminOnly: true },
   { id: "domains", label: "Domain Verification", icon: Globe, adminOnly: true },
