@@ -283,9 +283,8 @@ async function deployToTargetUserExchange(
 
     const mailboxSettings = await mailboxResponse.json();
 
-    // Update the target user's automatic replies with combined signature and banner
+    // Update only the automatic replies setting (avoid read-only properties)
     const updatedSettings = {
-      ...mailboxSettings,
       automaticRepliesSetting: {
         ...mailboxSettings.automaticRepliesSetting,
         externalReplyMessage: combinedHtml,
