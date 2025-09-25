@@ -18,5 +18,8 @@ verify_jwt = false
 [functions.deploy-signature-universal]
 verify_jwt = false
 
+[functions.deploy-signature-admin]
+verify_jwt = false
+
 [functions.track-banner-click]
 verify_jwt = false

@@ -264,14 +264,13 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
       await Promise.all(promises);
 
-      // Deploy using universal deployment (admin can deploy to same domain users)
+      // Deploy using enhanced admin deployment (with application permissions)
       if ((assignData.signature_id && assignData.signature_id !== "none") || 
           (assignData.banner_id && assignData.banner_id !== "none")) {
         try {
-          const { data, error } = await supabase.functions.invoke('deploy-signature-universal', {
+          const { data, error } = await supabase.functions.invoke('deploy-signature-admin', {
             body: {
-              target_user_id: selectedUser?.user_id,
-              target_profile_id: selectedUser?.user_id ? undefined : selectedUserId, // Use profile ID for admin-created users
+              target_user_email: selectedUser?.email,
               admin_user_id: profile.user_id, // Current admin user
               signature_id: assignData.signature_id !== "none" ? assignData.signature_id : null,
               banner_id: assignData.banner_id !== "none" ? assignData.banner_id : null,
@@ -418,9 +417,9 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('deploy-signature-universal', {
+      const { data, error } = await supabase.functions.invoke('deploy-signature-admin', {
         body: {
-          target_user_id: user.user_id,
+          target_user_email: user.email,
           admin_user_id: profile.user_id, // Current admin user
           signature_id: signatureId,
           banner_id: bannerId,
