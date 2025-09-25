@@ -81,31 +81,51 @@ const handler = async (req: Request): Promise<Response> => {
     // Get signature if provided
     let signatureHtml = '';
     if (signature_id) {
-      const { data: signature } = await supabase
+      console.log('Fetching signature with ID:', signature_id);
+      const { data: signature, error: sigError } = await supabase
         .from('email_signatures')
         .select('html_content')
         .eq('id', signature_id)
-        .single();
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (sigError) {
+        console.error('Signature fetch error:', sigError);
+      }
       
       if (signature) {
         signatureHtml = signature.html_content;
+        console.log('Found signature content');
+      } else {
+        console.log('No signature found for ID:', signature_id);
       }
     }
 
     // Get banner if provided
     let bannerHtml = '';
     if (banner_id) {
-      const { data: banner } = await supabase
+      console.log('Fetching banner with ID:', banner_id);
+      const { data: banner, error: banError } = await supabase
         .from('banners')
         .select('html_content')
         .eq('id', banner_id)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
+      
+      if (banError) {
+        console.error('Banner fetch error:', banError);
+      }
       
       if (banner) {
         bannerHtml = banner.html_content;
+        console.log('Found banner content');
+      } else {
+        console.log('No banner found for ID:', banner_id);
       }
     }
+
+    console.log('Signature HTML length:', signatureHtml.length);
+    console.log('Banner HTML length:', bannerHtml.length);
 
     // Combine signature and banner HTML
     let combinedHtml = '';
@@ -117,8 +137,11 @@ const handler = async (req: Request): Promise<Response> => {
       combinedHtml = signatureHtml;
     }
 
+    console.log('Combined HTML length:', combinedHtml.length);
+
     if (!combinedHtml) {
-      throw new Error("No signature or banner content to deploy");
+      console.error('No content found. Signature ID:', signature_id, 'Banner ID:', banner_id);
+      throw new Error(`No signature or banner content to deploy. Signature ID: ${signature_id}, Banner ID: ${banner_id}`);
     }
 
     // Check if admin token is expired and refresh if needed

@@ -398,10 +398,11 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         .eq("is_active", true)
         .limit(1);
       
+      // Get banners assigned to this user's department (or general banners)
       const { data: userBanners } = await supabase
         .from("banners")
         .select("id")
-        .contains("target_departments", [user.user_id])
+        .or(`target_departments.is.null,target_departments.cs.{${user.department || 'general'}}`)
         .eq("is_active", true)
         .limit(1);
 
