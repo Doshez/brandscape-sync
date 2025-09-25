@@ -27,21 +27,22 @@ const handler = async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from JWT token (handled automatically by Supabase when verify_jwt = true)
+    // Get user ID from JWT header (JWT is automatically verified by Supabase when verify_jwt = true)
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       throw new Error('Missing authorization header');
     }
 
+    // Extract user ID from JWT payload (Supabase automatically validates the JWT)
     const jwt = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+    const payload = JSON.parse(atob(jwt.split('.')[1]));
+    const userId = payload.sub;
     
-    if (userError || !user) {
-      console.error('User validation error:', userError);
-      throw new Error('Invalid authentication token');
+    if (!userId) {
+      throw new Error('Invalid JWT token - missing user ID');
     }
 
-    console.log('User authenticated:', user.id);
+    console.log('User authenticated:', userId);
 
     const { connection_id }: RefreshTokenRequest = await req.json();
 
@@ -53,7 +54,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     let connectionQuery = supabase
@@ -62,7 +63,7 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('id', connection_id);
 
     if (!profile?.is_admin) {
-      connectionQuery = connectionQuery.eq('user_id', user.id);
+      connectionQuery = connectionQuery.eq('user_id', userId);
     }
 
     const { data: connection, error: connectionError } = await connectionQuery.single();
@@ -144,7 +145,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from('analytics_events')
       .insert({
         event_type: 'microsoft_token_refreshed',
-        user_id: user.id,
+        user_id: userId,
         email_recipient: connection.email,
         metadata: {
           connection_id: connection.id,
