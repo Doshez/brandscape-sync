@@ -110,7 +110,7 @@ const handler = async (req: Request): Promise<Response> => {
         results.push({
           selector,
           found: false,
-          error: error.message
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }

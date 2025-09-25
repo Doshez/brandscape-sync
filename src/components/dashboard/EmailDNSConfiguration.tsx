@@ -266,11 +266,32 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     copyToClipboard(allRecords, "All DNS Records");
   };
 
-  const simulateVerification = (recordKey: string) => {
-    // Simulate DNS verification (in real implementation, this would check actual DNS)
-    setTimeout(() => {
-      const isVerified = Math.random() > 0.3; // 70% success rate for demo
-      const newStatus: "verified" | "failed" = isVerified ? "verified" : "failed";
+  const verifyDNSRecord = async (recordKey: string, recordIndex: number) => {
+    if (!selectedDomain || !generatedRecords[recordIndex]) return;
+
+    const record = generatedRecords[recordIndex];
+    setVerificationStatus(prev => ({
+      ...prev,
+      [recordKey]: "pending"
+    }));
+
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-dns-records', {
+        body: {
+          domain: selectedDomain.domain_name,
+          records: [{
+            type: record.type,
+            name: record.name,
+            expectedValue: record.value,
+            recordKey: recordKey
+          }]
+        }
+      });
+
+      if (error) throw error;
+
+      const result = data.results[0];
+      const newStatus: "verified" | "failed" = result.verified ? "verified" : "failed";
       
       setVerificationStatus(prev => {
         const updatedStatus = {
@@ -283,7 +304,80 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
         
         return updatedStatus;
       });
-    }, 2000);
+
+      if (!result.verified) {
+        toast({
+          title: "Verification Failed",
+          description: result.error || "DNS record verification failed",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Record Verified",
+          description: `${record.type} record is correctly configured`,
+        });
+      }
+    } catch (error) {
+      console.error("Error verifying DNS record:", error);
+      setVerificationStatus(prev => ({
+        ...prev,
+        [recordKey]: "failed"
+      }));
+      toast({
+        title: "Verification Error",
+        description: "Failed to verify DNS record",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const verifyAllRecords = async () => {
+    if (!selectedDomain || generatedRecords.length === 0) return;
+
+    // Set all records to pending
+    const pendingStatus: Record<string, "pending"> = {};
+    generatedRecords.forEach((_, index) => {
+      pendingStatus[`${generatedRecords[index].type}-${index}`] = "pending";
+    });
+    setVerificationStatus(pendingStatus);
+
+    try {
+      const records = generatedRecords.map((record, index) => ({
+        type: record.type,
+        name: record.name,
+        expectedValue: record.value,
+        recordKey: `${record.type}-${index}`
+      }));
+
+      const { data, error } = await supabase.functions.invoke('verify-dns-records', {
+        body: {
+          domain: selectedDomain.domain_name,
+          records: records
+        }
+      });
+
+      if (error) throw error;
+
+      const newStatus: Record<string, "verified" | "failed"> = {};
+      data.results.forEach((result: any) => {
+        newStatus[result.recordKey] = result.verified ? "verified" : "failed";
+      });
+
+      setVerificationStatus(newStatus);
+      updateDNSHealthStatus(newStatus);
+
+      toast({
+        title: "Verification Complete",
+        description: `${data.summary.verified}/${data.summary.total} records verified successfully`,
+      });
+    } catch (error) {
+      console.error("Error verifying all DNS records:", error);
+      toast({
+        title: "Verification Error",
+        description: "Failed to verify DNS records",
+        variant: "destructive",
+      });
+    }
   };
 
   // Calculate DNS health status based on verification results
@@ -679,6 +773,19 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                 </div>
               ) : (
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      Verify individual records or check all records at once
+                    </p>
+                    <Button 
+                      onClick={verifyAllRecords}
+                      variant="default"
+                      className="flex items-center gap-2"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      Verify All Records
+                    </Button>
+                  </div>
                   {generatedRecords.map((record, index) => {
                     const recordKey = `${record.type}-${index}`;
                     const status = verificationStatus[recordKey];
@@ -703,7 +810,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                         <div className="flex items-center gap-2">
                           {status === "pending" && (
                             <Button
-                              onClick={() => simulateVerification(recordKey)}
+                              onClick={() => verifyDNSRecord(recordKey, index)}
                               variant="outline"
                               size="sm"
                             >
