@@ -734,12 +734,12 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                     </div>
                     
                     <div className="space-y-3 max-h-96 overflow-y-auto border rounded-lg p-3">
-                      {users.map((user) => (
-                        <div key={user.user_id} className="border rounded-lg p-3 space-y-3">
+                      {users.map((user, index) => (
+                        <div key={`user-${user.user_id}-${index}`} className="border rounded-lg p-3 space-y-3">
                           <div className="flex items-center space-x-2">
                             <input
                               type="checkbox"
-                              id={user.user_id}
+                              id={`user-checkbox-${user.user_id}-${index}`}
                               checked={selectedUsers.includes(user.user_id)}
                               onChange={(e) => {
                                 if (e.target.checked) {
@@ -757,7 +757,7 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                               }}
                               className="rounded"
                             />
-                            <label htmlFor={user.user_id} className="text-sm font-medium flex-1">
+                            <label htmlFor={`user-checkbox-${user.user_id}-${index}`} className="text-sm font-medium flex-1">
                               {user.first_name} {user.last_name} ({user.email})
                               {user.department && <span className="text-muted-foreground"> - {user.department}</span>}
                             </label>
@@ -768,6 +768,7 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                               <div className="space-y-1">
                                 <Label className="text-xs">Email Signature</Label>
                                 <select
+                                  id={`signature-${user.user_id}-${index}`}
                                   value={userSignatureAssignments[user.user_id] || ''}
                                   onChange={(e) => {
                                     setUserSignatureAssignments({
@@ -779,7 +780,7 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                                 >
                                   <option value="">No signature</option>
                                   {signatures.map((signature) => (
-                                    <option key={signature.id} value={signature.id}>
+                                    <option key={`sig-${signature.id}-${user.user_id}`} value={signature.id}>
                                       {signature.template_name}
                                       {signature.department && ` (${signature.department})`}
                                     </option>
@@ -790,6 +791,7 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                               <div className="space-y-1">
                                 <Label className="text-xs">Banner</Label>
                                 <select
+                                  id={`banner-${user.user_id}-${index}`}
                                   value={userBannerAssignments[user.user_id] || ''}
                                   onChange={(e) => {
                                     setUserBannerAssignments({
@@ -801,7 +803,7 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
                                 >
                                   <option value="">No banner</option>
                                   {banners.map((banner) => (
-                                    <option key={banner.id} value={banner.id}>
+                                    <option key={`banner-${banner.id}-${user.user_id}`} value={banner.id}>
                                       {banner.name}
                                     </option>
                                   ))}
