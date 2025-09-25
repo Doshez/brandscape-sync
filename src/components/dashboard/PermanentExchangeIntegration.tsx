@@ -6,10 +6,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ExternalLink, CheckCircle, AlertCircle, Unlink, RefreshCw, Users } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle, AlertCircle, Unlink, RefreshCw, Users, Settings } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MicrosoftAuthSetup } from "./MicrosoftAuthSetup";
+import { MicrosoftSecretsManager } from "./MicrosoftSecretsManager";
 
 interface ExchangeConnection {
   id: string;
@@ -418,6 +419,23 @@ export const PermanentExchangeIntegration = ({ profile }: PermanentExchangeInteg
         </TabsContent>
         
         <TabsContent value="setup" className="space-y-4">
+          {profile?.is_admin && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Microsoft App Configuration
+                </CardTitle>
+                <CardDescription>
+                  Configure Microsoft application credentials for Exchange integration
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <MicrosoftSecretsManager />
+              </CardContent>
+            </Card>
+          )}
+          
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
