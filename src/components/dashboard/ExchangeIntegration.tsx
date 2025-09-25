@@ -6,7 +6,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ExternalLink, CheckCircle, AlertCircle, Save } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Loader2, ExternalLink, CheckCircle, AlertCircle, Save, Copy, Server, Globe } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { MicrosoftAuthSetup } from "./MicrosoftAuthSetup";
@@ -30,6 +32,14 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
   const [clientId, setClientId] = useState<string>(() => 
     localStorage.getItem('microsoft_client_id') || ''
   );
+  
+  // Advanced setup state
+  const [domain, setDomain] = useState('');
+  const [signatureHtml, setSignatureHtml] = useState('');
+  const [ruleName, setRuleName] = useState('Auto-Signature-Rule');
+  const [userEmails, setUserEmails] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedConfig, setGeneratedConfig] = useState<any>(null);
 
   const handleConnectExchange = async () => {
     setIsConnecting(true);
@@ -209,11 +219,65 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
     }
   };
 
+  const generateTransportRuleConfig = async () => {
+    if (!domain || !signatureHtml || !ruleName) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in domain, signature HTML, and rule name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    try {
+      const emailArray = userEmails 
+        ? userEmails.split(',').map(email => email.trim()).filter(email => email)
+        : undefined;
+
+      const { data, error } = await supabase.functions.invoke('setup-exchange-transport-rules', {
+        body: {
+          domain: domain.trim(),
+          signature_html: signatureHtml,
+          rule_name: ruleName.trim(),
+          user_emails: emailArray
+        },
+      });
+
+      if (error) throw error;
+
+      setGeneratedConfig(data.configuration);
+      toast({
+        title: "Configuration Generated",
+        description: "DNS records and transport rule configuration have been generated successfully.",
+      });
+    } catch (error: any) {
+      console.error("Transport rule generation error:", error);
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate transport rule configuration. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied to Clipboard",
+      description: `${label} has been copied to your clipboard.`,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Tabs defaultValue="connection" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="connection">Connection</TabsTrigger>
+          <TabsTrigger value="advanced">DNS & Transport</TabsTrigger>
           <TabsTrigger value="setup">Setup Guide</TabsTrigger>
         </TabsList>
         
@@ -358,6 +422,180 @@ export const ExchangeIntegration = ({ onUserConnected }: ExchangeIntegrationProp
                       from the Signature Manager.
                     </AlertDescription>
                   </Alert>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="advanced" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Server className="h-5 w-5" />
+                DNS Records & Transport Rules
+              </CardTitle>
+              <CardDescription>
+                Generate DNS records and Exchange transport rules for automatic signature deployment
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <Label htmlFor="domain">Company Domain</Label>
+                  <Input
+                    id="domain"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    placeholder="example.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your organization's email domain
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <Label htmlFor="ruleName">Transport Rule Name</Label>
+                  <Input
+                    id="ruleName"
+                    value={ruleName}
+                    onChange={(e) => setRuleName(e.target.value)}
+                    placeholder="Auto-Signature-Rule"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Name for the Exchange transport rule
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="userEmails">Target Users (Optional)</Label>
+                <Input
+                  id="userEmails"
+                  value={userEmails}
+                  onChange={(e) => setUserEmails(e.target.value)}
+                  placeholder="user1@example.com, user2@example.com"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to apply to all users in the domain. Separate multiple emails with commas.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="signatureHtml">Signature HTML</Label>
+                <Textarea
+                  id="signatureHtml"
+                  value={signatureHtml}
+                  onChange={(e) => setSignatureHtml(e.target.value)}
+                  placeholder="<div>Your signature HTML here...</div>"
+                  rows={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  The HTML content for the email signature
+                </p>
+              </div>
+
+              <Button 
+                onClick={generateTransportRuleConfig}
+                disabled={isGenerating || !domain || !signatureHtml || !ruleName}
+                className="w-full"
+              >
+                {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Globe className="mr-2 h-4 w-4" />
+                Generate DNS & Transport Rule Configuration
+              </Button>
+
+              {generatedConfig && (
+                <div className="space-y-4 mt-6">
+                  <Separator />
+                  
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Globe className="h-5 w-5" />
+                      Required DNS Records
+                    </h3>
+                    
+                    {generatedConfig.dns_records.required_records.map((record: any, index: number) => (
+                      <Card key={index}>
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline">{record.type}</Badge>
+                                <span className="font-mono text-sm">{record.name}</span>
+                              </div>
+                              <div className="bg-muted p-3 rounded-md">
+                                <code className="text-sm break-all">{record.value}</code>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {record.description}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => copyToClipboard(record.value, `${record.type} record`)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>DNS Setup Instructions:</strong>
+                        <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                          {generatedConfig.dns_records.setup_instructions.map((instruction: string, index: number) => (
+                            <li key={index}>{instruction}</li>
+                          ))}
+                        </ol>
+                      </AlertDescription>
+                    </Alert>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Server className="h-5 w-5" />
+                        Exchange Transport Rule Script
+                      </h3>
+                      
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start gap-4 mb-3">
+                            <h4 className="font-medium">PowerShell Script</h4>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => copyToClipboard(generatedConfig.powershell_script, "PowerShell script")}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="bg-muted p-4 rounded-md overflow-x-auto">
+                            <pre className="text-sm whitespace-pre-wrap font-mono">
+                              {generatedConfig.powershell_script}
+                            </pre>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <strong>PowerShell Setup Instructions:</strong>
+                          <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                            {generatedConfig.setup_instructions.map((instruction: string, index: number) => (
+                              <li key={index}>{instruction}</li>
+                            ))}
+                          </ol>
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
