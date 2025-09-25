@@ -107,38 +107,43 @@ export const DomainManager = ({ profile }: DomainManagerProps) => {
     setVerifyingDomain(domain.id);
     
     try {
-      // Simulate DNS verification check
-      // In a real implementation, this would check the actual DNS records
-      const isVerified = Math.random() > 0.3; // 70% success rate for demo
+      console.log('Verifying domain:', domain.domain_name);
+      console.log('Expected DNS value:', domain.dns_record_value);
       
-      if (isVerified) {
-        const { error } = await supabase
-          .from("domains")
-          .update({ 
-            is_verified: true, 
-            verified_at: new Date().toISOString() 
-          })
-          .eq("id", domain.id);
+      // Call the edge function to verify DNS
+      const { data, error } = await supabase.functions.invoke('verify-domain-dns', {
+        body: {
+          domain_id: domain.id,
+          domain_name: domain.domain_name,
+          expected_value: domain.dns_record_value,
+        },
+      });
 
-        if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to verify domain');
+      }
 
+      console.log('Verification response:', data);
+
+      if (data.success && data.verified) {
         toast({
           title: "Success",
-          description: "Domain verified successfully!",
+          description: "Domain verified successfully! DNS record found.",
         });
-
         fetchDomains();
       } else {
         toast({
           title: "Verification Failed",
-          description: "DNS record not found. Please ensure the TXT record is added correctly.",
+          description: data.error || data.message || "DNS record not found. Please ensure the TXT record is added correctly.",
           variant: "destructive",
         });
       }
     } catch (error: any) {
+      console.error('Verification error:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to verify domain. Please try again.",
         variant: "destructive",
       });
     } finally {
