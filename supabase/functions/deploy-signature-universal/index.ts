@@ -7,7 +7,8 @@ const corsHeaders = {
 };
 
 interface UniversalDeployRequest {
-  target_user_id: string;
+  target_user_id?: string | null;
+  target_profile_id?: string;
   admin_user_id: string;
   signature_id?: string;
   banner_id?: string;
@@ -19,10 +20,10 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { target_user_id, admin_user_id, signature_id, banner_id }: UniversalDeployRequest = await req.json();
+    const { target_user_id, target_profile_id, admin_user_id, signature_id, banner_id }: UniversalDeployRequest = await req.json();
 
-    if (!target_user_id || !admin_user_id) {
-      throw new Error("Missing required parameters: target_user_id and admin_user_id");
+    if ((!target_user_id && !target_profile_id) || !admin_user_id) {
+      throw new Error("Missing required parameters: (target_user_id or target_profile_id) and admin_user_id");
     }
 
     // Initialize Supabase client
@@ -30,12 +31,18 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get target user profile
-    const { data: targetUser, error: userError } = await supabase
+    // Get target user profile - handle both authenticated users and admin-created users
+    let targetUserQuery = supabase
       .from('profiles')
-      .select('email, first_name, last_name')
-      .eq('user_id', target_user_id)
-      .single();
+      .select('email, first_name, last_name, user_id');
+
+    if (target_user_id) {
+      targetUserQuery = targetUserQuery.eq('user_id', target_user_id);
+    } else if (target_profile_id) {
+      targetUserQuery = targetUserQuery.eq('id', target_profile_id);
+    }
+
+    const { data: targetUser, error: userError } = await targetUserQuery.single();
 
     if (userError || !targetUser) {
       throw new Error("Target user not found");

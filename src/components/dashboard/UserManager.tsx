@@ -271,6 +271,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
           const { data, error } = await supabase.functions.invoke('deploy-signature-universal', {
             body: {
               target_user_id: selectedUser?.user_id,
+              target_profile_id: selectedUser?.user_id ? undefined : selectedUserId, // Use profile ID for admin-created users
               admin_user_id: profile.user_id, // Current admin user
               signature_id: assignData.signature_id !== "none" ? assignData.signature_id : null,
               banner_id: assignData.banner_id !== "none" ? assignData.banner_id : null,
