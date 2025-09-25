@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.deploy-signature-with-instructions]
 verify_jwt = false
+
+[functions.setup-exchange-transport-rules]
+verify_jwt = false
