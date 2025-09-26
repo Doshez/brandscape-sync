@@ -666,7 +666,6 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       setGeneratingRules(false);
     }
   };
-  };
 
   const getImportanceColor = (importance: string) => {
     switch (importance) {
@@ -1704,3 +1703,5 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     </div>
   );
 };
+
+export default EmailDNSConfiguration;
