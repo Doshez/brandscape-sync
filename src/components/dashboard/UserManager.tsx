@@ -108,15 +108,31 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
   const fetchData = async () => {
     try {
+      console.log("Fetching data...");
+      console.log("Current profile:", profile);
+      
       const [usersResult, signaturesResult, bannersResult] = await Promise.all([
         supabase.from("profiles").select("*").not("user_id", "is", null).order("created_at", { ascending: false }),
         supabase.from("email_signatures").select("*").order("created_at", { ascending: false }),
         supabase.from("banners").select("*").order("created_at", { ascending: false })
       ]);
 
-      if (usersResult.error) throw usersResult.error;
-      if (signaturesResult.error) throw signaturesResult.error;
-      if (bannersResult.error) throw bannersResult.error;
+      console.log("Users result:", usersResult);
+      console.log("Signatures result:", signaturesResult);
+      console.log("Banners result:", bannersResult);
+
+      if (usersResult.error) {
+        console.error("Users fetch error:", usersResult.error);
+        throw usersResult.error;
+      }
+      if (signaturesResult.error) {
+        console.error("Signatures fetch error:", signaturesResult.error);
+        throw signaturesResult.error;
+      }
+      if (bannersResult.error) {
+        console.error("Banners fetch error:", bannersResult.error);
+        throw bannersResult.error;
+      }
 
       // Remove duplicates based on user_id
       const uniqueUsers = (usersResult.data || []).filter((user, index, self) => 
@@ -124,6 +140,8 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         user.email && 
         index === self.findIndex(u => u.user_id === user.user_id)
       );
+
+      console.log("Unique users after filtering:", uniqueUsers);
 
       setUsers(uniqueUsers);
       setSignatures(signaturesResult.data || []);
