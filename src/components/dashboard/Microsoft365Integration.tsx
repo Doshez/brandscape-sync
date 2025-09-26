@@ -177,8 +177,9 @@ const Microsoft365Integration = () => {
       </div>
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="setup">Setup Configuration</TabsTrigger>
+          <TabsTrigger value="alternatives">Alternative Methods</TabsTrigger>
           <TabsTrigger value="powershell">PowerShell Script</TabsTrigger>
           <TabsTrigger value="dns">DNS Records</TabsTrigger>
         </TabsList>
@@ -255,6 +256,157 @@ const Microsoft365Integration = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="alternatives" className="space-y-4">
+          <div className="grid gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ExternalLink className="h-5 w-5" />
+                  Microsoft Graph API Integration
+                </CardTitle>
+                <CardDescription>
+                  Use Microsoft Graph API to programmatically manage email signatures (Recommended)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Benefits:</strong> No PowerShell required, automatic updates, real-time management
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-3">
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">1. Create Azure App Registration</h4>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Register an application in Azure AD with these permissions:
+                    </p>
+                    <ul className="text-sm space-y-1 ml-4">
+                      <li>• MailboxSettings.ReadWrite (Application)</li>
+                      <li>• User.Read.All (Application)</li>
+                      <li>• Directory.Read.All (Application)</li>
+                    </ul>
+                  </div>
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">2. Use Our API Endpoints</h4>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      We'll handle the Microsoft Graph integration for you:
+                    </p>
+                    <div className="bg-muted p-2 rounded font-mono text-sm">
+                      POST /api/microsoft/connect<br/>
+                      POST /api/microsoft/deploy-signatures
+                    </div>
+                  </div>
+                </div>
+                <Button className="w-full" onClick={() => window.open('https://portal.azure.com', '_blank')}>
+                  Open Azure Portal
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Manual Exchange Admin Center Setup</CardTitle>
+                <CardDescription>
+                  Configure transport rules directly through the web interface
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">1. Access Exchange Admin Center</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Go to admin.exchange.microsoft.com → Mail flow → Rules
+                    </p>
+                  </div>
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">2. Create New Rule</h4>
+                    <ul className="text-sm space-y-1 ml-4 text-muted-foreground">
+                      <li>• Name: Email Signature Rule</li>
+                      <li>• Apply to: Messages sent from your organization</li>
+                      <li>• Action: Append disclaimer with HTML content</li>
+                      <li>• Disclaimer text: Use our generated signature HTML</li>
+                    </ul>
+                  </div>
+                </div>
+                <Button variant="outline" className="w-full" onClick={() => window.open('https://admin.exchange.microsoft.com', '_blank')}>
+                  Open Exchange Admin Center
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Outlook Client Deployment</CardTitle>
+                <CardDescription>
+                  Deploy signatures directly to Outlook clients using Group Policy or registry
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">Group Policy Method</h4>
+                    <ul className="text-sm space-y-1 ml-4 text-muted-foreground">
+                      <li>• Create GPO for Outlook signature deployment</li>
+                      <li>• Use registry settings to set default signatures</li>
+                      <li>• Deploy signature files to user profiles</li>
+                    </ul>
+                  </div>
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">Registry Script Method</h4>
+                    <ul className="text-sm space-y-1 ml-4 text-muted-foreground">
+                      <li>• Create .reg files for signature configuration</li>
+                      <li>• Deploy via login scripts or SCCM</li>
+                      <li>• Works for Windows domain environments</li>
+                    </ul>
+                  </div>
+                </div>
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    This method requires on-premises Active Directory and doesn't work with cloud-only Office 365 tenants.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Third-Party Signature Management Tools</CardTitle>
+                <CardDescription>
+                  Use specialized email signature management solutions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">CodeTwo Email Signatures</h4>
+                    <p className="text-sm text-muted-foreground">Enterprise solution with Office 365 integration</p>
+                  </div>
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">Exclaimer Cloud</h4>
+                    <p className="text-sm text-muted-foreground">Cloud-based signature management</p>
+                  </div>
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">Symprex Mail Signature</h4>
+                    <p className="text-sm text-muted-foreground">Office 365 add-in for signature management</p>
+                  </div>
+                  <div className="p-3 border rounded-lg">
+                    <h4 className="font-semibold mb-2">Hornetsecurity</h4>
+                    <p className="text-sm text-muted-foreground">Email security with signature features</p>
+                  </div>
+                </div>
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    These tools often provide REST APIs that can integrate with our system for centralized management.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="powershell" className="space-y-4">
