@@ -83,6 +83,12 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   const [generatingRules, setGeneratingRules] = useState(false);
   const [generatedScript, setGeneratedScript] = useState('');
   
+  // User-specific selections for signatures and banners (max 3 banners per user)
+  const [userSpecificSelections, setUserSpecificSelections] = useState<Record<string, {
+    signatureId?: string;
+    bannerIds: string[]; // max 3 banners per user
+  }>>({});
+  
   const { toast } = useToast();
 
   // Fetch verified domains on component mount
@@ -127,10 +133,10 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
       if (usersError) throw usersError;
 
-      // Fetch email signatures
+      // Fetch email signatures (include user_id for filtering)
       const { data: signatures, error: signaturesError } = await supabase
         .from("email_signatures")
-        .select("id, template_name, html_content, signature_type")
+        .select("id, template_name, html_content, signature_type, user_id")
         .eq("is_active", true)
         .order("template_name", { ascending: true });
 
@@ -580,23 +586,52 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       return;
     }
 
+    // Validate that each user has their specific selections configured
+    const missingSelections = selectedUsers.filter(userId => {
+      const userSelection = userSpecificSelections[userId];
+      return !userSelection || (!userSelection.signatureId && userSelection.bannerIds.length === 0);
+    });
+
+    if (missingSelections.length > 0) {
+      toast({
+        title: "Missing User Configurations",
+        description: "Please configure signatures and/or banners for all selected users",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setGeneratingRules(true);
     try {
-      // Get user assignments with signature and banner data
+      // Get user assignments with user-specific signature and banner data
       const userAssignments = selectedUsers.map(userId => {
         const user = systemUsers.find(u => u.id === userId);
-        const signature = selectedSignatureId ? systemSignatures.find(s => s.id === selectedSignatureId) : null;
-        const banner = selectedBannerId ? systemBanners.find(b => b.id === selectedBannerId) : null;
+        const userSelection = userSpecificSelections[userId];
         
+        // Get user's specific signature
+        const signature = userSelection?.signatureId ? 
+          systemSignatures.find(s => s.id === userSelection.signatureId) : null;
+        
+        // Get user's specific banners (max 3)
+        const banners = userSelection?.bannerIds.map(bannerId =>
+          systemBanners.find(b => b.id === bannerId)
+        ).filter(Boolean) || [];
+        
+        // Combine banner HTML (all selected banners)
         let combinedHtml = '';
-        if (banner) combinedHtml += banner.html_content;
-        if (signature) combinedHtml += (combinedHtml ? '<br/>' : '') + signature.html_content;
+        if (banners.length > 0) {
+          combinedHtml += banners.map(banner => banner.html_content).join('<br/>');
+        }
+        // Add signature after banners
+        if (signature) {
+          combinedHtml += (combinedHtml ? '<br/>' : '') + signature.html_content;
+        }
         
         return {
           user_id: userId,
           email: user?.email || '',
-          signature_id: selectedSignatureId || null,
-          banner_id: selectedBannerId || null,
+          signature_id: userSelection?.signatureId || null,
+          banner_ids: userSelection?.bannerIds || [],
           combined_html: combinedHtml
         };
       });
@@ -630,6 +665,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     } finally {
       setGeneratingRules(false);
     }
+  };
   };
 
   const getImportanceColor = (importance: string) => {
@@ -1408,61 +1444,121 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Select Signature (Optional)</Label>
-                      {selectedSignatureId && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedSignatureId('')}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Clear
-                        </Button>
-                      )}
-                    </div>
-                    <Select value={selectedSignatureId} onValueChange={setSelectedSignatureId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose signature or leave empty" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {systemSignatures.map((signature) => (
-                          <SelectItem key={signature.id} value={signature.id}>
-                            {signature.template_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-4">
+                  <Label>Configure Signatures and Banners for Each User</Label>
+                  <div className="border rounded-md p-4 max-h-96 overflow-y-auto space-y-4">
+                    {selectedUsers.map(userId => {
+                      const user = systemUsers.find(u => u.id === userId);
+                      const userSelection = userSpecificSelections[userId] || { bannerIds: [] };
+                      
+                      // Filter signatures for this specific user
+                      const userSignatures = systemSignatures.filter(s => 
+                        s.signature_type === 'user' && s.user_id === user?.user_id
+                      );
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Select Banner (Optional)</Label>
-                      {selectedBannerId && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedBannerId('')}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Clear
-                        </Button>
-                      )}
-                    </div>
-                    <Select value={selectedBannerId} onValueChange={setSelectedBannerId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose banner or leave empty" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {systemBanners.map((banner) => (
-                          <SelectItem key={banner.id} value={banner.id}>
-                            {banner.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      return (
+                        <div key={userId} className="border rounded-lg p-4 space-y-3">
+                          <h4 className="font-medium">{user?.email}</h4>
+                          <div className="text-xs text-muted-foreground">
+                            {user?.first_name} {user?.last_name} - {user?.department}
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* User-specific signature selection */}
+                            <div className="space-y-2">
+                              <Label className="text-xs">Signature for {user?.first_name}</Label>
+                              <Select 
+                                value={userSelection.signatureId || ''} 
+                                onValueChange={(value) => {
+                                  setUserSpecificSelections(prev => ({
+                                    ...prev,
+                                    [userId]: {
+                                      ...prev[userId],
+                                      signatureId: value,
+                                      bannerIds: prev[userId]?.bannerIds || []
+                                    }
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Choose signature" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {userSignatures.map((signature) => (
+                                    <SelectItem key={signature.id} value={signature.id}>
+                                      {signature.template_name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {userSignatures.length === 0 && (
+                                <p className="text-xs text-muted-foreground">No signatures found for this user</p>
+                              )}
+                            </div>
+                            
+                            {/* Banner selection (max 3) */}
+                            <div className="space-y-2">
+                              <Label className="text-xs">Banners (Max 3)</Label>
+                              <div className="space-y-1">
+                                {systemBanners.slice(0, 3).map((banner) => (
+                                  <div key={banner.id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`${userId}-${banner.id}`}
+                                      checked={userSelection.bannerIds.includes(banner.id)}
+                                      onCheckedChange={(checked) => {
+                                        setUserSpecificSelections(prev => {
+                                          const currentBanners = prev[userId]?.bannerIds || [];
+                                          let newBanners;
+                                          
+                                          if (checked) {
+                                            // Add banner if not at limit
+                                            if (currentBanners.length < 3) {
+                                              newBanners = [...currentBanners, banner.id];
+                                            } else {
+                                              toast({
+                                                title: "Banner Limit Reached",
+                                                description: "Maximum 3 banners per user",
+                                                variant: "destructive",
+                                              });
+                                              return prev;
+                                            }
+                                          } else {
+                                            // Remove banner
+                                            newBanners = currentBanners.filter(id => id !== banner.id);
+                                          }
+                                          
+                                          return {
+                                            ...prev,
+                                            [userId]: {
+                                              ...prev[userId],
+                                              signatureId: prev[userId]?.signatureId,
+                                              bannerIds: newBanners
+                                            }
+                                          };
+                                        });
+                                      }}
+                                      disabled={!userSelection.bannerIds.includes(banner.id) && userSelection.bannerIds.length >= 3}
+                                    />
+                                    <Label htmlFor={`${userId}-${banner.id}`} className="text-xs">
+                                      {banner.name}
+                                    </Label>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Selected: {userSelection.bannerIds.length}/3 banners
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {selectedUsers.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Select users above to configure their signatures and banners
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1534,7 +1630,12 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
                 <Button
                   onClick={generateTransportRules}
-                  disabled={generatingRules || !selectedDomain || selectedUsers.length === 0}
+                  disabled={generatingRules || !selectedDomain || selectedUsers.length === 0 || 
+                    selectedUsers.some(userId => {
+                      const userSelection = userSpecificSelections[userId];
+                      return !userSelection || (!userSelection.signatureId && userSelection.bannerIds.length === 0);
+                    })
+                  }
                   className="w-full"
                 >
                   {generatingRules ? (
