@@ -14,8 +14,9 @@ import { DomainManager } from "@/components/dashboard/DomainManager";
 import { EmailDNSConfiguration } from "@/components/dashboard/EmailDNSConfiguration";
 import { CompanySettings } from "@/components/dashboard/CompanySettings";
 import { UserManager } from "@/components/dashboard/UserManager";
+import { UserAssignmentManager } from "@/components/dashboard/UserAssignmentManager";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -144,6 +145,8 @@ const Dashboard = () => {
         return <CompanySettings profile={profile} />;
       case "users":
         return <UserManager profile={profile} />;
+      case "assignments":
+        return <UserAssignmentManager profile={profile} />;
       default:
         return <DashboardHome profile={profile} />;
     }

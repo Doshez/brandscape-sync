@@ -10,10 +10,11 @@ import {
   Users,
   Mail,
   Cloud,
-  Shield
+  Shield,
+  UserCheck
 } from "lucide-react";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments";
 
 interface SidebarProps {
   activeView: DashboardView;
@@ -26,6 +27,7 @@ const menuItems = [
   { id: "signatures", label: "Email Signatures", icon: FileText, adminOnly: false },
   { id: "exchange", label: "Exchange Integration", icon: Cloud, adminOnly: false },
   { id: "banners", label: "Banner Management", icon: Image, adminOnly: true },
+  { id: "assignments", label: "User Assignments", icon: UserCheck, adminOnly: true },
   { id: "analytics", label: "Analytics", icon: BarChart3, adminOnly: true },
   { id: "domains", label: "Domain Verification", icon: Globe, adminOnly: true },
   { id: "dns", label: "DNS Configuration", icon: Shield, adminOnly: true },
