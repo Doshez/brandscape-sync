@@ -211,17 +211,31 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
     }
 
     try {
+      // Find the selected user to get their auth user_id
+      const selectedUserProfile = users.find(user => user.id === selectedUser);
+      if (!selectedUserProfile) {
+        toast({
+          title: "Error",
+          description: "Selected user not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // For admin-created users without auth, we'll use their profile id as user_id
+      const userIdForAssignment = selectedUserProfile.user_id || selectedUserProfile.id;
+
       // First, deactivate any existing assignment for this user
       await supabase
         .from("user_email_assignments")
         .update({ is_active: false })
-        .eq("user_id", selectedUser);
+        .eq("user_id", userIdForAssignment);
 
       // Create new assignment
       const { data: assignment, error: assignmentError } = await supabase
         .from("user_email_assignments")
         .insert({
-          user_id: selectedUser,
+          user_id: userIdForAssignment,
           signature_id: selectedSignature,
           is_active: true
         })
@@ -345,7 +359,7 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
                 </SelectTrigger>
                 <SelectContent>
                   {users.map((user) => (
-                    <SelectItem key={`user-${user.user_id}`} value={user.user_id}>
+                    <SelectItem key={`user-${user.id}`} value={user.id}>
                       {user.first_name} {user.last_name} ({user.email})
                     </SelectItem>
                   ))}
