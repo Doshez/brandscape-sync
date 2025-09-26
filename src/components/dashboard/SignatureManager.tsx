@@ -76,8 +76,9 @@ export const SignatureManager = ({ profile }: SignatureManagerProps) => {
     try {
       const signatureData = {
         ...formData,
-        user_id: profile?.user_id,
+        user_id: formData.signature_type === "user" ? profile?.user_id : null,
         created_by: profile?.user_id,
+        department: formData.department || null,
       };
 
       let result;

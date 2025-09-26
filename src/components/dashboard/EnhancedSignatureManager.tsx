@@ -159,8 +159,9 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
       const signatureData = {
         ...formData,
         html_content: htmlContent,
-        user_id: formData.signature_type === "user" ? (formData.user_id === "current" ? profile?.user_id : formData.user_id) : null,
+        user_id: formData.signature_type === "user" ? (formData.user_id === "current" ? profile?.user_id : (formData.user_id || null)) : null,
         created_by: profile?.user_id,
+        department: formData.department || null,
       };
 
       let result;
@@ -217,8 +218,8 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
         template_name: `${signature.template_name} - ${user.first_name} ${user.last_name}`,
         html_content: generateSignatureFromTemplate(user, signature.html_content),
         signature_type: "user",
-        user_id: user.user_id,
-        department: user.department,
+        user_id: user.user_id || null,
+        department: user.department || null,
         created_by: profile?.user_id,
         is_active: true,
       }));
