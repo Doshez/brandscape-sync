@@ -1222,7 +1222,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
               <Button
                 onClick={sendTestEmail}
-                disabled={sendingTest || !testEmail || !testFromEmail}
+                disabled={sendingTest || !testEmail.trim() || !testFromEmail.trim()}
                 className="w-full"
               >
                 {sendingTest ? (
@@ -1237,6 +1237,12 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                   </>
                 )}
               </Button>
+
+              {(!testEmail.trim() || !testFromEmail.trim()) && (
+                <p className="text-sm text-muted-foreground text-center mt-2">
+                  Please fill in both recipient and sender email addresses to enable the send button.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
