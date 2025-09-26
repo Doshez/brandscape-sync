@@ -512,6 +512,33 @@ export type Database = {
         }
         Relationships: []
       }
+      smtp_relay_config: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          is_active: boolean
+          relay_secret: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          is_active?: boolean
+          relay_secret: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          is_active?: boolean
+          relay_secret?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_assignments: {
         Row: {
           assigned_by: string
@@ -567,6 +594,87 @@ export type Database = {
           },
           {
             foreignKeyName: "user_assignments_signature_id_fkey"
+            columns: ["signature_id"]
+            isOneToOne: false
+            referencedRelation: "email_signatures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_banner_assignments: {
+        Row: {
+          banner_id: string
+          created_at: string
+          display_order: number
+          id: string
+          user_assignment_id: string
+        }
+        Insert: {
+          banner_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          user_assignment_id: string
+        }
+        Update: {
+          banner_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          user_assignment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_banner_assignments_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banner_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_banner_assignments_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_banner_assignments_user_assignment_id_fkey"
+            columns: ["user_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "user_email_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_email_assignments: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          signature_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          signature_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          signature_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_email_assignments_signature_id_fkey"
             columns: ["signature_id"]
             isOneToOne: false
             referencedRelation: "email_signatures"
