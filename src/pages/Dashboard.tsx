@@ -15,8 +15,9 @@ import { EmailDNSConfiguration } from "@/components/dashboard/EmailDNSConfigurat
 import { CompanySettings } from "@/components/dashboard/CompanySettings";
 import { UserManager } from "@/components/dashboard/UserManager";
 import { UserAssignmentManager } from "@/components/dashboard/UserAssignmentManager";
+import Microsoft365Integration from "@/components/dashboard/Microsoft365Integration";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -141,6 +142,8 @@ const Dashboard = () => {
         return <EmailDNSConfiguration profile={profile} />;
       case "exchange":
         return <PermanentExchangeIntegration profile={profile} />;
+      case "microsoft365":
+        return <Microsoft365Integration />;
       case "settings":
         return <CompanySettings profile={profile} />;
       case "users":
