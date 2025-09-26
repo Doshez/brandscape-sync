@@ -1220,18 +1220,11 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                 </AlertDescription>
               </Alert>
 
-              <div className="bg-muted p-3 rounded-lg text-sm mb-4">
-                <p><strong>Debug Info:</strong></p>
-                <p>Test Email: "{testEmail}" (length: {testEmail.length})</p>
-                <p>Test From Email: "{testFromEmail}" (length: {testFromEmail.length})</p>
-                <p>Sending Test: {sendingTest ? 'true' : 'false'}</p>
-                <p>Button disabled: {(sendingTest || !testEmail.trim() || !testFromEmail.trim()) ? 'true' : 'false'}</p>
-              </div>
-
               <Button
                 onClick={sendTestEmail}
                 disabled={sendingTest || !testEmail.trim() || !testFromEmail.trim()}
-                className="w-full"
+                className="w-full relative z-10 pointer-events-auto"
+                style={{ pointerEvents: (sendingTest || !testEmail.trim() || !testFromEmail.trim()) ? 'none' : 'auto' }}
               >
                 {sendingTest ? (
                   <>
