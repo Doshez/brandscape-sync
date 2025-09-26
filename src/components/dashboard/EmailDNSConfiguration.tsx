@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -74,6 +75,13 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   const [systemSignatures, setSystemSignatures] = useState<any[]>([]);
   const [systemBanners, setSystemBanners] = useState<any[]>([]);
   const [loadingDropdownData, setLoadingDropdownData] = useState(false);
+  
+  // Transport rule states
+  const [showTransportRuleDialog, setShowTransportRuleDialog] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [transportRuleName, setTransportRuleName] = useState('');
+  const [generatingRules, setGeneratingRules] = useState(false);
+  const [generatedScript, setGeneratedScript] = useState('');
   
   const { toast } = useToast();
 
@@ -561,6 +569,69 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
     }
   };
 
+  // Generate Exchange transport rules
+  const generateTransportRules = async () => {
+    if (!selectedDomain || selectedUsers.length === 0) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a domain and at least one user",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGeneratingRules(true);
+    try {
+      // Get user assignments with signature and banner data
+      const userAssignments = selectedUsers.map(userId => {
+        const user = systemUsers.find(u => u.id === userId);
+        const signature = selectedSignatureId ? systemSignatures.find(s => s.id === selectedSignatureId) : null;
+        const banner = selectedBannerId ? systemBanners.find(b => b.id === selectedBannerId) : null;
+        
+        let combinedHtml = '';
+        if (banner) combinedHtml += banner.html_content;
+        if (signature) combinedHtml += (combinedHtml ? '<br/>' : '') + signature.html_content;
+        
+        return {
+          user_id: userId,
+          email: user?.email || '',
+          signature_id: selectedSignatureId || null,
+          banner_id: selectedBannerId || null,
+          combined_html: combinedHtml
+        };
+      });
+
+      const { data, error } = await supabase.functions.invoke('setup-exchange-transport-rules', {
+        body: {
+          domain: selectedDomain.domain_name,
+          rule_name: transportRuleName || `EmailSignature_${selectedDomain.domain_name}`,
+          user_assignments: userAssignments
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setGeneratedScript(data.configuration.powershell_script);
+        toast({
+          title: "Transport Rules Generated",
+          description: "PowerShell script has been generated. Copy and run it in Exchange Online PowerShell.",
+        });
+      } else {
+        throw new Error(data.error || "Failed to generate transport rules");
+      }
+    } catch (error: any) {
+      console.error('Error generating transport rules:', error);
+      toast({
+        title: "Failed to Generate Rules",
+        description: error.message || "An error occurred while generating transport rules",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingRules(false);
+    }
+  };
+
   const getImportanceColor = (importance: string) => {
     switch (importance) {
       case "critical": return "text-red-600 border-red-200 bg-red-50";
@@ -678,11 +749,12 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       )}
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="setup">Setup</TabsTrigger>
           <TabsTrigger value="records">DNS Records</TabsTrigger>
           <TabsTrigger value="verification">Verification</TabsTrigger>
           <TabsTrigger value="test-email">Test Email</TabsTrigger>
+          <TabsTrigger value="transport-rules">Exchange Rules</TabsTrigger>
           <TabsTrigger value="guide">Implementation Guide</TabsTrigger>
         </TabsList>
 
@@ -1309,6 +1381,199 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                   Consider consulting with your IT team or DNS provider for assistance.
                 </AlertDescription>
               </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="transport-rules" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Exchange Transport Rules
+              </CardTitle>
+              <CardDescription>
+                Generate PowerShell scripts to create Exchange transport rules that automatically append signatures and banners to outgoing emails.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rule-name">Transport Rule Name</Label>
+                  <Input
+                    id="rule-name"
+                    placeholder={selectedDomain ? `EmailSignature_${selectedDomain.domain_name}` : "EmailSignature_YourDomain"}
+                    value={transportRuleName}
+                    onChange={(e) => setTransportRuleName(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Select Signature (Optional)</Label>
+                    <Select value={selectedSignatureId} onValueChange={setSelectedSignatureId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose signature or leave empty" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No Signature</SelectItem>
+                        {systemSignatures.map((signature) => (
+                          <SelectItem key={signature.id} value={signature.id}>
+                            {signature.template_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Select Banner (Optional)</Label>
+                    <Select value={selectedBannerId} onValueChange={setSelectedBannerId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose banner or leave empty" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No Banner</SelectItem>
+                        {systemBanners.map((banner) => (
+                          <SelectItem key={banner.id} value={banner.id}>
+                            {banner.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Select Users for Transport Rule</Label>
+                  <div className="border rounded-md p-4 max-h-48 overflow-y-auto">
+                    {loadingDropdownData ? (
+                      <div className="animate-pulse space-y-2">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="h-8 bg-muted rounded"></div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <Checkbox
+                            id="select-all"
+                            checked={selectedUsers.length === systemUsers.length}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedUsers(systemUsers.map(u => u.id));
+                              } else {
+                                setSelectedUsers([]);
+                              }
+                            }}
+                          />
+                          <Label htmlFor="select-all" className="font-medium">
+                            Select All Users ({systemUsers.length})
+                          </Label>
+                        </div>
+                        {systemUsers.map((user) => (
+                          <div key={user.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={user.id}
+                              checked={selectedUsers.includes(user.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedUsers([...selectedUsers, user.id]);
+                                } else {
+                                  setSelectedUsers(selectedUsers.filter(id => id !== user.id));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={user.id} className="flex flex-col">
+                              <span>{user.email}</span>
+                              {user.first_name && user.last_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  {user.first_name} {user.last_name} - {user.department}
+                                </span>
+                              )}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Selected: {selectedUsers.length} user(s)
+                  </p>
+                </div>
+
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Transport rules automatically append signatures and banners to ALL outgoing emails from selected users. 
+                    This is the recommended approach for organization-wide signature deployment.
+                  </AlertDescription>
+                </Alert>
+
+                <Button
+                  onClick={generateTransportRules}
+                  disabled={generatingRules || !selectedDomain || selectedUsers.length === 0}
+                  className="w-full"
+                >
+                  {generatingRules ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating Transport Rules...
+                    </>
+                  ) : (
+                    <>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Generate Exchange Transport Rules
+                    </>
+                  )}
+                </Button>
+
+                {generatedScript && (
+                  <div className="space-y-4">
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="generated-script">Generated PowerShell Script</Label>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedScript);
+                            toast({
+                              title: "Copied!",
+                              description: "PowerShell script copied to clipboard",
+                            });
+                          }}
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Script
+                        </Button>
+                      </div>
+                      <Textarea
+                        id="generated-script"
+                        value={generatedScript}
+                        readOnly
+                        rows={15}
+                        className="font-mono text-xs"
+                      />
+                    </div>
+
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Next Steps:</strong>
+                        <ol className="list-decimal list-inside mt-2 space-y-1">
+                          <li>Copy the PowerShell script above</li>
+                          <li>Open Exchange Online PowerShell (Connect-ExchangeOnline)</li>
+                          <li>Run the script to create transport rules</li>
+                          <li>Wait 15-30 minutes for rules to take effect</li>
+                          <li>Test by sending an email from affected users</li>
+                        </ol>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
