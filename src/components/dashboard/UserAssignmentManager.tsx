@@ -149,16 +149,14 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .not("user_id", "is", null)
         .order("first_name");
 
       if (error) throw error;
       
-      // Remove duplicates based on user_id and ensure we have valid data
+      // Remove duplicates based on email (since admin-created users don't have user_id)
       const uniqueUsers = (data || []).filter((user, index, self) => 
-        user.user_id && 
         user.email && 
-        index === self.findIndex(u => u.user_id === user.user_id)
+        index === self.findIndex(u => u.email === user.email)
       );
       
       setUsers(uniqueUsers);
