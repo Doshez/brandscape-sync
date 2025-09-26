@@ -76,7 +76,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
       const [signaturesResult, usersResult] = await Promise.all([
         supabase.from("email_signatures").select("*").order("created_at", { ascending: false }),
         profile?.is_admin 
-          ? supabase.from("profiles").select("*").order("first_name", { ascending: true })
+          ? supabase.from("profiles").select("*").not("user_id", "is", null).order("first_name", { ascending: true })
           : Promise.resolve({ data: [], error: null })
       ]);
 
@@ -90,7 +90,14 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
       }
 
       setSignatures(filteredSignatures);
-      setUsers(usersResult.data || []);
+      
+      // Remove duplicates from users based on user_id
+      const uniqueUsers = (usersResult.data || []).filter((user, index, self) => 
+        user.user_id && 
+        user.email && 
+        index === self.findIndex(u => u.user_id === user.user_id)
+      );
+      setUsers(uniqueUsers);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast({
@@ -621,7 +628,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                           <SelectContent>
                             <SelectItem value="current">Current User</SelectItem>
                             {users.map((user) => (
-                              <SelectItem key={user.user_id} value={user.user_id}>
+                              <SelectItem key={`sig-user-${user.user_id}`} value={user.user_id}>
                                 {user.first_name} {user.last_name} ({user.email})
                               </SelectItem>
                             ))}

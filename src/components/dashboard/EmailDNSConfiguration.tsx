@@ -1193,7 +1193,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                       </SelectTrigger>
                       <SelectContent>
                         {systemUsers.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
+                          <SelectItem key={`test-user-${user.id}`} value={user.id}>
                             <div className="flex flex-col">
                               <span>{user.email}</span>
                               {user.first_name && user.last_name && (
@@ -1225,7 +1225,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                       </SelectTrigger>
                       <SelectContent>
                         {systemUsers.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
+                          <SelectItem key={`sender-user-${user.id}`} value={user.id}>
                             <div className="flex flex-col">
                               <span>{user.email}</span>
                               {user.first_name && user.last_name && (
@@ -1589,7 +1589,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                           </Label>
                         </div>
                         {systemUsers.map((user) => (
-                          <div key={user.id} className="flex items-center space-x-2">
+                          <div key={`checkbox-user-${user.id}`} className="flex items-center space-x-2">
                             <Checkbox
                               id={user.id}
                               checked={selectedUsers.includes(user.id)}

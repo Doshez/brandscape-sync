@@ -149,10 +149,19 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
+        .not("user_id", "is", null)
         .order("first_name");
 
       if (error) throw error;
-      setUsers(data || []);
+      
+      // Remove duplicates based on user_id and ensure we have valid data
+      const uniqueUsers = (data || []).filter((user, index, self) => 
+        user.user_id && 
+        user.email && 
+        index === self.findIndex(u => u.user_id === user.user_id)
+      );
+      
+      setUsers(uniqueUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
     }
@@ -333,7 +342,7 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
                 </SelectTrigger>
                 <SelectContent>
                   {users.map((user) => (
-                    <SelectItem key={user.user_id} value={user.user_id}>
+                    <SelectItem key={`user-${user.user_id}`} value={user.user_id}>
                       {user.first_name} {user.last_name} ({user.email})
                     </SelectItem>
                   ))}

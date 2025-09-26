@@ -109,7 +109,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const fetchData = async () => {
     try {
       const [usersResult, signaturesResult, bannersResult] = await Promise.all([
-        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("profiles").select("*").not("user_id", "is", null).order("created_at", { ascending: false }),
         supabase.from("email_signatures").select("*").order("created_at", { ascending: false }),
         supabase.from("banners").select("*").order("created_at", { ascending: false })
       ]);
@@ -118,12 +118,19 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       if (signaturesResult.error) throw signaturesResult.error;
       if (bannersResult.error) throw bannersResult.error;
 
-      setUsers(usersResult.data || []);
+      // Remove duplicates based on user_id
+      const uniqueUsers = (usersResult.data || []).filter((user, index, self) => 
+        user.user_id && 
+        user.email && 
+        index === self.findIndex(u => u.user_id === user.user_id)
+      );
+
+      setUsers(uniqueUsers);
       setSignatures(signaturesResult.data || []);
       setBanners(bannersResult.data || []);
       
       // Fetch assignments for each user
-      await fetchUserAssignments(usersResult.data || []);
+      await fetchUserAssignments(uniqueUsers);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast({
@@ -907,7 +914,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                     </SelectTrigger>
                     <SelectContent>
                       {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
+                        <SelectItem key={`user-select-${user.id}`} value={user.id}>
                           {user.first_name} {user.last_name} ({user.email})
                         </SelectItem>
                       ))}
