@@ -1410,13 +1410,24 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Select Signature (Optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Select Signature (Optional)</Label>
+                      {selectedSignatureId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedSignatureId('')}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
                     <Select value={selectedSignatureId} onValueChange={setSelectedSignatureId}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose signature or leave empty" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No Signature</SelectItem>
                         {systemSignatures.map((signature) => (
                           <SelectItem key={signature.id} value={signature.id}>
                             {signature.template_name}
@@ -1427,13 +1438,24 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Select Banner (Optional)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Select Banner (Optional)</Label>
+                      {selectedBannerId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedBannerId('')}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
                     <Select value={selectedBannerId} onValueChange={setSelectedBannerId}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose banner or leave empty" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No Banner</SelectItem>
                         {systemBanners.map((banner) => (
                           <SelectItem key={banner.id} value={banner.id}>
                             {banner.name}
