@@ -1071,7 +1071,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <Label>Select Recipient or Enter Manually</Label>
+                  <Label>Select Recipient</Label>
                   {loadingDropdownData ? (
                     <div className="animate-pulse h-10 bg-muted rounded"></div>
                   ) : (
@@ -1082,9 +1082,9 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                       }
                     }}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose a user or enter manually below" />
+                        <SelectValue placeholder="Choose a user or enter manually" />
                       </SelectTrigger>
-                      <SelectContent className="bg-background border border-border z-50">
+                      <SelectContent>
                         {systemUsers.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             <div className="flex flex-col">
@@ -1100,16 +1100,10 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                       </SelectContent>
                     </Select>
                   )}
-                  <Input
-                    type="email"
-                    placeholder="Or enter recipient email manually"
-                    value={testEmail}
-                    onChange={(e) => setTestEmail(e.target.value)}
-                  />
                 </div>
 
                 <div className="space-y-4">
-                  <Label>Select From Address or Enter Manually</Label>
+                  <Label>Select From Address</Label>
                   {loadingDropdownData ? (
                     <div className="animate-pulse h-10 bg-muted rounded"></div>
                   ) : (
@@ -1120,9 +1114,9 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                       }
                     }}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Choose sender or enter manually below" />
+                        <SelectValue placeholder="Choose sender or enter manually" />
                       </SelectTrigger>
-                      <SelectContent className="bg-background border border-border z-50">
+                      <SelectContent>
                         {systemUsers.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             <div className="flex flex-col">
@@ -1138,12 +1132,6 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                       </SelectContent>
                     </Select>
                   )}
-                  <Input
-                    type="email"
-                    placeholder={selectedDomain ? `sender@${selectedDomain.domain_name}` : "Or enter sender email manually"}
-                    value={testFromEmail}
-                    onChange={(e) => setTestFromEmail(e.target.value)}
-                  />
                 </div>
               </div>
 
@@ -1171,7 +1159,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                         <SelectTrigger>
                           <SelectValue placeholder="Choose an email signature" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background border border-border z-50">
+                        <SelectContent>
                           {systemSignatures.map((signature) => (
                             <SelectItem key={signature.id} value={signature.id}>
                               <div className="flex flex-col">
@@ -1211,7 +1199,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                         <SelectTrigger>
                           <SelectValue placeholder="Choose an email banner" />
                         </SelectTrigger>
-                        <SelectContent className="bg-background border border-border z-50">
+                        <SelectContent>
                           {systemBanners.map((banner) => (
                             <SelectItem key={banner.id} value={banner.id}>
                               {banner.name}
