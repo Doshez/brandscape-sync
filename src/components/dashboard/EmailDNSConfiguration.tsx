@@ -65,9 +65,15 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   const [testFromEmail, setTestFromEmail] = useState('');
   const [includeSignature, setIncludeSignature] = useState(false);
   const [includeBanner, setIncludeBanner] = useState(false);
-  const [signatureContent, setSignatureContent] = useState('');
-  const [bannerContent, setBannerContent] = useState('');
+  const [selectedSignatureId, setSelectedSignatureId] = useState('');
+  const [selectedBannerId, setSelectedBannerId] = useState('');
   const [sendingTest, setSendingTest] = useState(false);
+  
+  // Data for dropdowns
+  const [systemUsers, setSystemUsers] = useState<any[]>([]);
+  const [systemSignatures, setSystemSignatures] = useState<any[]>([]);
+  const [systemBanners, setSystemBanners] = useState<any[]>([]);
+  const [loadingDropdownData, setLoadingDropdownData] = useState(false);
   
   const { toast } = useToast();
 
@@ -75,6 +81,7 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
   useEffect(() => {
     if (profile?.is_admin) {
       fetchVerifiedDomains();
+      fetchDropdownData();
     }
   }, [profile]);
 
@@ -98,6 +105,50 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDropdownData = async () => {
+    setLoadingDropdownData(true);
+    try {
+      // Fetch users from profiles
+      const { data: users, error: usersError } = await supabase
+        .from("profiles")
+        .select("id, email, first_name, last_name, user_id")
+        .order("email", { ascending: true });
+
+      if (usersError) throw usersError;
+
+      // Fetch email signatures
+      const { data: signatures, error: signaturesError } = await supabase
+        .from("email_signatures")
+        .select("id, template_name, html_content, signature_type")
+        .eq("is_active", true)
+        .order("template_name", { ascending: true });
+
+      if (signaturesError) throw signaturesError;
+
+      // Fetch banners
+      const { data: banners, error: bannersError } = await supabase
+        .from("banners")
+        .select("id, name, html_content")
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+
+      if (bannersError) throw bannersError;
+
+      setSystemUsers(users || []);
+      setSystemSignatures(signatures || []);
+      setSystemBanners(banners || []);
+    } catch (error) {
+      console.error("Error fetching dropdown data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch system data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingDropdownData(false);
     }
   };
 
@@ -457,6 +508,25 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
     setSendingTest(true);
     try {
+      let signatureContent = '';
+      let bannerContent = '';
+
+      // Get signature content if selected
+      if (includeSignature && selectedSignatureId) {
+        const signature = systemSignatures.find(s => s.id === selectedSignatureId);
+        if (signature) {
+          signatureContent = signature.html_content;
+        }
+      }
+
+      // Get banner content if selected
+      if (includeBanner && selectedBannerId) {
+        const banner = systemBanners.find(b => b.id === selectedBannerId);
+        if (banner) {
+          bannerContent = banner.html_content;
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('send-test-email', {
         body: {
           to: testEmail,
@@ -999,6 +1069,72 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Label>Select Recipient</Label>
+                  {loadingDropdownData ? (
+                    <div className="animate-pulse h-10 bg-muted rounded"></div>
+                  ) : (
+                    <Select onValueChange={(value) => {
+                      const user = systemUsers.find(u => u.id === value);
+                      if (user && user.email) {
+                        setTestEmail(user.email);
+                      }
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a user or enter manually" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {systemUsers.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.email}</span>
+                              {user.first_name && user.last_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  {user.first_name} {user.last_name}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <Label>Select From Address</Label>
+                  {loadingDropdownData ? (
+                    <div className="animate-pulse h-10 bg-muted rounded"></div>
+                  ) : (
+                    <Select onValueChange={(value) => {
+                      const user = systemUsers.find(u => u.id === value);
+                      if (user && user.email) {
+                        setTestFromEmail(user.email);
+                      }
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose sender or enter manually" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {systemUsers.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.email}</span>
+                              {user.first_name && user.last_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  {user.first_name} {user.last_name}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -1011,14 +1147,32 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
                 {includeSignature && (
                   <div className="space-y-2">
-                    <Label htmlFor="signature-content">Signature HTML Content</Label>
-                    <Textarea
-                      id="signature-content"
-                      placeholder="Enter your email signature HTML content..."
-                      value={signatureContent}
-                      onChange={(e) => setSignatureContent(e.target.value)}
-                      rows={4}
-                    />
+                    <Label>Select Email Signature</Label>
+                    {loadingDropdownData ? (
+                      <div className="animate-pulse h-10 bg-muted rounded"></div>
+                    ) : systemSignatures.length === 0 ? (
+                      <div className="text-sm text-muted-foreground p-3 bg-muted rounded">
+                        No email signatures found. Create signatures in the Signature Manager first.
+                      </div>
+                    ) : (
+                      <Select value={selectedSignatureId} onValueChange={setSelectedSignatureId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose an email signature" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {systemSignatures.map((signature) => (
+                            <SelectItem key={signature.id} value={signature.id}>
+                              <div className="flex flex-col">
+                                <span>{signature.template_name}</span>
+                                <span className="text-xs text-muted-foreground capitalize">
+                                  {signature.signature_type} signature
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 )}
 
@@ -1033,14 +1187,27 @@ export const EmailDNSConfiguration = ({ profile }: EmailDNSConfigurationProps) =
 
                 {includeBanner && (
                   <div className="space-y-2">
-                    <Label htmlFor="banner-content">Banner HTML Content</Label>
-                    <Textarea
-                      id="banner-content"
-                      placeholder="Enter your email banner HTML content..."
-                      value={bannerContent}
-                      onChange={(e) => setBannerContent(e.target.value)}
-                      rows={3}
-                    />
+                    <Label>Select Email Banner</Label>
+                    {loadingDropdownData ? (
+                      <div className="animate-pulse h-10 bg-muted rounded"></div>
+                    ) : systemBanners.length === 0 ? (
+                      <div className="text-sm text-muted-foreground p-3 bg-muted rounded">
+                        No email banners found. Create banners in the Banner Manager first.
+                      </div>
+                    ) : (
+                      <Select value={selectedBannerId} onValueChange={setSelectedBannerId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose an email banner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {systemBanners.map((banner) => (
+                            <SelectItem key={banner.id} value={banner.id}>
+                              {banner.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 )}
               </div>
