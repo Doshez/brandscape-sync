@@ -63,8 +63,6 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log("UserAssignmentManager profile:", profile);
-    console.log("Is admin:", profile?.is_admin);
     if (profile?.is_admin) {
       Promise.all([
         fetchAssignments(),
@@ -72,8 +70,6 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
         fetchSignatures(),
         fetchBanners()
       ]).finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
   }, [profile]);
 
@@ -150,30 +146,13 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
 
   const fetchUsers = async () => {
     try {
-      console.log("Fetching users in UserAssignmentManager...");
-      console.log("Current profile:", profile);
-      
-      // Try different queries based on admin status
-      let query = supabase.from("profiles").select("*");
-      
-      // If user is admin, try to fetch all profiles
-      if (profile?.is_admin) {
-        console.log("Admin user - fetching all profiles");
-        query = query.not("user_id", "is", null);
-      } else {
-        console.log("Non-admin user - fetching own profile only");
-        query = query.eq("user_id", profile?.user_id);
-      }
-      
-      const { data, error } = await query.order("first_name");
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .not("user_id", "is", null)
+        .order("first_name");
 
-      console.log("Raw users data:", data);
-      console.log("Users fetch error:", error);
-
-      if (error) {
-        console.error("Database error:", error);
-        throw error;
-      }
+      if (error) throw error;
       
       // Remove duplicates based on user_id and ensure we have valid data
       const uniqueUsers = (data || []).filter((user, index, self) => 
@@ -182,7 +161,6 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
         index === self.findIndex(u => u.user_id === user.user_id)
       );
       
-      console.log("Unique users after filtering:", uniqueUsers);
       setUsers(uniqueUsers);
     } catch (error) {
       console.error("Error fetching users:", error);

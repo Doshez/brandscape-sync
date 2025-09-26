@@ -108,40 +108,21 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
   const fetchData = async () => {
     try {
-      console.log("Fetching data...");
-      console.log("Current profile:", profile);
-      
       const [usersResult, signaturesResult, bannersResult] = await Promise.all([
-        supabase.from("profiles").select("*").not("user_id", "is", null).order("created_at", { ascending: false }),
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
         supabase.from("email_signatures").select("*").order("created_at", { ascending: false }),
         supabase.from("banners").select("*").order("created_at", { ascending: false })
       ]);
 
-      console.log("Users result:", usersResult);
-      console.log("Signatures result:", signaturesResult);
-      console.log("Banners result:", bannersResult);
+      if (usersResult.error) throw usersResult.error;
+      if (signaturesResult.error) throw signaturesResult.error;
+      if (bannersResult.error) throw bannersResult.error;
 
-      if (usersResult.error) {
-        console.error("Users fetch error:", usersResult.error);
-        throw usersResult.error;
-      }
-      if (signaturesResult.error) {
-        console.error("Signatures fetch error:", signaturesResult.error);
-        throw signaturesResult.error;
-      }
-      if (bannersResult.error) {
-        console.error("Banners fetch error:", bannersResult.error);
-        throw bannersResult.error;
-      }
-
-      // Remove duplicates based on user_id
+      // Remove duplicates based on email (since admin-created users don't have user_id)
       const uniqueUsers = (usersResult.data || []).filter((user, index, self) => 
-        user.user_id && 
         user.email && 
-        index === self.findIndex(u => u.user_id === user.user_id)
+        index === self.findIndex(u => u.email === user.email)
       );
-
-      console.log("Unique users after filtering:", uniqueUsers);
 
       setUsers(uniqueUsers);
       setSignatures(signaturesResult.data || []);
