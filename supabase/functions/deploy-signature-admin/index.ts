@@ -73,9 +73,11 @@ const handler = async (req: Request): Promise<Response> => {
       .from('profiles')
       .select('email, first_name, last_name')
       .eq('email', target_user_email)
-      .maybeSingle();
+      .limit(1)
+      .single();
 
     if (targetError || !targetProfile) {
+      console.error('Target user lookup error:', targetError);
       throw new Error(`Target user ${target_user_email} not found in organization`);
     }
 
