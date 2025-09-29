@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,10 +45,10 @@ const handler = async (req: Request): Promise<Response> => {
     let currentUserId = null;
     if (token) {
       try {
-        const { data: { user } } = await supabase.auth.getUser(token);
-        currentUserId = user?.id;
+        // Skip user authentication for service role operations
+        console.log('Token provided, but skipping user auth for service operations');
       } catch (e) {
-        console.warn('Could not get user from token:', e);
+        console.warn('Could not process token:', e);
       }
     }
 

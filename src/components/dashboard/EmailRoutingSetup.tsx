@@ -220,8 +220,13 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
   };
 
   const createUserAssignment = async () => {
-    if (!selectedUser || !selectedSignature) {
-      toast.error('Please select both a user and signature');
+    if (!selectedUser || !selectedSignature || selectedBanners.length === 0) {
+      toast.error('Please select a user, signature, and at least one banner');
+      return;
+    }
+
+    if (selectedBanners.length > 4) {
+      toast.error('Maximum 4 banners allowed per user');
       return;
     }
 
@@ -693,7 +698,7 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Select Banners (Optional)</Label>
+                    <Label>Select Banners (Required - Maximum 4)</Label>
                     <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
                       {banners.map((banner) => (
                         <div key={banner.id} className="flex items-center space-x-2">
@@ -701,9 +706,12 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                             type="checkbox"
                             id={`banner-${banner.id}`}
                             checked={selectedBanners.includes(banner.id)}
+                            disabled={!selectedBanners.includes(banner.id) && selectedBanners.length >= 4}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedBanners([...selectedBanners, banner.id]);
+                                if (selectedBanners.length < 4) {
+                                  setSelectedBanners([...selectedBanners, banner.id]);
+                                }
                               } else {
                                 setSelectedBanners(selectedBanners.filter(id => id !== banner.id));
                               }
@@ -714,13 +722,16 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                           </label>
                         </div>
                       ))}
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Selected: {selectedBanners.length}/4 (At least 1 required)
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <Button 
                   onClick={createUserAssignment}
-                  disabled={!selectedUser || !selectedSignature || loading}
+                  disabled={!selectedUser || !selectedSignature || selectedBanners.length === 0 || loading}
                   className="w-full"
                 >
                   {loading ? 'Creating Assignment...' : 'Create Assignment'}

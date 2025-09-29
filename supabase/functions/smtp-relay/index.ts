@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -118,15 +118,22 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
     }
   }
 
-  // Fetch banner content
+  // Fetch banner content - select only 1 banner per email (rotation)
   let bannersHtml = '';
   if (assignment.banner_ids.length > 0) {
-    const banners = await getBannersContent(assignment.banner_ids);
-    bannersHtml = banners.map(banner => 
-      banner.click_url 
+    // Use rotation based on current time to select 1 banner from available banners
+    const bannerIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000)) % assignment.banner_ids.length;
+    const selectedBannerId = assignment.banner_ids[bannerIndex];
+    
+    console.log(`Selected banner ${bannerIndex + 1} of ${assignment.banner_ids.length} available banners`);
+    
+    const banners = await getBannersContent([selectedBannerId]);
+    if (banners.length > 0) {
+      const banner = banners[0];
+      bannersHtml = banner.click_url 
         ? `<a href="${banner.click_url}" target="_blank">${banner.html_content}</a>`
-        : banner.html_content
-    ).join('');
+        : banner.html_content;
+    }
   }
 
   // Inject signature and banners into email body
@@ -195,7 +202,7 @@ async function getUserAssignment(userEmail: string): Promise<UserAssignment | nu
       if (bannerError) {
         console.error('Error fetching banner assignments:', bannerError);
       } else {
-        bannerIds = bannerAssignments?.map(ba => ba.banner_id) || [];
+        bannerIds = bannerAssignments?.map((ba: any) => ba.banner_id) || [];
       }
     }
 
