@@ -26,16 +26,63 @@ interface RelayConfig {
   is_active: boolean;
 }
 
+interface User {
+  id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  department?: string;
+}
+
+interface EmailSignature {
+  id: string;
+  template_name: string;
+  html_content: string;
+  is_active?: boolean;
+}
+
+interface Banner {
+  id: string;
+  name: string;
+  html_content: string;
+  is_active?: boolean;
+}
+
+interface UserAssignment {
+  id: string;
+  user_id: string;
+  signature_id?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  user?: User;
+  signature?: EmailSignature;
+  banners?: Banner[];
+}
+
 export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile }) => {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [selectedDomain, setSelectedDomain] = useState('');
   const [relayConfig, setRelayConfig] = useState<RelayConfig | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // User management state
+  const [users, setUsers] = useState<User[]>([]);
+  const [signatures, setSignatures] = useState<EmailSignature[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [assignments, setAssignments] = useState<UserAssignment[]>([]);
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedSignature, setSelectedSignature] = useState('');
+  const [selectedBanners, setSelectedBanners] = useState<string[]>([]);
 
   useEffect(() => {
     if (profile?.is_admin) {
       fetchDomains();
       fetchRelayConfig();
+      fetchUsers();
+      fetchSignatures();
+      fetchBanners();
+      fetchAssignments();
     }
   }, [profile]);
 
@@ -63,6 +110,185 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
     if (data) {
       setRelayConfig(data);
       setSelectedDomain(data.domain);
+    }
+  };
+
+  // User management functions
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('first_name');
+      
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users');
+    }
+  };
+
+  const fetchSignatures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('email_signatures')
+        .select('*')
+        .eq('is_active', true)
+        .order('template_name');
+      
+      if (error) throw error;
+      setSignatures(data || []);
+    } catch (error) {
+      console.error('Error fetching signatures:', error);
+      toast.error('Failed to fetch signatures');
+    }
+  };
+
+  const fetchBanners = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('banners')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      setBanners(data || []);
+    } catch (error) {
+      console.error('Error fetching banners:', error);
+      toast.error('Failed to fetch banners');
+    }
+  };
+
+  const fetchAssignments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_email_assignments')
+        .select(`
+          id,
+          user_id,
+          signature_id,
+          is_active,
+          created_at,
+          updated_at
+        `)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Fetch related data separately
+      const assignmentsWithDetails = await Promise.all(
+        (data || []).map(async (assignment) => {
+          // Fetch user details
+          const { data: userData } = await supabase
+            .from('profiles')
+            .select('id, email, first_name, last_name, department')
+            .eq('id', assignment.user_id)
+            .single();
+
+          // Fetch signature details
+          const { data: signatureData } = await supabase
+            .from('email_signatures')
+            .select('id, template_name, html_content')
+            .eq('id', assignment.signature_id)
+            .single();
+
+          // Fetch banner assignments
+          const { data: bannerAssignments } = await supabase
+            .from('user_banner_assignments')
+            .select(`
+              banner:banners(id, name, html_content)
+            `)
+            .eq('user_assignment_id', assignment.id);
+
+          return {
+            ...assignment,
+            user: userData,
+            signature: signatureData,
+            banners: bannerAssignments?.map(ba => ba.banner).filter(Boolean) || []
+          };
+        })
+      );
+      
+      setAssignments(assignmentsWithDetails);
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+      toast.error('Failed to fetch assignments');
+    }
+  };
+
+  const createUserAssignment = async () => {
+    if (!selectedUser || !selectedSignature) {
+      toast.error('Please select both a user and signature');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Deactivate previous assignments for this user
+      await supabase
+        .from('user_email_assignments')
+        .update({ is_active: false })
+        .eq('user_id', selectedUser);
+
+      // Create new assignment
+      const { data: assignment, error: assignmentError } = await supabase
+        .from('user_email_assignments')
+        .insert({
+          user_id: selectedUser,
+          signature_id: selectedSignature,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (assignmentError) throw assignmentError;
+
+      // Add banner assignments if any selected
+      if (selectedBanners.length > 0) {
+        const bannerAssignments = selectedBanners.map((bannerId, index) => ({
+          user_assignment_id: assignment.id,
+          banner_id: bannerId,
+          display_order: index + 1
+        }));
+
+        const { error: bannerError } = await supabase
+          .from('user_banner_assignments')
+          .insert(bannerAssignments);
+
+        if (bannerError) throw bannerError;
+      }
+
+      toast.success('User assignment created successfully');
+      setSelectedUser('');
+      setSelectedSignature('');
+      setSelectedBanners([]);
+      fetchAssignments();
+    } catch (error) {
+      console.error('Error creating assignment:', error);
+      toast.error('Failed to create user assignment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeAssignment = async (assignmentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_email_assignments')
+        .update({ is_active: false })
+        .eq('id', assignmentId);
+
+      if (error) throw error;
+
+      toast.success('User assignment removed successfully');
+      fetchAssignments();
+    } catch (error) {
+      console.error('Error removing assignment:', error);
+      toast.error('Failed to remove user assignment');
     }
   };
 
@@ -174,10 +400,11 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
       )}
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="setup">Domain Setup</TabsTrigger>
           <TabsTrigger value="dns">DNS Configuration</TabsTrigger>
           <TabsTrigger value="routing">Routing Rules</TabsTrigger>
+          <TabsTrigger value="users">User Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="setup" className="space-y-4">
@@ -415,6 +642,154 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                   </Alert>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>User Assignment Management</CardTitle>
+              <CardDescription>
+                Assign email signatures and banners to users for automatic SMTP relay processing
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Create New Assignment */}
+              <div className="space-y-4 p-4 border rounded-lg">
+                <h3 className="text-lg font-medium">Create New Assignment</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Select User</Label>
+                    <select
+                      className="w-full p-2 border rounded-md"
+                      value={selectedUser}
+                      onChange={(e) => setSelectedUser(e.target.value)}
+                    >
+                      <option value="">Select a user...</option>
+                      {users.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.first_name} {user.last_name} ({user.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Select Email Signature</Label>
+                    <select
+                      className="w-full p-2 border rounded-md"
+                      value={selectedSignature}
+                      onChange={(e) => setSelectedSignature(e.target.value)}
+                    >
+                      <option value="">Select a signature...</option>
+                      {signatures.map((signature) => (
+                        <option key={signature.id} value={signature.id}>
+                          {signature.template_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Select Banners (Optional)</Label>
+                    <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
+                      {banners.map((banner) => (
+                        <div key={banner.id} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`banner-${banner.id}`}
+                            checked={selectedBanners.includes(banner.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedBanners([...selectedBanners, banner.id]);
+                              } else {
+                                setSelectedBanners(selectedBanners.filter(id => id !== banner.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={`banner-${banner.id}`} className="text-sm">
+                            {banner.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={createUserAssignment}
+                  disabled={!selectedUser || !selectedSignature || loading}
+                  className="w-full"
+                >
+                  {loading ? 'Creating Assignment...' : 'Create Assignment'}
+                </Button>
+              </div>
+
+              {/* Current Assignments */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Current Assignments</h3>
+                
+                {assignments.length === 0 ? (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No user assignments found. Create assignments above to enable automatic 
+                      signature and banner injection via SMTP relay.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="space-y-3">
+                    {assignments.map((assignment) => (
+                      <Card key={assignment.id} className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <div className="font-medium">
+                              {assignment.user?.first_name} {assignment.user?.last_name}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {assignment.user?.email}
+                            </div>
+                            {assignment.user?.department && (
+                              <Badge variant="outline" className="text-xs">
+                                {assignment.user.department}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="text-right space-y-1">
+                            <div className="text-sm">
+                              <strong>Signature:</strong> {assignment.signature?.template_name || 'None'}
+                            </div>
+                            {assignment.banners && assignment.banners.length > 0 && (
+                              <div className="text-sm">
+                                <strong>Banners:</strong> {assignment.banners.map(b => b.name).join(', ')}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => removeAssignment(assignment.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  These assignments will be automatically used by the SMTP relay function to inject 
+                  signatures and banners into emails processed through your configured smart host.
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
         </TabsContent>

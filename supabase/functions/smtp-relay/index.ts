@@ -154,11 +154,12 @@ async function getUserAssignment(userEmail: string): Promise<UserAssignment | nu
   try {
     console.log('Getting user assignment for:', userEmail);
     
-    // Get user profile
+    // Get user profile - handle both authenticated users and manually created profiles
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('user_id')
+      .select('id, user_id')
       .eq('email', userEmail)
+      .limit(1)
       .single();
 
     if (profileError || !profile) {
@@ -166,13 +167,15 @@ async function getUserAssignment(userEmail: string): Promise<UserAssignment | nu
       return null;
     }
 
-    console.log('Found profile for user:', profile.user_id);
+    console.log('Found profile:', profile.id, 'user_id:', profile.user_id);
 
-    // Get user's active email assignment
+    // Get user's active email assignment using profile id as user_id for assignments
+    const userIdForAssignment = profile.user_id || profile.id;
+    
     const { data: emailAssignment, error: assignmentError } = await supabase
       .from('user_email_assignments')
-      .select('signature_id')
-      .eq('user_id', profile.user_id)
+      .select('id, signature_id')
+      .eq('user_id', userIdForAssignment)
       .eq('is_active', true)
       .maybeSingle();
 
