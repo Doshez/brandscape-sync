@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Copy, CheckCircle, AlertCircle, Globe, Mail, Server, ExternalLink } from "lucide-react";
+import { Copy, CheckCircle, AlertCircle, Globe, Mail, Server, ExternalLink, Edit, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { z } from 'zod';
 
 interface EmailRoutingSetupProps {
   profile: any;
@@ -60,6 +61,15 @@ interface UserAssignment {
   banners?: Banner[];
 }
 
+// Input validation schema
+const assignmentSchema = z.object({
+  user_id: z.string().uuid({ message: "Invalid user ID format" }),
+  signature_id: z.string().uuid({ message: "Invalid signature ID format" }),
+  banner_ids: z.array(z.string().uuid({ message: "Invalid banner ID format" }))
+    .min(1, { message: "At least one banner is required" })
+    .max(4, { message: "Maximum 4 banners allowed" })
+});
+
 export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile }) => {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [selectedDomain, setSelectedDomain] = useState('');
@@ -74,6 +84,10 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
   const [selectedUser, setSelectedUser] = useState('');
   const [selectedSignature, setSelectedSignature] = useState('');
   const [selectedBanners, setSelectedBanners] = useState<string[]>([]);
+  
+  // Edit state
+  const [editingAssignment, setEditingAssignment] = useState<UserAssignment | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -220,64 +234,131 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
   };
 
   const createUserAssignment = async () => {
-    if (!selectedUser || !selectedSignature || selectedBanners.length === 0) {
-      toast.error('Please select a user, signature, and at least one banner');
-      return;
-    }
+    // Input validation with zod
+    const validationResult = assignmentSchema.safeParse({
+      user_id: selectedUser,
+      signature_id: selectedSignature,
+      banner_ids: selectedBanners
+    });
 
-    if (selectedBanners.length > 4) {
-      toast.error('Maximum 4 banners allowed per user');
+    if (!validationResult.success) {
+      const errors = validationResult.error.issues.map(e => e.message).join(', ');
+      toast.error(`Validation error: ${errors}`);
       return;
     }
 
     try {
       setLoading(true);
 
-      // Deactivate previous assignments for this user
-      await supabase
-        .from('user_email_assignments')
-        .update({ is_active: false })
-        .eq('user_id', selectedUser);
-
-      // Create new assignment
-      const { data: assignment, error: assignmentError } = await supabase
-        .from('user_email_assignments')
-        .insert({
-          user_id: selectedUser,
-          signature_id: selectedSignature,
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (assignmentError) throw assignmentError;
-
-      // Add banner assignments if any selected
-      if (selectedBanners.length > 0) {
-        const bannerAssignments = selectedBanners.map((bannerId, index) => ({
-          user_assignment_id: assignment.id,
-          banner_id: bannerId,
-          display_order: index + 1
-        }));
-
-        const { error: bannerError } = await supabase
-          .from('user_banner_assignments')
-          .insert(bannerAssignments);
-
-        if (bannerError) throw bannerError;
+      if (isEditing && editingAssignment) {
+        // Update existing assignment
+        await updateUserAssignment();
+      } else {
+        // Create new assignment
+        await createNewAssignment();
       }
-
-      toast.success('User assignment created successfully');
-      setSelectedUser('');
-      setSelectedSignature('');
-      setSelectedBanners([]);
-      fetchAssignments();
     } catch (error) {
-      console.error('Error creating assignment:', error);
-      toast.error('Failed to create user assignment');
+      console.error('Error managing assignment:', error);
+      toast.error('Failed to save user assignment');
     } finally {
       setLoading(false);
     }
+  };
+
+  const createNewAssignment = async () => {
+    // Deactivate previous assignments for this user
+    await supabase
+      .from('user_email_assignments')
+      .update({ is_active: false })
+      .eq('user_id', selectedUser);
+
+    // Create new assignment
+    const { data: assignment, error: assignmentError } = await supabase
+      .from('user_email_assignments')
+      .insert({
+        user_id: selectedUser,
+        signature_id: selectedSignature,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (assignmentError) throw assignmentError;
+
+    // Add banner assignments
+    const bannerAssignments = selectedBanners.map((bannerId, index) => ({
+      user_assignment_id: assignment.id,
+      banner_id: bannerId,
+      display_order: index + 1
+    }));
+
+    const { error: bannerError } = await supabase
+      .from('user_banner_assignments')
+      .insert(bannerAssignments);
+
+    if (bannerError) throw bannerError;
+
+    toast.success('User assignment created successfully');
+    resetForm();
+    fetchAssignments();
+  };
+
+  const updateUserAssignment = async () => {
+    if (!editingAssignment) return;
+
+    // Update signature
+    const { error: signatureError } = await supabase
+      .from('user_email_assignments')
+      .update({
+        signature_id: selectedSignature,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', editingAssignment.id);
+
+    if (signatureError) throw signatureError;
+
+    // Remove existing banner assignments
+    await supabase
+      .from('user_banner_assignments')
+      .delete()
+      .eq('user_assignment_id', editingAssignment.id);
+
+    // Add new banner assignments
+    const bannerAssignments = selectedBanners.map((bannerId, index) => ({
+      user_assignment_id: editingAssignment.id,
+      banner_id: bannerId,
+      display_order: index + 1
+    }));
+
+    const { error: bannerError } = await supabase
+      .from('user_banner_assignments')
+      .insert(bannerAssignments);
+
+    if (bannerError) throw bannerError;
+
+    toast.success('User assignment updated successfully');
+    resetForm();
+    fetchAssignments();
+  };
+
+  const startEditAssignment = (assignment: UserAssignment) => {
+    setEditingAssignment(assignment);
+    setIsEditing(true);
+    setSelectedUser(assignment.user_id);
+    setSelectedSignature(assignment.signature_id || '');
+    setSelectedBanners(assignment.banners?.map(b => b.id) || []);
+  };
+
+  const cancelEdit = () => {
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setEditingAssignment(null);
+    setIsEditing(false);
+    setSelectedUser('');
+    setSelectedSignature('');
+    setSelectedBanners([]);
   };
 
   const removeAssignment = async (assignmentId: string) => {
@@ -662,7 +743,17 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
             <CardContent className="space-y-6">
               {/* Create New Assignment */}
               <div className="space-y-4 p-4 border rounded-lg">
-                <h3 className="text-lg font-medium">Create New Assignment</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">
+                    {isEditing ? 'Edit Assignment' : 'Create New Assignment'}
+                  </h3>
+                  {isEditing && (
+                    <Button variant="outline" size="sm" onClick={cancelEdit}>
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel Edit
+                    </Button>
+                  )}
+                </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
@@ -671,6 +762,7 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                       className="w-full p-2 border rounded-md"
                       value={selectedUser}
                       onChange={(e) => setSelectedUser(e.target.value)}
+                      disabled={isEditing} // Disable user selection when editing
                     >
                       <option value="">Select a user...</option>
                       {users.map((user) => (
@@ -734,7 +826,7 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                   disabled={!selectedUser || !selectedSignature || selectedBanners.length === 0 || loading}
                   className="w-full"
                 >
-                  {loading ? 'Creating Assignment...' : 'Create Assignment'}
+                  {loading ? (isEditing ? 'Updating Assignment...' : 'Creating Assignment...') : (isEditing ? 'Update Assignment' : 'Create Assignment')}
                 </Button>
               </div>
 
@@ -753,7 +845,10 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                 ) : (
                   <div className="space-y-3">
                     {assignments.map((assignment) => (
-                      <Card key={assignment.id} className="p-4">
+                      <Card 
+                        key={assignment.id} 
+                        className={`p-4 ${isEditing && editingAssignment?.id === assignment.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                      >
                         <div className="flex items-center justify-between">
                           <div className="space-y-1">
                             <div className="font-medium">
@@ -775,18 +870,30 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                             </div>
                             {assignment.banners && assignment.banners.length > 0 && (
                               <div className="text-sm">
-                                <strong>Banners:</strong> {assignment.banners.map(b => b.name).join(', ')}
+                                <strong>Banners:</strong> {assignment.banners.map(b => b.name).join(', ')} ({assignment.banners.length}/4)
                               </div>
                             )}
                           </div>
                           
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => removeAssignment(assignment.id)}
-                          >
-                            Remove
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEditAssignment(assignment)}
+                              disabled={isEditing}
+                            >
+                              <Edit className="h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeAssignment(assignment.id)}
+                              disabled={isEditing}
+                            >
+                              Remove
+                            </Button>
+                          </div>
                         </div>
                       </Card>
                     ))}
@@ -799,6 +906,7 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                 <AlertDescription>
                   These assignments will be automatically used by the SMTP relay function to inject 
                   signatures and banners into emails processed through your configured smart host.
+                  {isEditing && " Currently editing an assignment - make changes above and save."}
                 </AlertDescription>
               </Alert>
             </CardContent>
