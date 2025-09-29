@@ -17,8 +17,9 @@ import { UserManager } from "@/components/dashboard/UserManager";
 import { UserAssignmentManager } from "@/components/dashboard/UserAssignmentManager";
 import Microsoft365Integration from "@/components/dashboard/Microsoft365Integration";
 import { SMTPRelayProtocol } from "@/components/dashboard/SMTPRelayProtocol";
+import { ExchangeAdminCenterSetup } from "@/components/dashboard/ExchangeAdminCenterSetup";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -147,6 +148,8 @@ const Dashboard = () => {
         return <Microsoft365Integration />;
       case "smtp-relay":
         return <SMTPRelayProtocol profile={profile} />;
+      case "exchange-admin":
+        return <ExchangeAdminCenterSetup profile={profile} />;
       case "settings":
         return <CompanySettings profile={profile} />;
       case "users":
