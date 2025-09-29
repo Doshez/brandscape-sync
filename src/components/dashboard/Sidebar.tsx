@@ -14,7 +14,7 @@ import {
   UserCheck
 } from "lucide-react";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay";
 
 interface SidebarProps {
   activeView: DashboardView;
@@ -29,6 +29,7 @@ const menuItems = [
   { id: "banners", label: "Banner Management", icon: Image, adminOnly: true },
   { id: "assignments", label: "User Assignments", icon: UserCheck, adminOnly: true },
   { id: "microsoft365", label: "Microsoft 365 Rules", icon: Shield, adminOnly: true },
+  { id: "smtp-relay", label: "SMTP Relay Protocol", icon: Mail, adminOnly: true },
   { id: "analytics", label: "Analytics", icon: BarChart3, adminOnly: true },
   { id: "domains", label: "Domain Verification", icon: Globe, adminOnly: true },
   { id: "dns", label: "DNS Configuration", icon: Shield, adminOnly: true },
