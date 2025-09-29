@@ -168,12 +168,43 @@ async function getUserAssignment(userEmail: string): Promise<UserAssignment | nu
 
     console.log('Found profile for user:', profile.user_id);
 
-    // For now, return a simple assignment structure
-    // This can be enhanced later when user assignment management is fully implemented
+    // Get user's active email assignment
+    const { data: emailAssignment, error: assignmentError } = await supabase
+      .from('user_email_assignments')
+      .select('signature_id')
+      .eq('user_id', profile.user_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (assignmentError) {
+      console.error('Error fetching email assignment:', assignmentError);
+    }
+
+    // Get user's banner assignments (only if email assignment exists)
+    let bannerIds: string[] = [];
+    if (emailAssignment?.id) {
+      const { data: bannerAssignments, error: bannerError } = await supabase
+        .from('user_banner_assignments')
+        .select('banner_id')
+        .eq('user_assignment_id', emailAssignment.id)
+        .order('display_order');
+
+      if (bannerError) {
+        console.error('Error fetching banner assignments:', bannerError);
+      } else {
+        bannerIds = bannerAssignments?.map(ba => ba.banner_id) || [];
+      }
+    }
+
+    console.log('User assignment found:', {
+      signature_id: emailAssignment?.signature_id || null,
+      banner_count: bannerIds.length
+    });
+
     return {
       user_email: userEmail,
-      signature_id: null, // Will be populated when signatures are assigned
-      banner_ids: [] // Will be populated when banners are assigned
+      signature_id: emailAssignment?.signature_id || null,
+      banner_ids: bannerIds
     };
 
   } catch (error) {
