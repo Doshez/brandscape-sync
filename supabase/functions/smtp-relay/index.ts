@@ -23,7 +23,6 @@ interface UserAssignment {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const relaySecret = Deno.env.get('SMTP_RELAY_SECRET');
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -38,8 +37,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Validate relay secret for security
     const authHeader = req.headers.get('x-relay-secret');
-    if (!relaySecret || authHeader !== relaySecret) {
-      console.error('SMTP Relay: Invalid or missing relay secret');
+    if (!authHeader) {
+      console.error('SMTP Relay: Missing relay secret header');
+      return new Response('Unauthorized', { 
+        status: 401, 
+        headers: corsHeaders 
+      });
+    }
+
+    // Verify relay secret against database
+    const { data: relayConfig } = await supabase
+      .from('smtp_relay_config')
+      .select('relay_secret')
+      .eq('relay_secret', authHeader)
+      .eq('is_active', true)
+      .single();
+
+    if (!relayConfig) {
+      console.error('SMTP Relay: Invalid relay secret');
       return new Response('Unauthorized', { 
         status: 401, 
         headers: corsHeaders 
