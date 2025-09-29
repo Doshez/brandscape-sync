@@ -73,22 +73,51 @@ export const SMTPRelayProtocol: React.FC<SMTPRelayProtocolProps> = ({ profile })
       const relaySecret = crypto.getRandomValues(new Uint8Array(32))
         .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
 
-      // Deactivate existing configs
-      await supabase
+      // Check if config already exists for this domain
+      const { data: existingConfig } = await supabase
         .from('smtp_relay_config')
-        .update({ is_active: false })
-        .eq('is_active', true);
-
-      // Insert new config
-      const { data, error } = await supabase
-        .from('smtp_relay_config')
-        .insert({
-          domain: selectedDomain,
-          relay_secret: relaySecret,
-          is_active: true
-        })
-        .select()
+        .select('id')
+        .eq('domain', selectedDomain)
         .single();
+
+      let data, error;
+
+      if (existingConfig) {
+        // Update existing config
+        const result = await supabase
+          .from('smtp_relay_config')
+          .update({
+            relay_secret: relaySecret,
+            is_active: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('domain', selectedDomain)
+          .select()
+          .single();
+        
+        data = result.data;
+        error = result.error;
+      } else {
+        // Deactivate all existing configs first
+        await supabase
+          .from('smtp_relay_config')
+          .update({ is_active: false })
+          .eq('is_active', true);
+
+        // Insert new config
+        const result = await supabase
+          .from('smtp_relay_config')
+          .insert({
+            domain: selectedDomain,
+            relay_secret: relaySecret,
+            is_active: true
+          })
+          .select()
+          .single();
+        
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) throw error;
 
