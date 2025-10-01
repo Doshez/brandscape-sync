@@ -54,12 +54,14 @@ export const AnalyticsDashboard = ({ profile }: AnalyticsDashboardProps) => {
           break;
       }
 
-      // Fetch click count
-      const { count: clickCount } = await supabase
-        .from("analytics_events")
-        .select("*", { count: "exact", head: true })
-        .eq("event_type", "click")
-        .gte("timestamp", startDate.toISOString());
+      // Fetch click count from banners table
+      const { data: bannersData, error: clickBannersError } = await supabase
+        .from("banners")
+        .select("current_clicks");
+
+      const clickCount = bannersData?.reduce((sum, banner) => 
+        sum + (banner.current_clicks || 0), 0
+      ) || 0;
 
       // Fetch view count
       const { count: viewCount } = await supabase
@@ -68,39 +70,23 @@ export const AnalyticsDashboard = ({ profile }: AnalyticsDashboardProps) => {
         .eq("event_type", "view")
         .gte("timestamp", startDate.toISOString());
 
-      // Fetch top banners
-      const { data: topBannersData } = await supabase
-        .from("analytics_events")
-        .select(`
-          banner_id,
-          banners (name)
-        `)
-        .eq("event_type", "click")
-        .gte("timestamp", startDate.toISOString())
+      // Fetch top banners - use banners table with current_clicks
+      const { data: topBannersData, error: bannersError } = await supabase
+        .from("banners")
+        .select("id, name, current_clicks")
+        .gt("current_clicks", 0)
+        .order("current_clicks", { ascending: false })
         .limit(5);
 
-      // Process top banners data
-      const bannerClicks: { [key: string]: { name: string; clicks: number } } = {};
-      topBannersData?.forEach((event: any) => {
-        if (event.banner_id && event.banners) {
-          if (!bannerClicks[event.banner_id]) {
-            bannerClicks[event.banner_id] = {
-              name: event.banners.name,
-              clicks: 0
-            };
-          }
-          bannerClicks[event.banner_id].clicks++;
-        }
-      });
+      if (bannersError) {
+        console.error("Error fetching top banners:", bannersError);
+      }
 
-      const topBanners = Object.entries(bannerClicks)
-        .map(([banner_id, data]) => ({
-          banner_id,
-          banner_name: data.name,
-          clicks: data.clicks
-        }))
-        .sort((a, b) => b.clicks - a.clicks)
-        .slice(0, 5);
+      const topBanners = topBannersData?.map(banner => ({
+        banner_id: banner.id,
+        banner_name: banner.name,
+        clicks: banner.current_clicks || 0
+      })) || [];
 
       // Fetch recent activity
       const { data: recentActivity } = await supabase

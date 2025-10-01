@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Edit, Trash2, BarChart3, Image as ImageIcon } from "lucide-react";
+import { Plus, Edit, Trash2, BarChart3, Image as ImageIcon, MousePointer } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface BannerManagerProps {
@@ -23,6 +23,8 @@ interface Banner {
   start_date: string | null;
   end_date: string | null;
   created_at: string;
+  current_clicks: number;
+  max_clicks: number | null;
 }
 
 export const BannerManager = ({ profile }: BannerManagerProps) => {
@@ -180,6 +182,31 @@ export const BannerManager = ({ profile }: BannerManagerProps) => {
       toast({
         title: "Error",
         description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const testBannerClick = async (banner: Banner) => {
+    try {
+      // Call the increment function to simulate a click
+      const { error } = await supabase.rpc('increment_banner_clicks', { 
+        banner_uuid: banner.id 
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Test click recorded successfully",
+      });
+
+      fetchBanners();
+    } catch (error: any) {
+      console.error("Error recording test click:", error);
+      toast({
+        title: "Error",
+        description: "Failed to record test click",
         variant: "destructive",
       });
     }
@@ -369,10 +396,24 @@ export const BannerManager = ({ profile }: BannerManagerProps) => {
                     <CardDescription>
                       {banner.start_date && `Starts: ${new Date(banner.start_date).toLocaleDateString()}`}
                       {banner.end_date && ` • Ends: ${new Date(banner.end_date).toLocaleDateString()}`}
+                      <br />
+                      <span className="text-sm font-medium text-primary">
+                        {banner.current_clicks || 0} clicks
+                        {banner.max_clicks && ` of ${banner.max_clicks} max`}
+                      </span>
                     </CardDescription>
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => testBannerClick(banner)}
+                      title="Test banner click tracking"
+                    >
+                      <MousePointer className="h-4 w-4 mr-1" />
+                      Test Click
+                    </Button>
                     <Button variant="outline" size="sm">
                       <BarChart3 className="h-4 w-4" />
                     </Button>

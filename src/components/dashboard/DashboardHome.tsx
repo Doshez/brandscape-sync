@@ -43,26 +43,29 @@ export const DashboardHome = ({ profile }: DashboardHomeProps) => {
       // Fetch users count (if admin)
       let usersCount = 0;
       if (profile?.is_admin) {
-        const { count } = await supabase
+        const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
-          .select("*", { count: "exact", head: true });
-        usersCount = count || 0;
+          .select("id");
+        
+        if (profilesError) {
+          console.error("Error fetching profiles:", profilesError);
+        } else {
+          usersCount = profilesData?.length || 0;
+        }
       }
 
-      // Fetch clicks this month (if admin)
+      // Fetch clicks this month from banners table (if admin)
       let clicksThisMonth = 0;
       if (profile?.is_admin) {
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-
-        const { count } = await supabase
-          .from("analytics_events")
-          .select("*", { count: "exact", head: true })
-          .eq("event_type", "click")
-          .gte("timestamp", startOfMonth.toISOString());
+        const { data: bannersData, error: bannersError } = await supabase
+          .from("banners")
+          .select("current_clicks");
         
-        clicksThisMonth = count || 0;
+        if (bannersError) {
+          console.error("Error fetching banner clicks:", bannersError);
+        } else {
+          clicksThisMonth = bannersData?.reduce((sum, banner) => sum + (banner.current_clicks || 0), 0) || 0;
+        }
       }
 
       setStats({
