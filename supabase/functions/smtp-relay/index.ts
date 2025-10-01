@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
+import { Resend } from 'npm:resend@4.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-mailgun-signature',
 };
 
 interface EmailData {
@@ -23,8 +24,10 @@ interface UserAssignment {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+const resend = new Resend(resendApiKey);
 
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
@@ -34,46 +37,49 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     console.log('SMTP Relay: Received email processing request');
+    
+    // Parse Mailgun webhook data (multipart/form-data)
+    const formData = await req.formData();
+    
+    // Extract email data from Mailgun webhook
+    const sender = formData.get('sender') || formData.get('from');
+    const recipient = formData.get('recipient') || formData.get('To');
+    const subject = formData.get('subject');
+    const htmlBody = formData.get('body-html') || formData.get('stripped-html') || '';
+    const textBody = formData.get('body-plain') || formData.get('stripped-text') || '';
+    const messageId = formData.get('Message-Id') || `${Date.now()}@relay`;
 
-    // Validate relay secret for security
-    const authHeader = req.headers.get('x-relay-secret');
-    if (!authHeader) {
-      console.error('SMTP Relay: Missing relay secret header');
-      return new Response(JSON.stringify({ error: 'Missing relay secret' }), { 
-        status: 401, 
+    if (!sender || !recipient || !subject) {
+      console.error('SMTP Relay: Missing required email fields');
+      return new Response(JSON.stringify({ error: 'Missing required email fields' }), { 
+        status: 400, 
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
-    // Verify relay secret against database
-    const { data: relayConfig, error: relayError } = await supabase
-      .from('smtp_relay_config')
-      .select('relay_secret')
-      .eq('relay_secret', authHeader)
-      .eq('is_active', true)
-      .single();
+    const emailData: EmailData = {
+      from: sender.toString(),
+      to: [recipient.toString()],
+      subject: subject.toString(),
+      htmlBody: htmlBody.toString(),
+      textBody: textBody.toString(),
+      messageId: messageId.toString()
+    };
 
-    if (relayError || !relayConfig) {
-      console.error('SMTP Relay: Invalid relay secret', relayError);
-      return new Response(JSON.stringify({ error: 'Invalid relay secret' }), { 
-        status: 401, 
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
-    }
-
-    const emailData: EmailData = await req.json();
-    console.log('SMTP Relay: Processing email from:', emailData.from);
+    console.log('SMTP Relay: Processing email from:', emailData.from, 'to:', emailData.to);
 
     // Process email and add signature/banners
     const processedEmail = await processEmail(emailData);
 
-    // For now, just return success without actually forwarding
-    // In production, this would integrate with an actual SMTP service
-    console.log('SMTP Relay: Email processed successfully');
+    // Forward the processed email using Resend
+    const forwardResult = await forwardEmail(processedEmail);
+
+    console.log('SMTP Relay: Email processed and forwarded successfully');
 
     return new Response(JSON.stringify({
       success: true,
       messageId: emailData.messageId,
+      forwardResult,
       processedEmail: {
         from: processedEmail.from,
         to: processedEmail.to,
@@ -254,18 +260,35 @@ async function getBannersContent(bannerIds: string[]) {
 }
 
 async function forwardEmail(emailData: EmailData) {
-  // This would integrate with your SMTP service (like Resend)
-  // For now, we'll simulate the forwarding
-  console.log('Forwarding email to:', emailData.to);
-  
-  // Here you would use Resend or another SMTP service to forward the email
-  // For demonstration, we'll return a success response
-  
-  return {
-    success: true,
-    recipients: emailData.to,
-    timestamp: new Date().toISOString()
-  };
+  try {
+    console.log('Forwarding email to:', emailData.to);
+    
+    // Forward the processed email using Resend
+    const { data, error } = await resend.emails.send({
+      from: emailData.from,
+      to: emailData.to,
+      subject: emailData.subject,
+      html: emailData.htmlBody,
+      text: emailData.textBody
+    });
+
+    if (error) {
+      console.error('Error forwarding email via Resend:', error);
+      throw error;
+    }
+
+    console.log('Email forwarded successfully via Resend:', data);
+    
+    return {
+      success: true,
+      recipients: emailData.to,
+      resendId: data?.id,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('Error in forwardEmail:', error);
+    throw error;
+  }
 }
 
 serve(handler);
