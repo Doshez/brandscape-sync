@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
+import { Resend } from 'npm:resend@2.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-relay-secret',
 };
+
+const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 
 interface EmailData {
   from: string;
@@ -33,7 +36,8 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    console.log('SMTP Relay: Received email processing request');
+    console.log('SMTP Relay: Received request from Mailgun webhook');
+    console.log('Content-Type:', req.headers.get('content-type'));
 
     // Validate relay secret for security
     const authHeader = req.headers.get('x-relay-secret');
@@ -61,26 +65,48 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const emailData: EmailData = await req.json();
-    console.log('SMTP Relay: Processing email from:', emailData.from);
+    // Parse Mailgun webhook data (form data)
+    const formData = await req.formData();
+    
+    const sender = formData.get('sender') as string;
+    const recipient = formData.get('recipient') as string;
+    const subject = formData.get('subject') as string;
+    const htmlBody = formData.get('body-html') as string || formData.get('stripped-html') as string;
+    const textBody = formData.get('body-plain') as string || formData.get('stripped-text') as string;
+    const messageId = formData.get('Message-Id') as string;
+
+    console.log('SMTP Relay: Processing email from:', sender, 'to:', recipient);
+
+    if (!sender || !recipient || !subject) {
+      console.error('SMTP Relay: Missing required email fields');
+      return new Response(JSON.stringify({ error: 'Missing required email fields' }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    const emailData: EmailData = {
+      from: sender,
+      to: [recipient],
+      subject,
+      htmlBody: htmlBody || textBody || '',
+      textBody,
+      messageId: messageId || `${Date.now()}@smtp-relay`
+    };
 
     // Process email and add signature/banners
     const processedEmail = await processEmail(emailData);
 
-    // For now, just return success without actually forwarding
-    // In production, this would integrate with an actual SMTP service
-    console.log('SMTP Relay: Email processed successfully');
+    // Forward the processed email using Resend
+    console.log('SMTP Relay: Forwarding email via Resend');
+    const forwardResult = await forwardEmail(processedEmail);
+
+    console.log('SMTP Relay: Email processed and forwarded successfully');
 
     return new Response(JSON.stringify({
       success: true,
       messageId: emailData.messageId,
-      processedEmail: {
-        from: processedEmail.from,
-        to: processedEmail.to,
-        subject: processedEmail.subject,
-        hasSignature: processedEmail.htmlBody !== emailData.htmlBody,
-        timestamp: new Date().toISOString()
-      }
+      forwardResult
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -254,18 +280,29 @@ async function getBannersContent(bannerIds: string[]) {
 }
 
 async function forwardEmail(emailData: EmailData) {
-  // This would integrate with your SMTP service (like Resend)
-  // For now, we'll simulate the forwarding
-  console.log('Forwarding email to:', emailData.to);
-  
-  // Here you would use Resend or another SMTP service to forward the email
-  // For demonstration, we'll return a success response
-  
-  return {
-    success: true,
-    recipients: emailData.to,
-    timestamp: new Date().toISOString()
-  };
+  try {
+    console.log('Forwarding email via Resend to:', emailData.to);
+    
+    const emailResponse = await resend.emails.send({
+      from: emailData.from,
+      to: emailData.to,
+      subject: emailData.subject,
+      html: emailData.htmlBody,
+      text: emailData.textBody
+    });
+
+    console.log('Email sent successfully via Resend:', emailResponse);
+    
+    return {
+      success: true,
+      recipients: emailData.to,
+      resendId: emailResponse.data?.id,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error: any) {
+    console.error('Error forwarding email via Resend:', error);
+    throw new Error(`Failed to forward email: ${error.message}`);
+  }
 }
 
 serve(handler);

@@ -10,6 +10,7 @@ import { Copy, CheckCircle, AlertCircle, Globe, Mail, Server, ExternalLink, Edit
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from 'zod';
+import { MailgunSetup } from './MailgunSetup';
 
 interface EmailRoutingSetupProps {
   profile: any;
@@ -530,9 +531,10 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
       )}
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="setup">Domain Setup</TabsTrigger>
           <TabsTrigger value="dns">DNS Configuration</TabsTrigger>
+          <TabsTrigger value="mailgun">Mailgun Setup</TabsTrigger>
           <TabsTrigger value="routing">Routing Rules</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="test">Test Email</TabsTrigger>
@@ -671,6 +673,10 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="mailgun" className="space-y-4">
+          <MailgunSetup relayConfig={relayConfig} />
         </TabsContent>
 
         <TabsContent value="routing" className="space-y-4">
