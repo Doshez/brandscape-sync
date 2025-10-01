@@ -148,9 +148,18 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
-    // For test emails, always use resend.dev domain
-    // To use custom domain emails in production, verify the domain at resend.com/domains
-    const fromEmail = `${user.first_name || 'Test'} ${user.last_name || 'User'} <onboarding@resend.dev>`;
+    // Fetch verified domain to use for sending
+    const { data: verifiedDomain } = await supabase
+      .from("domains")
+      .select("domain_name")
+      .eq("is_verified", true)
+      .limit(1)
+      .single();
+
+    // Use verified domain if available, otherwise use resend.dev testing domain
+    const fromEmail = verifiedDomain 
+      ? `${user.first_name || 'Test'} ${user.last_name || 'User'} <noreply@${verifiedDomain.domain_name}>`
+      : `${user.first_name || 'Test'} ${user.last_name || 'User'} <onboarding@resend.dev>`;
 
     const emailResponse = await resend.emails.send({
       from: fromEmail,
