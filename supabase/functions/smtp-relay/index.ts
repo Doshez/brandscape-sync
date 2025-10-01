@@ -65,19 +65,44 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Parse SendGrid Inbound Parse webhook data (form data)
-    const formData = await req.formData();
-    
-    const sender = formData.get('from') as string;
-    const recipient = formData.get('to') as string;
-    const subject = formData.get('subject') as string;
-    const htmlBody = formData.get('html') as string || formData.get('text') as string;
-    const textBody = formData.get('text') as string;
-    const messageId = formData.get('headers') as string; // SendGrid sends headers as JSON string
+    // Check content type to determine how to parse the request
+    const contentType = req.headers.get('content-type') || '';
+    let sender: string;
+    let recipient: string | string[];
+    let subject: string;
+    let htmlBody: string;
+    let textBody: string;
+    let messageId: string;
 
-    console.log('SMTP Relay: Processing email from:', sender, 'to:', recipient);
+    if (contentType.includes('application/json')) {
+      // Handle JSON format (from test emails or direct API calls)
+      const jsonData = await req.json();
+      sender = jsonData.from;
+      recipient = jsonData.to;
+      subject = jsonData.subject;
+      htmlBody = jsonData.htmlBody || jsonData.html || jsonData.text || '';
+      textBody = jsonData.textBody || jsonData.text || '';
+      messageId = jsonData.messageId || `test-${Date.now()}@relay`;
+      
+      console.log('SMTP Relay: Processing JSON email from:', sender, 'to:', recipient);
+    } else {
+      // Handle form data (from SendGrid Inbound Parse webhook)
+      const formData = await req.formData();
+      sender = formData.get('from') as string;
+      recipient = formData.get('to') as string;
+      subject = formData.get('subject') as string;
+      htmlBody = formData.get('html') as string || formData.get('text') as string;
+      textBody = formData.get('text') as string;
+      messageId = formData.get('headers') as string;
+      
+      console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
+    }
 
-    if (!sender || !recipient || !subject) {
+    // Normalize recipient to array format
+    const recipientArray = Array.isArray(recipient) ? recipient : [recipient];
+    const primaryRecipient = recipientArray[0];
+
+    if (!sender || !primaryRecipient || !subject) {
       console.error('SMTP Relay: Missing required email fields');
       return new Response(JSON.stringify({ error: 'Missing required email fields' }), { 
         status: 400, 
@@ -87,7 +112,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const emailData: EmailData = {
       from: sender,
-      to: [recipient],
+      to: recipientArray,
       subject,
       htmlBody: htmlBody || textBody || '',
       textBody,
