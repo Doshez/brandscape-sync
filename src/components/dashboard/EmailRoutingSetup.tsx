@@ -508,7 +508,8 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
     );
   }
 
-  const smartHost = selectedDomain ? `smtp-relay.${selectedDomain}` : '';
+  const smartHost = 'smtp.sendgrid.net';
+  const smartHostPort = '587';
   const relayEndpoint = 'ddoihmeqpjjiumqndjgk.supabase.co';
 
   return (
@@ -687,214 +688,100 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
         <TabsContent value="routing" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Smart Host Configuration</CardTitle>
-                  <CardDescription>
-                    Use these details to configure your email server or Exchange connector
-                  </CardDescription>
-                </div>
-                {relayConfig && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        setLoading(true);
-                        const { error } = await supabase
-                          .from('smtp_relay_config')
-                          .update({
-                            relay_secret: crypto.getRandomValues(new Uint8Array(32))
-                              .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), ''),
-                            updated_at: new Date().toISOString()
-                          })
-                          .eq('id', relayConfig.id);
-                        
-                        if (error) throw error;
-                        
-                        await fetchRelayConfig();
-                        toast.success('Password regenerated successfully');
-                      } catch (error) {
-                        toast.error('Failed to regenerate password');
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    disabled={loading}
-                  >
-                    Regenerate Password
-                  </Button>
-                )}
-              </div>
+              <CardTitle>SendGrid SMTP Configuration</CardTitle>
+              <CardDescription>
+                Use these SendGrid SMTP details to configure your email server or Exchange connector
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!selectedDomain || !relayConfig ? (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Please configure a routing domain first to see the smart host details.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Smart Host</Label>
-                      <div className="flex items-center gap-2">
-                        <Input value={smartHost} readOnly />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(smartHost)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Port</Label>
-                      <div className="flex items-center gap-2">
-                        <Input value="587" readOnly />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard("587")}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Note:</strong> The SENDGRID_API_KEY is already configured in your Supabase secrets. Use these details to configure your Exchange/Microsoft 365 connector.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Smart Host</Label>
+                    <div className="flex items-center gap-2">
+                      <Input value={smartHost} readOnly />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(smartHost)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Authentication Credentials</Label>
-                      {!isEditingPassword ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setIsEditingPassword(true);
-                            setEditPassword(relayConfig.relay_secret);
-                          }}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit Password
-                        </Button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                setLoading(true);
-                                const { error } = await supabase
-                                  .from('smtp_relay_config')
-                                  .update({
-                                    relay_secret: editPassword,
-                                    updated_at: new Date().toISOString()
-                                  })
-                                  .eq('id', relayConfig.id);
-                                
-                                if (error) throw error;
-                                
-                                await fetchRelayConfig();
-                                setIsEditingPassword(false);
-                                toast.success('Password updated successfully');
-                              } catch (error) {
-                                toast.error('Failed to update password');
-                              } finally {
-                                setLoading(false);
-                              }
-                            }}
-                            disabled={loading}
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setIsEditingPassword(false);
-                              setEditPassword('');
-                            }}
-                          >
-                            <X className="h-4 w-4 mr-2" />
-                            Cancel
-                          </Button>
-                        </div>
-                      )}
+                    <Label>Port</Label>
+                    <div className="flex items-center gap-2">
+                      <Input value={smartHostPort} readOnly />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(smartHostPort)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <div className={`p-3 rounded-md ${isEditingPassword ? 'bg-secondary border-2 border-primary' : 'bg-secondary'}`}>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium w-20">Username:</span>
-                          <Input value="relay" readOnly className="flex-1" />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => copyToClipboard("relay")}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium w-20">Password:</span>
-                          <Input 
-                            value={isEditingPassword ? editPassword : relayConfig.relay_secret} 
-                            onChange={(e) => setEditPassword(e.target.value)}
-                            readOnly={!isEditingPassword} 
-                            className="flex-1" 
-                            type={isEditingPassword ? "text" : "password"}
-                          />
-                          {!isEditingPassword && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => copyToClipboard(relayConfig.relay_secret)}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Authentication Credentials</Label>
+                  <div className="p-3 rounded-md bg-secondary">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium w-20">Username:</span>
+                        <Input value="apikey" readOnly className="flex-1" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyToClipboard("apikey")}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium w-20">Password:</span>
+                        <Input 
+                          value="Use your SENDGRID_API_KEY" 
+                          readOnly 
+                          className="flex-1" 
+                          type="password"
+                        />
                       </div>
                     </div>
                   </div>
-
-                  {isEditingPassword && (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <strong>Note:</strong> After changing the password, update your SendGrid and email server configuration with the new relay secret.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-                      📋 Configuration Summary
-                    </h4>
-                    <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                      <li>• Domain: {relayConfig.domain}</li>
-                      <li>• Smart Host: {smartHost}</li>
-                      <li>• Port: 587 (SMTP with STARTTLS)</li>
-                      <li>• Username: relay</li>
-                      <li>• Authentication: Required</li>
-                      <li>• Security: TLS encryption enforced</li>
-                    </ul>
-                  </div>
-
-                  <Alert>
-                    <ExternalLink className="h-4 w-4" />
-                    <AlertDescription>
-                      Use the Exchange Admin Center manual setup to create connectors and transport rules 
-                      that will route emails through this smart host configuration.
-                    </AlertDescription>
-                  </Alert>
                 </div>
-              )}
+
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                  <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                    📋 SendGrid SMTP Configuration Summary
+                  </h4>
+                  <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                    <li>• Smart Host: {smartHost}</li>
+                    <li>• Port: {smartHostPort} (SMTP with STARTTLS)</li>
+                    <li>• Username: apikey</li>
+                    <li>• Password: Your SENDGRID_API_KEY</li>
+                    <li>• Authentication: Required</li>
+                    <li>• Security: TLS encryption enforced</li>
+                  </ul>
+                </div>
+
+                <Alert>
+                  <ExternalLink className="h-4 w-4" />
+                  <AlertDescription>
+                    Configure your Exchange/Microsoft 365 Send Connector to use these SendGrid SMTP settings. 
+                    All outbound emails will be routed through SendGrid's infrastructure.
+                  </AlertDescription>
+                </Alert>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
