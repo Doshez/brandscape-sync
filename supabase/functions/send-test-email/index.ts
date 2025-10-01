@@ -138,14 +138,38 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
+    // Use the sender's actual email if domain is verified, otherwise use resend default
+    // Note: To use custom domain emails, you must verify the domain at resend.com/domains
+    const fromEmail = user.email.includes('@cioafrica.co') 
+      ? `${user.first_name} ${user.last_name} <${user.email}>`
+      : `${user.first_name} ${user.last_name} <onboarding@resend.dev>`;
+
     const emailResponse = await resend.emails.send({
-      from: `${user.first_name} ${user.last_name} <onboarding@resend.dev>`,
+      from: fromEmail,
       to: [recipientEmail],
       subject: `Email Routing Test - ${user.email}`,
       html: htmlContent,
     });
 
     console.log("Email sent successfully:", emailResponse);
+
+    // Check if there was an error from Resend
+    if (emailResponse.error) {
+      console.error("Resend API error:", emailResponse.error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: emailResponse.error.message || "Failed to send email",
+        details: {
+          message: "Email sending failed. If using a custom domain, ensure it's verified at resend.com/domains"
+        }
+      }), {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      });
+    }
 
     return new Response(JSON.stringify({
       success: true,
