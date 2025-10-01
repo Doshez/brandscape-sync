@@ -97,7 +97,10 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
   const [sendingTest, setSendingTest] = useState(false);
   
   // Smart host configuration edit state
-  const [isEditingPassword, setIsEditingPassword] = useState(false);
+  const [isEditingSmartHost, setIsEditingSmartHost] = useState(false);
+  const [editSmartHost, setEditSmartHost] = useState('');
+  const [editPort, setEditPort] = useState('587');
+  const [editUsername, setEditUsername] = useState('relay');
   const [editPassword, setEditPassword] = useState('');
 
   useEffect(() => {
@@ -695,35 +698,87 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                   </CardDescription>
                 </div>
                 {relayConfig && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        setLoading(true);
-                        const { error } = await supabase
-                          .from('smtp_relay_config')
-                          .update({
-                            relay_secret: crypto.getRandomValues(new Uint8Array(32))
-                              .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), ''),
-                            updated_at: new Date().toISOString()
-                          })
-                          .eq('id', relayConfig.id);
-                        
-                        if (error) throw error;
-                        
-                        await fetchRelayConfig();
-                        toast.success('Password regenerated successfully');
-                      } catch (error) {
-                        toast.error('Failed to regenerate password');
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    disabled={loading}
-                  >
-                    Regenerate Password
-                  </Button>
+                  <div className="flex gap-2">
+                    {!isEditingSmartHost ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setIsEditingSmartHost(true);
+                            setEditSmartHost(smartHost);
+                            setEditPort('587');
+                            setEditUsername('relay');
+                            setEditPassword(relayConfig.relay_secret);
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Configuration
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const { error } = await supabase
+                                .from('smtp_relay_config')
+                                .update({
+                                  relay_secret: crypto.getRandomValues(new Uint8Array(32))
+                                    .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), ''),
+                                  updated_at: new Date().toISOString()
+                                })
+                                .eq('id', relayConfig.id);
+                              
+                              if (error) throw error;
+                              
+                              await fetchRelayConfig();
+                              toast.success('Configuration reset to default');
+                            } catch (error) {
+                              toast.error('Failed to reset configuration');
+                            }
+                          }}
+                        >
+                          Reset to Default
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const { error } = await supabase
+                                .from('smtp_relay_config')
+                                .update({
+                                  relay_secret: editPassword,
+                                  updated_at: new Date().toISOString()
+                                })
+                                .eq('id', relayConfig.id);
+                              
+                              if (error) throw error;
+                              
+                              await fetchRelayConfig();
+                              setIsEditingSmartHost(false);
+                              toast.success('Configuration updated successfully');
+                            } catch (error) {
+                              toast.error('Failed to update configuration');
+                            }
+                          }}
+                        >
+                          Save Changes
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditingSmartHost(false)}
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -741,115 +796,78 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                     <div className="space-y-2">
                       <Label>Smart Host</Label>
                       <div className="flex items-center gap-2">
-                        <Input value={smartHost} readOnly />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(smartHost)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                        <Input 
+                          value={isEditingSmartHost ? editSmartHost : smartHost} 
+                          onChange={(e) => setEditSmartHost(e.target.value)}
+                          readOnly={!isEditingSmartHost}
+                          className={isEditingSmartHost ? 'border-primary' : ''}
+                        />
+                        {!isEditingSmartHost && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(smartHost)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <Label>Port</Label>
                       <div className="flex items-center gap-2">
-                        <Input value="587" readOnly />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard("587")}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                        <Input 
+                          value={isEditingSmartHost ? editPort : "587"} 
+                          onChange={(e) => setEditPort(e.target.value)}
+                          readOnly={!isEditingSmartHost}
+                          className={isEditingSmartHost ? 'border-primary' : ''}
+                        />
+                        {!isEditingSmartHost && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard("587")}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Authentication Credentials</Label>
-                      {!isEditingPassword ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setIsEditingPassword(true);
-                            setEditPassword(relayConfig.relay_secret);
-                          }}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit Password
-                        </Button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={async () => {
-                              try {
-                                setLoading(true);
-                                const { error } = await supabase
-                                  .from('smtp_relay_config')
-                                  .update({
-                                    relay_secret: editPassword,
-                                    updated_at: new Date().toISOString()
-                                  })
-                                  .eq('id', relayConfig.id);
-                                
-                                if (error) throw error;
-                                
-                                await fetchRelayConfig();
-                                setIsEditingPassword(false);
-                                toast.success('Password updated successfully');
-                              } catch (error) {
-                                toast.error('Failed to update password');
-                              } finally {
-                                setLoading(false);
-                              }
-                            }}
-                            disabled={loading}
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setIsEditingPassword(false);
-                              setEditPassword('');
-                            }}
-                          >
-                            <X className="h-4 w-4 mr-2" />
-                            Cancel
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className={`p-3 rounded-md ${isEditingPassword ? 'bg-secondary border-2 border-primary' : 'bg-secondary'}`}>
+                    <Label>Authentication Credentials</Label>
+                    <div className={`p-3 rounded-md ${isEditingSmartHost ? 'bg-secondary border-2 border-primary' : 'bg-secondary'}`}>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium w-20">Username:</span>
-                          <Input value="relay" readOnly className="flex-1" />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => copyToClipboard("relay")}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
+                          <Input 
+                            value={isEditingSmartHost ? editUsername : "relay"} 
+                            onChange={(e) => setEditUsername(e.target.value)}
+                            readOnly={!isEditingSmartHost} 
+                            className="flex-1" 
+                          />
+                          {!isEditingSmartHost && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => copyToClipboard("relay")}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium w-20">Password:</span>
                           <Input 
-                            value={isEditingPassword ? editPassword : relayConfig.relay_secret} 
+                            value={isEditingSmartHost ? editPassword : relayConfig.relay_secret} 
                             onChange={(e) => setEditPassword(e.target.value)}
-                            readOnly={!isEditingPassword} 
+                            readOnly={!isEditingSmartHost} 
                             className="flex-1" 
-                            type={isEditingPassword ? "text" : "password"}
+                            type={isEditingSmartHost ? "text" : "password"}
                           />
-                          {!isEditingPassword && (
+                          {!isEditingSmartHost && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -863,11 +881,12 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                     </div>
                   </div>
 
-                  {isEditingPassword && (
+                  {isEditingSmartHost && (
                     <Alert>
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        <strong>Note:</strong> After changing the password, update your SendGrid and email server configuration with the new relay secret.
+                        <strong>Note:</strong> Changing the password will update your relay secret. 
+                        Make sure to update your SendGrid and email server configuration accordingly.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -878,9 +897,8 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                     </h4>
                     <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
                       <li>• Domain: {relayConfig.domain}</li>
-                      <li>• Smart Host: {smartHost}</li>
-                      <li>• Port: 587 (SMTP with STARTTLS)</li>
-                      <li>• Username: relay</li>
+                      <li>• Smart Host: {isEditingSmartHost ? editSmartHost : smartHost}</li>
+                      <li>• Port: {isEditingSmartHost ? editPort : '587'} (SMTP with STARTTLS)</li>
                       <li>• Authentication: Required</li>
                       <li>• Security: TLS encryption enforced</li>
                     </ul>
