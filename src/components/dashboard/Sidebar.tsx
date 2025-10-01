@@ -78,23 +78,6 @@ export const Sidebar = ({ activeView, setActiveView, profile }: SidebarProps) =>
         })}
       </nav>
 
-      {profile && (
-        <div className="absolute bottom-4 left-4 right-8">
-          <div className="bg-sidebar-accent rounded-lg px-3 py-2 inline-block">
-            <p className="text-sm font-medium text-sidebar-accent-foreground">
-              {profile.first_name} {profile.last_name}
-            </p>
-            <p className="text-xs text-sidebar-accent-foreground/70">
-              {profile.department}
-            </p>
-            {isAdmin && (
-              <span className="inline-block mt-1 px-2 py-0.5 bg-sidebar-primary text-sidebar-primary-foreground text-xs rounded-full">
-                Admin
-              </span>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
