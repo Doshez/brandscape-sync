@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -146,17 +145,6 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
-    // Fetch SMTP relay config (SendGrid settings)
-    const { data: smtpConfig, error: smtpError } = await supabase
-      .from("smtp_relay_config")
-      .select("*")
-      .eq("is_active", true)
-      .single();
-
-    if (smtpError || !smtpConfig) {
-      throw new Error("No active SMTP relay configuration found. Please configure SendGrid in Email Routing Setup.");
-    }
-
     // Fetch verified domain to use for sending
     const { data: verifiedDomain } = await supabase
       .from("domains")
@@ -165,43 +153,60 @@ const handler = async (req: Request): Promise<Response> => {
       .limit(1)
       .single();
 
-    const fromEmail = verifiedDomain 
-      ? `${user.first_name || 'Test'} ${user.last_name || 'User'} <noreply@${verifiedDomain.domain_name}>`
-      : `${user.first_name || 'Test'} ${user.last_name || 'User'} <test@${smtpConfig.domain}>`;
+    const senderName = `${user.first_name || 'Test'} ${user.last_name || 'User'}`;
+    const senderEmail = verifiedDomain 
+      ? `noreply@${verifiedDomain.domain_name}`
+      : `test@dx5ve.com`;
 
-    console.log("Sending via SendGrid SMTP:", {
-      host: smtpConfig.smart_host,
-      port: smtpConfig.smart_host_port,
-      from: fromEmail,
-      to: recipientEmail
-    });
-
-    // Send via SendGrid SMTP
-    const client = new SMTPClient({
-      connection: {
-        hostname: smtpConfig.smart_host || "smtp.sendgrid.net",
-        port: parseInt(smtpConfig.smart_host_port) || 587,
-        tls: true,
-        auth: {
-          username: smtpConfig.smart_host_username || "apikey",
-          password: Deno.env.get("SENDGRID_API_KEY") || "",
-        },
-      },
-    });
-
-    await client.send({
-      from: fromEmail,
+    console.log("Sending via SendGrid API:", {
+      from: { email: senderEmail, name: senderName },
       to: recipientEmail,
-      subject: `Email Routing Test - ${user.email}`,
-      html: htmlContent,
-      headers: {
-        "Reply-To": user.email,
-      },
+      subject: `Email Routing Test - ${user.email}`
     });
 
-    await client.close();
+    // Send via SendGrid API
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      throw new Error("SendGrid API key not configured");
+    }
 
-    console.log("Email sent successfully via SendGrid SMTP");
+    const sendGridResponse = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [
+          {
+            to: [{ email: recipientEmail }],
+            subject: `Email Routing Test - ${user.email}`,
+          }
+        ],
+        from: {
+          email: senderEmail,
+          name: senderName
+        },
+        reply_to: {
+          email: user.email,
+          name: senderName
+        },
+        content: [
+          {
+            type: "text/html",
+            value: htmlContent
+          }
+        ]
+      })
+    });
+
+    if (!sendGridResponse.ok) {
+      const errorText = await sendGridResponse.text();
+      console.error("SendGrid API error:", errorText);
+      throw new Error(`SendGrid API error: ${sendGridResponse.status} - ${errorText}`);
+    }
+
+    console.log("Email sent successfully via SendGrid API");
 
     return new Response(JSON.stringify({
       success: true,
@@ -210,8 +215,8 @@ const handler = async (req: Request): Promise<Response> => {
         signatureApplied: !!signatureHtml,
         bannerApplied: !!bannerHtml,
         totalBanners: bannerAssignments?.length || 0,
-        smtpProvider: "SendGrid",
-        from: fromEmail,
+        provider: "SendGrid API",
+        from: `${senderName} <${senderEmail}>`,
         to: recipientEmail
       }
     }), {
