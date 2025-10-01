@@ -147,9 +147,8 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
-    // Use noreply with user's domain for SendGrid
-    const userDomain = user.email.split('@')[1];
-    const fromEmail = `noreply@${userDomain}`;
+    // Use the actual user's email for SendGrid
+    const fromEmail = user.email;
     const fromName = `${user.first_name || 'Test'} ${user.last_name || 'User'}`;
 
     console.log("Sending via SendGrid API:", { 
