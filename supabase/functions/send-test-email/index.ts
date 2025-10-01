@@ -76,6 +76,7 @@ const handler = async (req: Request): Promise<Response> => {
         banners (
           id,
           html_content,
+          click_url,
           name
         )
       `)
@@ -92,7 +93,16 @@ const handler = async (req: Request): Promise<Response> => {
       const bannerIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000)) % bannerAssignments.length;
       const selectedBanner = bannerAssignments[bannerIndex];
       if (selectedBanner && selectedBanner.banners) {
-        bannerHtml = (selectedBanner.banners as any).html_content;
+        const banner = selectedBanner.banners as any;
+        const bannerContent = banner.html_content;
+        const clickUrl = banner.click_url;
+        
+        // Wrap banner in clickable link if click_url exists
+        if (clickUrl) {
+          bannerHtml = `<a href="${clickUrl}" target="_blank" style="display: block; text-decoration: none;">${bannerContent}</a>`;
+        } else {
+          bannerHtml = bannerContent;
+        }
       }
     }
 
