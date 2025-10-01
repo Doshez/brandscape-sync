@@ -1,8 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://cdn.jsdelivr.net/npm/resend@2.0.0/+esm";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -148,6 +146,17 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
+    // Fetch SMTP relay config (SendGrid settings)
+    const { data: smtpConfig, error: smtpError } = await supabase
+      .from("smtp_relay_config")
+      .select("*")
+      .eq("is_active", true)
+      .single();
+
+    if (smtpError || !smtpConfig) {
+      throw new Error("No active SMTP relay configuration found. Please configure SendGrid in Email Routing Setup.");
+    }
+
     // Fetch verified domain to use for sending
     const { data: verifiedDomain } = await supabase
       .from("domains")
@@ -156,47 +165,54 @@ const handler = async (req: Request): Promise<Response> => {
       .limit(1)
       .single();
 
-    // Use verified domain if available, otherwise use resend.dev testing domain
     const fromEmail = verifiedDomain 
       ? `${user.first_name || 'Test'} ${user.last_name || 'User'} <noreply@${verifiedDomain.domain_name}>`
-      : `${user.first_name || 'Test'} ${user.last_name || 'User'} <onboarding@resend.dev>`;
+      : `${user.first_name || 'Test'} ${user.last_name || 'User'} <test@${smtpConfig.domain}>`;
 
-    const emailResponse = await resend.emails.send({
+    console.log("Sending via SendGrid SMTP:", {
+      host: smtpConfig.smart_host,
+      port: smtpConfig.smart_host_port,
       from: fromEmail,
-      to: [recipientEmail],
-      subject: `Email Routing Test - ${user.email}`,
-      html: htmlContent,
-      replyTo: user.email, // Set reply-to as the actual user email
+      to: recipientEmail
     });
 
-    console.log("Email sent successfully:", emailResponse);
-
-    // Check if there was an error from Resend
-    if (emailResponse.error) {
-      console.error("Resend API error:", emailResponse.error);
-      return new Response(JSON.stringify({
-        success: false,
-        error: emailResponse.error.message || "Failed to send email",
-        details: {
-          message: "Email sending failed. If using a custom domain, ensure it's verified at resend.com/domains"
-        }
-      }), {
-        status: 400,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
+    // Send via SendGrid SMTP
+    const client = new SMTPClient({
+      connection: {
+        hostname: smtpConfig.smart_host || "smtp.sendgrid.net",
+        port: parseInt(smtpConfig.smart_host_port) || 587,
+        tls: true,
+        auth: {
+          username: smtpConfig.smart_host_username || "apikey",
+          password: Deno.env.get("SENDGRID_API_KEY") || "",
         },
-      });
-    }
+      },
+    });
+
+    await client.send({
+      from: fromEmail,
+      to: recipientEmail,
+      subject: `Email Routing Test - ${user.email}`,
+      html: htmlContent,
+      headers: {
+        "Reply-To": user.email,
+      },
+    });
+
+    await client.close();
+
+    console.log("Email sent successfully via SendGrid SMTP");
 
     return new Response(JSON.stringify({
       success: true,
-      message: "Test email sent successfully with user assignments",
-      emailId: emailResponse.data?.id,
+      message: "Test email sent successfully via SendGrid",
       details: {
         signatureApplied: !!signatureHtml,
         bannerApplied: !!bannerHtml,
-        totalBanners: bannerAssignments?.length || 0
+        totalBanners: bannerAssignments?.length || 0,
+        smtpProvider: "SendGrid",
+        from: fromEmail,
+        to: recipientEmail
       }
     }), {
       status: 200,
