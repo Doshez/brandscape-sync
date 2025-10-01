@@ -36,7 +36,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    console.log('SMTP Relay: Received request from Mailgun webhook');
+    console.log('SMTP Relay: Received request from SendGrid Inbound Parse webhook');
     console.log('Content-Type:', req.headers.get('content-type'));
 
     // Validate relay secret for security
@@ -65,15 +65,15 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Parse Mailgun webhook data (form data)
+    // Parse SendGrid Inbound Parse webhook data (form data)
     const formData = await req.formData();
     
-    const sender = formData.get('sender') as string;
-    const recipient = formData.get('recipient') as string;
+    const sender = formData.get('from') as string;
+    const recipient = formData.get('to') as string;
     const subject = formData.get('subject') as string;
-    const htmlBody = formData.get('body-html') as string || formData.get('stripped-html') as string;
-    const textBody = formData.get('body-plain') as string || formData.get('stripped-text') as string;
-    const messageId = formData.get('Message-Id') as string;
+    const htmlBody = formData.get('html') as string || formData.get('text') as string;
+    const textBody = formData.get('text') as string;
+    const messageId = formData.get('headers') as string; // SendGrid sends headers as JSON string
 
     console.log('SMTP Relay: Processing email from:', sender, 'to:', recipient);
 
