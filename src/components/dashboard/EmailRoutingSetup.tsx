@@ -940,15 +940,129 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                   )}
 
                   <div className="space-y-2">
-                    <Label>Authentication Password</Label>
-                    <Input 
-                      value={smartHostType === 'sendgrid' ? 'Use your SENDGRID_API_KEY' : smartHostType === 'resend' ? 'Use your RESEND_API_KEY' : 'Use your API key or password'} 
-                      readOnly 
-                      type="password"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Password is stored in Supabase secrets and used by the system automatically.
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Authentication Password (Relay Secret)</Label>
+                      {!isEditingPassword ? (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setIsEditingPassword(true);
+                              setEditPassword(relayConfig.relay_secret);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Password
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setLoading(true);
+                                const newPassword = crypto.getRandomValues(new Uint8Array(32))
+                                  .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
+                                
+                                const { error } = await supabase
+                                  .from('smtp_relay_config')
+                                  .update({
+                                    relay_secret: newPassword,
+                                    updated_at: new Date().toISOString()
+                                  })
+                                  .eq('id', relayConfig.id);
+                                
+                                if (error) throw error;
+                                
+                                await fetchRelayConfig();
+                                toast.success('Password regenerated successfully');
+                              } catch (error) {
+                                toast.error('Failed to regenerate password');
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            Regenerate
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setLoading(true);
+                                const { error } = await supabase
+                                  .from('smtp_relay_config')
+                                  .update({
+                                    relay_secret: editPassword,
+                                    updated_at: new Date().toISOString()
+                                  })
+                                  .eq('id', relayConfig.id);
+                                
+                                if (error) throw error;
+                                
+                                await fetchRelayConfig();
+                                setIsEditingPassword(false);
+                                toast.success('Password updated successfully');
+                              } catch (error) {
+                                toast.error('Failed to update password');
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading || !editPassword}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setIsEditingPassword(false);
+                              setEditPassword('');
+                            }}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {isEditingPassword ? (
+                      <Input 
+                        value={editPassword} 
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="Enter authentication password"
+                        type="text"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          value={relayConfig.relay_secret} 
+                          readOnly 
+                          type="password"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyToClipboard(relayConfig.relay_secret)}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Important:</strong> This password is used by {smartHostType === 'sendgrid' ? 'SendGrid' : smartHostType === 'resend' ? 'Resend' : 'your SMTP provider'} and your email server configuration. After changing it, update both SendGrid inbound parse settings and your Exchange/Microsoft 365 connector.
+                      </AlertDescription>
+                    </Alert>
                   </div>
 
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
