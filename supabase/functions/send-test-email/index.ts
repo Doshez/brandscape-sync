@@ -1,8 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://cdn.jsdelivr.net/npm/resend@2.0.0/+esm";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -148,28 +147,52 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
-    // For test emails, always use resend.dev domain
-    // To use custom domain emails in production, verify the domain at resend.com/domains
-    const fromEmail = `${user.first_name || 'Test'} ${user.last_name || 'User'} <onboarding@resend.dev>`;
+    // Use noreply with user's domain for SendGrid
+    const userDomain = user.email.split('@')[1];
+    const fromEmail = `noreply@${userDomain}`;
+    const fromName = `${user.first_name || 'Test'} ${user.last_name || 'User'}`;
 
-    const emailResponse = await resend.emails.send({
-      from: fromEmail,
-      to: [recipientEmail],
-      subject: `Email Routing Test - ${user.email}`,
-      html: htmlContent,
-      replyTo: user.email, // Set reply-to as the actual user email
+    console.log("Sending via SendGrid API:", { 
+      from: { email: fromEmail, name: fromName },
+      to: recipientEmail,
+      subject: `Email Routing Test - ${user.email}`
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    // Send email using SendGrid API
+    const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${sendGridApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email: recipientEmail }],
+          subject: `Email Routing Test - ${user.email}`
+        }],
+        from: {
+          email: fromEmail,
+          name: fromName
+        },
+        reply_to: {
+          email: user.email,
+          name: fromName
+        },
+        content: [{
+          type: 'text/html',
+          value: htmlContent
+        }]
+      })
+    });
 
-    // Check if there was an error from Resend
-    if (emailResponse.error) {
-      console.error("Resend API error:", emailResponse.error);
+    if (!sendGridResponse.ok) {
+      const errorText = await sendGridResponse.text();
+      console.error("SendGrid API error:", errorText);
       return new Response(JSON.stringify({
         success: false,
-        error: emailResponse.error.message || "Failed to send email",
+        error: `SendGrid API error: ${sendGridResponse.status} - ${errorText}`,
         details: {
-          message: "Email sending failed. If using a custom domain, ensure it's verified at resend.com/domains"
+          message: "Email sending failed. Ensure the sender email is verified in SendGrid at https://app.sendgrid.com/settings/sender_auth"
         }
       }), {
         status: 400,
@@ -180,14 +203,16 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    console.log("Email sent successfully via SendGrid");
+
     return new Response(JSON.stringify({
       success: true,
-      message: "Test email sent successfully with user assignments",
-      emailId: emailResponse.data?.id,
+      message: "Test email sent successfully via SendGrid with user assignments",
       details: {
         signatureApplied: !!signatureHtml,
         bannerApplied: !!bannerHtml,
-        totalBanners: bannerAssignments?.length || 0
+        totalBanners: bannerAssignments?.length || 0,
+        sentVia: 'SendGrid'
       }
     }), {
       status: 200,
