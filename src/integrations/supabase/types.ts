@@ -519,6 +519,10 @@ export type Database = {
           id: string
           is_active: boolean
           relay_secret: string
+          smart_host: string | null
+          smart_host_port: string | null
+          smart_host_type: string | null
+          smart_host_username: string | null
           updated_at: string
         }
         Insert: {
@@ -527,6 +531,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           relay_secret: string
+          smart_host?: string | null
+          smart_host_port?: string | null
+          smart_host_type?: string | null
+          smart_host_username?: string | null
           updated_at?: string
         }
         Update: {
@@ -535,6 +543,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           relay_secret?: string
+          smart_host?: string | null
+          smart_host_port?: string | null
+          smart_host_type?: string | null
+          smart_host_username?: string | null
           updated_at?: string
         }
         Relationships: []

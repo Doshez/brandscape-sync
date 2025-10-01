@@ -27,6 +27,10 @@ interface RelayConfig {
   domain: string;
   relay_secret: string;
   is_active: boolean;
+  smart_host: string;
+  smart_host_port: string;
+  smart_host_username: string;
+  smart_host_type: string;
 }
 
 interface User {
@@ -99,6 +103,11 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
   // Smart host configuration edit state
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [editPassword, setEditPassword] = useState('');
+  const [isEditingSmartHost, setIsEditingSmartHost] = useState(false);
+  const [editSmartHost, setEditSmartHost] = useState('');
+  const [editSmartHostPort, setEditSmartHostPort] = useState('');
+  const [editSmartHostUsername, setEditSmartHostUsername] = useState('');
+  const [editSmartHostType, setEditSmartHostType] = useState('');
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -508,9 +517,67 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
     );
   }
 
-  const smartHost = 'smtp.sendgrid.net';
-  const smartHostPort = '587';
+  const smartHost = relayConfig?.smart_host || 'smtp.sendgrid.net';
+  const smartHostPort = relayConfig?.smart_host_port || '587';
+  const smartHostUsername = relayConfig?.smart_host_username || 'apikey';
+  const smartHostType = relayConfig?.smart_host_type || 'sendgrid';
   const relayEndpoint = 'ddoihmeqpjjiumqndjgk.supabase.co';
+
+  const restoreSmartHostDefaults = async () => {
+    if (!relayConfig) return;
+    
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('smtp_relay_config')
+        .update({
+          smart_host: 'smtp.sendgrid.net',
+          smart_host_port: '587',
+          smart_host_username: 'apikey',
+          smart_host_type: 'sendgrid',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', relayConfig.id);
+      
+      if (error) throw error;
+      
+      await fetchRelayConfig();
+      setIsEditingSmartHost(false);
+      toast.success('Smart host configuration restored to SendGrid defaults');
+    } catch (error) {
+      toast.error('Failed to restore defaults');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateSmartHostConfig = async () => {
+    if (!relayConfig) return;
+    
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('smtp_relay_config')
+        .update({
+          smart_host: editSmartHost,
+          smart_host_port: editSmartHostPort,
+          smart_host_username: editSmartHostUsername,
+          smart_host_type: editSmartHostType,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', relayConfig.id);
+      
+      if (error) throw error;
+      
+      await fetchRelayConfig();
+      setIsEditingSmartHost(false);
+      toast.success('Smart host configuration updated successfully');
+    } catch (error) {
+      toast.error('Failed to update smart host configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -688,100 +755,226 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
         <TabsContent value="routing" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>SendGrid SMTP Configuration</CardTitle>
-              <CardDescription>
-                Use these SendGrid SMTP details to configure your email server or Exchange connector
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    Smart Host Configuration
+                    <Badge variant={smartHostType === 'sendgrid' ? 'default' : 'secondary'}>
+                      {smartHostType === 'sendgrid' ? 'SendGrid' : smartHostType === 'resend' ? 'Resend' : 'Custom'}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Current SMTP configuration for outbound email routing
+                  </CardDescription>
+                </div>
+                {!isEditingSmartHost && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditingSmartHost(true);
+                        setEditSmartHost(smartHost);
+                        setEditSmartHostPort(smartHostPort);
+                        setEditSmartHostUsername(smartHostUsername);
+                        setEditSmartHostType(smartHostType);
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Configuration
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={restoreSmartHostDefaults}
+                      disabled={loading || smartHostType === 'sendgrid'}
+                    >
+                      Restore Defaults
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Note:</strong> The SENDGRID_API_KEY is already configured in your Supabase secrets. Use these details to configure your Exchange/Microsoft 365 connector.
-                </AlertDescription>
-              </Alert>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Smart Host</Label>
-                    <div className="flex items-center gap-2">
-                      <Input value={smartHost} readOnly />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(smartHost)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Port</Label>
-                    <div className="flex items-center gap-2">
-                      <Input value={smartHostPort} readOnly />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(smartHostPort)}
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Authentication Credentials</Label>
-                  <div className="p-3 rounded-md bg-secondary">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium w-20">Username:</span>
-                        <Input value="apikey" readOnly className="flex-1" />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard("apikey")}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium w-20">Password:</span>
-                        <Input 
-                          value="Use your SENDGRID_API_KEY" 
-                          readOnly 
-                          className="flex-1" 
-                          type="password"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                  <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-                    📋 SendGrid SMTP Configuration Summary
-                  </h4>
-                  <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                    <li>• Smart Host: {smartHost}</li>
-                    <li>• Port: {smartHostPort} (SMTP with STARTTLS)</li>
-                    <li>• Username: apikey</li>
-                    <li>• Password: Your SENDGRID_API_KEY</li>
-                    <li>• Authentication: Required</li>
-                    <li>• Security: TLS encryption enforced</li>
-                  </ul>
-                </div>
-
+              {!relayConfig ? (
                 <Alert>
-                  <ExternalLink className="h-4 w-4" />
+                  <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Configure your Exchange/Microsoft 365 Send Connector to use these SendGrid SMTP settings. 
-                    All outbound emails will be routed through SendGrid's infrastructure.
+                    Please configure a routing domain first to see the smart host details.
                   </AlertDescription>
                 </Alert>
-              </div>
+              ) : (
+                <div className="space-y-4">
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Current Configuration:</strong> {smartHostType === 'sendgrid' ? 'Using SendGrid SMTP with SENDGRID_API_KEY from Supabase secrets.' : smartHostType === 'resend' ? 'Using Resend SMTP with RESEND_API_KEY from Supabase secrets.' : 'Using custom SMTP configuration.'}
+                    </AlertDescription>
+                  </Alert>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Smart Host</Label>
+                      <div className="flex items-center gap-2">
+                        {isEditingSmartHost ? (
+                          <Input 
+                            value={editSmartHost} 
+                            onChange={(e) => setEditSmartHost(e.target.value)}
+                            placeholder="smtp.example.com"
+                          />
+                        ) : (
+                          <>
+                            <Input value={smartHost} readOnly />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => copyToClipboard(smartHost)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Port</Label>
+                      <div className="flex items-center gap-2">
+                        {isEditingSmartHost ? (
+                          <Input 
+                            value={editSmartHostPort} 
+                            onChange={(e) => setEditSmartHostPort(e.target.value)}
+                            placeholder="587"
+                          />
+                        ) : (
+                          <>
+                            <Input value={smartHostPort} readOnly />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => copyToClipboard(smartHostPort)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Configuration Type</Label>
+                    {isEditingSmartHost ? (
+                      <select
+                        className="w-full p-2 border rounded-md"
+                        value={editSmartHostType}
+                        onChange={(e) => {
+                          const type = e.target.value;
+                          setEditSmartHostType(type);
+                          if (type === 'sendgrid') {
+                            setEditSmartHost('smtp.sendgrid.net');
+                            setEditSmartHostPort('587');
+                            setEditSmartHostUsername('apikey');
+                          } else if (type === 'resend') {
+                            setEditSmartHost('smtp.resend.com');
+                            setEditSmartHostPort('587');
+                            setEditSmartHostUsername('resend');
+                          }
+                        }}
+                      >
+                        <option value="sendgrid">SendGrid</option>
+                        <option value="resend">Resend</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    ) : (
+                      <Input value={smartHostType.charAt(0).toUpperCase() + smartHostType.slice(1)} readOnly />
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Authentication Username</Label>
+                    <div className="flex items-center gap-2">
+                      {isEditingSmartHost ? (
+                        <Input 
+                          value={editSmartHostUsername} 
+                          onChange={(e) => setEditSmartHostUsername(e.target.value)}
+                          placeholder="username"
+                        />
+                      ) : (
+                        <>
+                          <Input value={smartHostUsername} readOnly />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(smartHostUsername)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditingSmartHost && (
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditingSmartHost(false);
+                          setEditSmartHost('');
+                          setEditSmartHostPort('');
+                          setEditSmartHostUsername('');
+                          setEditSmartHostType('');
+                        }}
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={updateSmartHostConfig}
+                        disabled={loading || !editSmartHost || !editSmartHostPort || !editSmartHostUsername}
+                      >
+                        Save Configuration
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Authentication Password</Label>
+                    <Input 
+                      value={smartHostType === 'sendgrid' ? 'Use your SENDGRID_API_KEY' : smartHostType === 'resend' ? 'Use your RESEND_API_KEY' : 'Use your API key or password'} 
+                      readOnly 
+                      type="password"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Password is stored in Supabase secrets and used by the system automatically.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                      📋 Current SMTP Configuration Summary
+                    </h4>
+                    <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                      <li>• Type: {smartHostType.charAt(0).toUpperCase() + smartHostType.slice(1)}</li>
+                      <li>• Smart Host: {smartHost}</li>
+                      <li>• Port: {smartHostPort} (SMTP with STARTTLS)</li>
+                      <li>• Username: {smartHostUsername}</li>
+                      <li>• Password: {smartHostType === 'sendgrid' ? 'SENDGRID_API_KEY' : smartHostType === 'resend' ? 'RESEND_API_KEY' : 'From Supabase secrets'}</li>
+                      <li>• Authentication: Required</li>
+                      <li>• Security: TLS encryption enforced</li>
+                    </ul>
+                  </div>
+
+                  <Alert>
+                    <ExternalLink className="h-4 w-4" />
+                    <AlertDescription>
+                      Configure your Exchange/Microsoft 365 Send Connector to use these SMTP settings. 
+                      All outbound emails will be routed through the configured smart host infrastructure.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
