@@ -210,9 +210,12 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     if (!editingUser) return;
 
     try {
+      // Exclude password field as it's not in profiles table
+      const { password, ...updateData } = formData;
+      
       const { error } = await supabase
         .from("profiles")
-        .update(formData)
+        .update(updateData)
         .eq("id", editingUser.id);
 
       if (error) throw error;
