@@ -88,6 +88,11 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
   // Edit state
   const [editingAssignment, setEditingAssignment] = useState<UserAssignment | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Test email state
+  const [testUserId, setTestUserId] = useState('');
+  const [testRecipientEmail, setTestRecipientEmail] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -378,6 +383,45 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
     }
   };
 
+  const sendTestEmail = async () => {
+    if (!testUserId || !testRecipientEmail) {
+      toast.error('Please select a user and enter recipient email');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(testRecipientEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-test-email', {
+        body: {
+          recipientEmail: testRecipientEmail,
+          senderUserId: testUserId
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success(`Test email sent successfully to ${testRecipientEmail}`);
+        // Reset form
+        setTestRecipientEmail('');
+      } else {
+        throw new Error(data.error || 'Failed to send test email');
+      }
+    } catch (error: any) {
+      console.error('Error sending test email:', error);
+      toast.error('Failed to send test email: ' + (error.message || 'Unknown error'));
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
@@ -486,11 +530,12 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
       )}
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="setup">Domain Setup</TabsTrigger>
           <TabsTrigger value="dns">DNS Configuration</TabsTrigger>
           <TabsTrigger value="routing">Routing Rules</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
+          <TabsTrigger value="test">Test Email</TabsTrigger>
         </TabsList>
 
         <TabsContent value="setup" className="space-y-4">
@@ -909,6 +954,106 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                   {isEditing && " Currently editing an assignment - make changes above and save."}
                 </AlertDescription>
               </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="test" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Test Email with User Assignments
+              </CardTitle>
+              <CardDescription>
+                Send a test email to verify that signatures and banners are correctly applied
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="test-user-select">Select User (Sender)</Label>
+                  <select
+                    id="test-user-select"
+                    className="w-full p-2 border rounded-md"
+                    value={testUserId}
+                    onChange={(e) => setTestUserId(e.target.value)}
+                    disabled={sendingTest}
+                  >
+                    <option value="">Select a user with assignments...</option>
+                    {assignments.map((assignment) => (
+                      <option key={assignment.id} value={assignment.user_id}>
+                        {assignment.user?.first_name} {assignment.user?.last_name} ({assignment.user?.email})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-sm text-muted-foreground">
+                    This user's assigned signature and banner will be applied to the test email
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="test-recipient-email">Recipient Email Address</Label>
+                  <Input
+                    id="test-recipient-email"
+                    type="email"
+                    placeholder="recipient@example.com"
+                    value={testRecipientEmail}
+                    onChange={(e) => setTestRecipientEmail(e.target.value)}
+                    disabled={sendingTest}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    The test email will be sent to this address
+                  </p>
+                </div>
+
+                {testUserId && assignments.find(a => a.user_id === testUserId) && (
+                  <div className="p-4 bg-muted rounded-md space-y-2">
+                    <h4 className="font-medium">Selected User Assignment:</h4>
+                    {(() => {
+                      const assignment = assignments.find(a => a.user_id === testUserId);
+                      return (
+                        <div className="text-sm space-y-1">
+                          <p><strong>User:</strong> {assignment?.user?.first_name} {assignment?.user?.last_name}</p>
+                          <p><strong>Email:</strong> {assignment?.user?.email}</p>
+                          <p><strong>Signature:</strong> {assignment?.signature?.template_name || 'None'}</p>
+                          <p><strong>Banners:</strong> {assignment?.banners?.length || 0} assigned (1 will rotate daily)</p>
+                          {assignment?.banners && assignment.banners.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Banner names: {assignment.banners.map(b => b.name).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                <Button 
+                  onClick={sendTestEmail}
+                  disabled={!testUserId || !testRecipientEmail || sendingTest || assignments.length === 0}
+                  className="w-full"
+                >
+                  {sendingTest ? 'Sending Test Email...' : 'Send Test Email'}
+                </Button>
+
+                {assignments.length === 0 && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      No user assignments found. Please create user assignments in the User Management tab first.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    The test email will include the selected user's assigned signature and one of their banners (rotating daily).
+                    This demonstrates how actual emails will appear when processed through the SMTP relay.
+                  </AlertDescription>
+                </Alert>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
