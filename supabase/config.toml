@@ -24,9 +24,6 @@ verify_jwt = false
 [functions.track-banner-click]
 verify_jwt = false
 
-[functions.smtp-relay]
-verify_jwt = false
-
 [functions.deploy-signature-with-instructions]
 verify_jwt = false
 
