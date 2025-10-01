@@ -508,8 +508,8 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
     );
   }
 
-  const smartHost = 'smtp.resend.com';
-  const smartHostPort = '587'; // TLS port, 465 for SSL
+  const smartHost = selectedDomain ? `smtp-relay.${selectedDomain}` : '';
+  const relayEndpoint = 'ddoihmeqpjjiumqndjgk.supabase.co';
 
   return (
     <div className="space-y-6">
@@ -517,10 +517,10 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Globe className="h-6 w-6" />
-            Email Routing with Resend
+            Email Routing Domain Setup
           </h2>
           <p className="text-muted-foreground">
-            Configure your domain and set up Resend as your SMTP smart host for outbound emails
+            Configure your domain to route emails through the smart host system
           </p>
         </div>
       </div>
@@ -536,12 +536,13 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
       )}
 
       <Tabs defaultValue="setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="setup">Domain Setup</TabsTrigger>
-          <TabsTrigger value="routing">Smart Host Config</TabsTrigger>
+          <TabsTrigger value="dns">DNS Configuration</TabsTrigger>
+          <TabsTrigger value="sendgrid">SendGrid Setup</TabsTrigger>
+          <TabsTrigger value="routing">Routing Rules</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="test">Test Email</TabsTrigger>
-          <TabsTrigger value="sendgrid">Inbound Setup</TabsTrigger>
         </TabsList>
 
         <TabsContent value="setup" className="space-y-4">
@@ -594,6 +595,91 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
           </Card>
         </TabsContent>
 
+        <TabsContent value="dns" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>DNS Records Configuration</CardTitle>
+              <CardDescription>
+                Add these DNS records to enable smart host routing for your domain
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!selectedDomain ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Please select a domain first to see the DNS configuration.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">CNAME Record (Required)</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(`smtp-relay.${selectedDomain} CNAME ${relayEndpoint}`)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <p className="font-mono">smtp-relay</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Type:</span>
+                        <p className="font-mono">CNAME</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Value:</span>
+                        <p className="font-mono">{relayEndpoint}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border rounded-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">MX Record (Optional - for direct routing)</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(`10 ${smartHost}`)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <p className="font-mono">@</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Type:</span>
+                        <p className="font-mono">MX</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Value:</span>
+                        <p className="font-mono">10 {smartHost}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Important:</strong> DNS propagation can take up to 24 hours. 
+                      Test your configuration after DNS records have propagated completely.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="sendgrid" className="space-y-4">
           <SendGridSetup relayConfig={relayConfig} />
         </TabsContent>
@@ -603,11 +689,42 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Resend SMTP Configuration</CardTitle>
+                  <CardTitle>Smart Host Configuration</CardTitle>
                   <CardDescription>
-                    Use these details to configure your email server or Exchange connector to send via Resend
+                    Use these details to configure your email server or Exchange connector
                   </CardDescription>
                 </div>
+                {relayConfig && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        setLoading(true);
+                        const { error } = await supabase
+                          .from('smtp_relay_config')
+                          .update({
+                            relay_secret: crypto.getRandomValues(new Uint8Array(32))
+                              .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), ''),
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', relayConfig.id);
+                        
+                        if (error) throw error;
+                        
+                        await fetchRelayConfig();
+                        toast.success('Password regenerated successfully');
+                      } catch (error) {
+                        toast.error('Failed to regenerate password');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={loading}
+                  >
+                    Regenerate Password
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -620,16 +737,9 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                 </Alert>
               ) : (
                 <div className="space-y-4">
-                  <Alert className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Note:</strong> Resend uses your RESEND_API_KEY as the password. This is already configured in your Supabase secrets.
-                    </AlertDescription>
-                  </Alert>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Smart Host (SMTP Server)</Label>
+                      <Label>Smart Host</Label>
                       <div className="flex items-center gap-2">
                         <Input value={smartHost} readOnly />
                         <Button
@@ -645,30 +755,87 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                     <div className="space-y-2">
                       <Label>Port</Label>
                       <div className="flex items-center gap-2">
-                        <Input value={smartHostPort} readOnly />
+                        <Input value="587" readOnly />
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => copyToClipboard(smartHostPort)}
+                          onClick={() => copyToClipboard("587")}
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">Use 587 for TLS or 465 for SSL</p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Authentication Credentials</Label>
-                    <div className="p-3 rounded-md bg-secondary">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium w-20">Username:</span>
-                          <Input value="resend" readOnly className="flex-1" />
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Authentication Credentials</Label>
+                      {!isEditingPassword ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setIsEditingPassword(true);
+                            setEditPassword(relayConfig.relay_secret);
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Password
+                        </Button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setLoading(true);
+                                const { error } = await supabase
+                                  .from('smtp_relay_config')
+                                  .update({
+                                    relay_secret: editPassword,
+                                    updated_at: new Date().toISOString()
+                                  })
+                                  .eq('id', relayConfig.id);
+                                
+                                if (error) throw error;
+                                
+                                await fetchRelayConfig();
+                                setIsEditingPassword(false);
+                                toast.success('Password updated successfully');
+                              } catch (error) {
+                                toast.error('Failed to update password');
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            Save
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => copyToClipboard("resend")}
+                            onClick={() => {
+                              setIsEditingPassword(false);
+                              setEditPassword('');
+                            }}
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className={`p-3 rounded-md ${isEditingPassword ? 'bg-secondary border-2 border-primary' : 'bg-secondary'}`}>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium w-20">Username:</span>
+                          <Input value="relay" readOnly className="flex-1" />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard("relay")}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -676,55 +843,54 @@ export const EmailRoutingSetup: React.FC<EmailRoutingSetupProps> = ({ profile })
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium w-20">Password:</span>
                           <Input 
-                            value="Your RESEND_API_KEY" 
-                            readOnly
+                            value={isEditingPassword ? editPassword : relayConfig.relay_secret} 
+                            onChange={(e) => setEditPassword(e.target.value)}
+                            readOnly={!isEditingPassword} 
                             className="flex-1" 
-                            type="password"
+                            type={isEditingPassword ? "text" : "password"}
                           />
+                          {!isEditingPassword && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => copyToClipboard(relayConfig.relay_secret)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          ℹ️ The password is your Resend API key, already configured in Supabase secrets
-                        </p>
                       </div>
                     </div>
                   </div>
 
+                  {isEditingPassword && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Note:</strong> After changing the password, update your SendGrid and email server configuration with the new relay secret.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                     <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-                      📋 Resend SMTP Configuration Summary
+                      📋 Configuration Summary
                     </h4>
                     <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                      <li>• Domain: {relayConfig.domain}</li>
                       <li>• Smart Host: {smartHost}</li>
-                      <li>• Port: 587 (TLS) or 465 (SSL)</li>
-                      <li>• Username: resend</li>
-                      <li>• Password: Your RESEND_API_KEY</li>
+                      <li>• Port: 587 (SMTP with STARTTLS)</li>
+                      <li>• Username: relay</li>
                       <li>• Authentication: Required</li>
-                      <li>• Security: TLS/SSL encryption enforced</li>
+                      <li>• Security: TLS encryption enforced</li>
                     </ul>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="font-medium">Exchange/Microsoft 365 Configuration Steps:</h4>
-                    <ol className="text-sm space-y-2 list-decimal list-inside">
-                      <li>Open Exchange Admin Center</li>
-                      <li>Navigate to Mail Flow → Connectors</li>
-                      <li>Create a new Send Connector</li>
-                      <li>Set Smart Host to: <code className="bg-secondary px-2 py-1 rounded">{smartHost}</code></li>
-                      <li>Set Port to: <code className="bg-secondary px-2 py-1 rounded">{smartHostPort}</code></li>
-                      <li>Enable TLS and set Authentication to Basic</li>
-                      <li>Username: <code className="bg-secondary px-2 py-1 rounded">resend</code></li>
-                      <li>Password: Your Resend API Key (from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">resend.com/api-keys</a>)</li>
-                    </ol>
                   </div>
 
                   <Alert>
                     <ExternalLink className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>Important:</strong> Make sure you've verified your domain in Resend at{" "}
-                      <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        resend.com/domains
-                      </a>{" "}
-                      before configuring your email server.
+                      Use the Exchange Admin Center manual setup to create connectors and transport rules 
+                      that will route emails through this smart host configuration.
                     </AlertDescription>
                   </Alert>
                 </div>
