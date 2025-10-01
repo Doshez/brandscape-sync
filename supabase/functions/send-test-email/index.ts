@@ -148,17 +148,16 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
-    // Use the sender's actual email if domain is verified, otherwise use resend default
-    // Note: To use custom domain emails, you must verify the domain at resend.com/domains
-    const fromEmail = user.email.includes('@cioafrica.co') 
-      ? `${user.first_name} ${user.last_name} <${user.email}>`
-      : `${user.first_name} ${user.last_name} <onboarding@resend.dev>`;
+    // For test emails, always use resend.dev domain
+    // To use custom domain emails in production, verify the domain at resend.com/domains
+    const fromEmail = `${user.first_name || 'Test'} ${user.last_name || 'User'} <onboarding@resend.dev>`;
 
     const emailResponse = await resend.emails.send({
       from: fromEmail,
       to: [recipientEmail],
       subject: `Email Routing Test - ${user.email}`,
       html: htmlContent,
+      replyTo: user.email, // Set reply-to as the actual user email
     });
 
     console.log("Email sent successfully:", emailResponse);
