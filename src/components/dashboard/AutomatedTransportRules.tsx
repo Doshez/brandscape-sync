@@ -222,10 +222,25 @@ if ($allOldRules) {
         Write-Host "  Removing: $($_.Name)" -ForegroundColor Red
         Remove-TransportRule -Identity $_.Name -Confirm:$false 
     }
+    Write-Host "Waiting for Exchange to process deletions..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 5
     Write-Host "All old rules removed" -ForegroundColor Green
 } else {
     Write-Host "No existing EmailSignature rules found" -ForegroundColor Gray
 }
+Write-Host ""
+
+# Verify all old rules are gone
+Write-Host "Verifying removal..." -ForegroundColor Cyan
+$remainingRules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+if ($remainingRules) {
+    Write-Host "WARNING: $($remainingRules.Count) rule(s) still present. Forcing removal..." -ForegroundColor Red
+    $remainingRules | ForEach-Object { 
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 3
+}
+Write-Host "Verification complete - ready to create new rules" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "=== STEP 3: Creating New Rules ===" -ForegroundColor Cyan
