@@ -187,33 +187,28 @@ Write-Host ""
 
 `;
         } else {
-          // User has banners - create one banner rule (prepend) and one signature rule (append)
+          // User has banners - create ONE banner rule (first banner only) and one signature rule
           const banners = assignment.bannerHtml.split('\n\n').filter(Boolean);
+          
+          // Use only the first banner (to rotate, regenerate script with different banner order)
+          const firstBanner = banners[0];
+          
+          // Wrap banner with proper styling to match test email
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${firstBanner}</div>`;
+          const escapedBanner = wrappedBanner.replace(/'/g, "''");
           
           // Wrap signature with proper styling to match test email
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
-          script += `# Creating ${banners.length} banner rule(s) + 1 signature rule
+          script += `# Creating 1 banner rule + 1 signature rule${banners.length > 1 ? ` (${banners.length} banners available - showing first)` : ''}
 `;
 
-          // Create banner rotation rules (prepend to top of email)
-          banners.forEach((banner, bannerIndex) => {
-            const bannerRuleName = `${baseRuleName}_Banner${bannerIndex + 1}`;
-            
-            // Wrap banner with proper styling to match test email
-            const wrappedBanner = `<div style="margin-bottom: 20px;">${banner}</div>`;
-            const escapedBanner = wrappedBanner.replace(/'/g, "''");
-            
-            // Calculate day condition for rotation
-            const dayNumbers = [];
-            for (let day = bannerIndex + 1; day <= 31; day += banners.length) {
-              dayNumbers.push(day);
-            }
-            const dayCondition = dayNumbers.join(',');
-            
-            script += `
-# Banner ${bannerIndex + 1} - Shows on days: ${dayNumbers.join(', ')}
+          // Create banner rule (prepend to top of email)
+          const bannerRuleName = `${baseRuleName}_Banner`;
+          
+          script += `
+# Banner rule (prepends at top)
 New-TransportRule -Name "${bannerRuleName}" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
@@ -221,11 +216,10 @@ New-TransportRule -Name "${bannerRuleName}" \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${index * 10 + bannerIndex}
+    -Priority ${index * 10}
 
-Write-Host "  ✓ Banner ${bannerIndex + 1} rule created (Priority: ${index * 10 + bannerIndex})" -ForegroundColor Green
+Write-Host "  ✓ Banner rule created" -ForegroundColor Green
 `;
-          });
           
           // Create signature rule (append to bottom)
           script += `
@@ -256,8 +250,8 @@ Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-T
 Write-Host ""
 Write-Host "All transport rules have been created successfully!" -ForegroundColor Green
 Write-Host ""
-Write-Host "Note: For users with multiple banners, rules rotate by priority." -ForegroundColor Cyan
-Write-Host "Each banner will appear based on the day of the month for automatic rotation." -ForegroundColor Cyan
+Write-Host "Note: If users have multiple banners, only the first one is deployed." -ForegroundColor Cyan
+Write-Host "To rotate banners, regenerate and run this script again." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" -ForegroundColor Yellow
 `;
@@ -428,8 +422,8 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
                 <strong>How it works:</strong> Banners appear at the <strong>top</strong> of emails with spacing, 
-                signatures at the <strong>bottom</strong> with a separator line (matching test email format). 
-                Rules apply to both internal and external recipients. Multiple banners rotate daily by priority.
+                signatures at the <strong>bottom</strong> with a separator line. Rules apply to both internal and external recipients. 
+                If a user has multiple banners, only the first one is deployed (regenerate to rotate).
               </AlertDescription>
             </Alert>
 
@@ -497,6 +491,10 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
           <p className="mt-3">
             <strong>Formatting:</strong> Banners and signatures include proper HTML styling (spacing, borders) 
             to match the test email appearance. Rules apply to both internal and external recipients.
+          </p>
+          <p className="mt-2">
+            <strong>Banner Rotation:</strong> If a user has multiple banners assigned, only the first one is deployed. 
+            To rotate to a different banner, regenerate and run the script again.
           </p>
         </AlertDescription>
       </Alert>
