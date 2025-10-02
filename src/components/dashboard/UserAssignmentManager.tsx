@@ -59,7 +59,7 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedSignature, setSelectedSignature] = useState("");
-  const [selectedBanners, setSelectedBanners] = useState<string[]>([]);
+  const [selectedBanner, setSelectedBanner] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -244,17 +244,15 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
 
       if (assignmentError) throw assignmentError;
 
-      // Add banner assignments if any selected
-      if (selectedBanners.length > 0) {
-        const bannerAssignments = selectedBanners.map((bannerId, index) => ({
-          user_assignment_id: assignment.id,
-          banner_id: bannerId,
-          display_order: index + 1
-        }));
-
+      // Add banner assignment if selected
+      if (selectedBanner) {
         const { error: bannerError } = await supabase
           .from("user_banner_assignments")
-          .insert(bannerAssignments);
+          .insert({
+            user_assignment_id: assignment.id,
+            banner_id: selectedBanner,
+            display_order: 1
+          });
 
         if (bannerError) throw bannerError;
       }
@@ -267,7 +265,7 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
       // Reset form and refresh data
       setSelectedUser("");
       setSelectedSignature("");
-      setSelectedBanners([]);
+      setSelectedBanner("");
       fetchAssignments();
     } catch (error) {
       console.error("Error creating assignment:", error);
@@ -346,7 +344,7 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
             Create New Assignment
           </CardTitle>
           <CardDescription>
-            Assign a signature and optional banners to a user for automatic email processing
+            Assign one signature and one optional banner to each user. Banner appears at top of email body, signature at bottom.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -385,26 +383,23 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
           </div>
 
           <div className="space-y-2">
-            <Label>Select Banners (Optional)</Label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              {banners.map((banner) => (
-                <label key={banner.id} className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedBanners.includes(banner.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedBanners([...selectedBanners, banner.id]);
-                      } else {
-                        setSelectedBanners(selectedBanners.filter(id => id !== banner.id));
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{banner.name}</span>
-                </label>
-              ))}
-            </div>
+            <Label htmlFor="banner-select">Select Banner (Optional)</Label>
+            <Select value={selectedBanner} onValueChange={setSelectedBanner}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a banner (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No banner</SelectItem>
+                {banners.map((banner) => (
+                  <SelectItem key={banner.id} value={banner.id}>
+                    {banner.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Each user can have one banner that appears at the top of their email body
+            </p>
           </div>
 
           <Button onClick={handleCreateAssignment} className="w-full">
@@ -453,17 +448,13 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
                         </Badge>
                       </div>
 
-                      {assignment.user_banner_assignments?.length > 0 && (
+                      {assignment.user_banner_assignments && assignment.user_banner_assignments.length > 0 && (
                         <div className="flex items-center gap-2">
                           <Image className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">Banners:</span>
-                          <div className="flex gap-1">
-                            {assignment.user_banner_assignments.map((ba) => (
-                              <Badge key={ba.id} variant="outline" className="text-xs">
-                                {ba.banners?.name}
-                              </Badge>
-                            ))}
-                          </div>
+                          <span className="text-sm">Banner:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {assignment.user_banner_assignments[0]?.banners?.name}
+                          </Badge>
                         </div>
                       )}
                     </div>
