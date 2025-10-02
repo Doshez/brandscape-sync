@@ -205,9 +205,27 @@ function generateTransportRuleScript(config: {
     : `-SenderDomainIs "${domain}"`;
 
   return `# Exchange Online PowerShell Script
-# Connect to Exchange Online first: Connect-ExchangeOnline
+# This script requires the Exchange Online Management module
+
+# Install module if not already installed (run once)
+# Install-Module -Name ExchangeOnlineManagement -Force -AllowClobber
+
+# Import the Exchange Online Management module
+Import-Module ExchangeOnlineManagement
+
+# Connect to Exchange Online (you'll be prompted for credentials)
+Write-Host "Connecting to Exchange Online..." -ForegroundColor Cyan
+Connect-ExchangeOnline -ShowBanner:$false
+
+# Check if rule already exists and remove it
+$existingRule = Get-TransportRule -Identity "${rule_name}" -ErrorAction SilentlyContinue
+if ($existingRule) {
+    Write-Host "Removing existing rule '${rule_name}'..." -ForegroundColor Yellow
+    Remove-TransportRule -Identity "${rule_name}" -Confirm:$false
+}
 
 # Create transport rule to append signature
+Write-Host "Creating transport rule '${rule_name}'..." -ForegroundColor Cyan
 New-TransportRule -Name "${rule_name}" \`
   ${userCondition} \`
   -ApplyHtmlDisclaimerLocation Append \`
@@ -217,10 +235,12 @@ New-TransportRule -Name "${rule_name}" \`
   -Enabled $true
 
 # Verify the rule was created
+Write-Host "`nVerifying rule configuration..." -ForegroundColor Cyan
 Get-TransportRule -Identity "${rule_name}" | Format-List Name,State,SenderDomainIs,From,ApplyHtmlDisclaimerText
 
-Write-Host "Transport rule '${rule_name}' created successfully!" -ForegroundColor Green
-Write-Host "Note: It may take 15-30 minutes for the rule to take effect." -ForegroundColor Yellow`;
+Write-Host "`nTransport rule '${rule_name}' created successfully!" -ForegroundColor Green
+Write-Host "Note: It may take 15-30 minutes for the rule to take effect." -ForegroundColor Yellow
+Write-Host "`nTo disconnect from Exchange Online, run: Disconnect-ExchangeOnline" -ForegroundColor Cyan`;
 }
 
 function generateDNSRecords(domain: string) {
