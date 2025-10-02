@@ -684,9 +684,9 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Automated Transport Rules</h2>
+          <h2 className="text-2xl font-bold">Deploy to Exchange Online</h2>
           <p className="text-muted-foreground">
-            Generate PowerShell scripts to automatically update Exchange transport rules
+            The unified solution to deploy email signatures and banners to Microsoft Exchange
           </p>
         </div>
         <Button onClick={fetchAssignments} disabled={loading}>
@@ -698,8 +698,11 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
       <Alert>
         <CheckCircle className="h-4 w-4" />
         <AlertDescription>
-          <strong>How it works:</strong> This generates PowerShell scripts that create Exchange transport rules 
-          for each user assignment. When users send emails, Exchange will automatically append their signature and banner.
+          <strong>How it works:</strong> This is the <strong>unified deployment system</strong> for all email signatures and banners. 
+          It generates PowerShell scripts that create Exchange transport rules for each user assignment. 
+          When users send emails, Exchange automatically adds their assigned signature and banner.
+          <br /><br />
+          <strong>Important:</strong> This is the ONLY way to deploy to Exchange - all other deployment methods have been removed to prevent duplicate rules.
         </AlertDescription>
       </Alert>
 

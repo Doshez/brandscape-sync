@@ -9,21 +9,12 @@ import { DashboardHome } from "@/components/dashboard/DashboardHome";
 import { EnhancedSignatureManager } from "@/components/dashboard/EnhancedSignatureManager";
 import { EnhancedBannerManager } from "@/components/dashboard/EnhancedBannerManager";
 import { AnalyticsReports } from "@/components/dashboard/AnalyticsReports";
-import { PermanentExchangeIntegration } from "@/components/dashboard/PermanentExchangeIntegration";
-import { DomainManager } from "@/components/dashboard/DomainManager";
-import { EmailDNSConfiguration } from "@/components/dashboard/EmailDNSConfiguration";
 import { CompanySettings } from "@/components/dashboard/CompanySettings";
 import { UserManager } from "@/components/dashboard/UserManager";
 import { UserAssignmentManager } from "@/components/dashboard/UserAssignmentManager";
-import Microsoft365Integration from "@/components/dashboard/Microsoft365Integration";
-import { SMTPRelayProtocol } from "@/components/dashboard/SMTPRelayProtocol";
-import { ExchangeAdminCenterSetup } from "@/components/dashboard/ExchangeAdminCenterSetup";
-import { EmailRoutingSetup } from "@/components/dashboard/EmailRoutingSetup";
-import { ExchangeUserSync } from "@/components/dashboard/ExchangeUserSync";
-import { OutlookIntegrationGuide } from "@/components/dashboard/OutlookIntegrationGuide";
 import { AutomatedTransportRules } from "@/components/dashboard/AutomatedTransportRules";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing" | "exchange-sync" | "outlook-integration" | "auto-transport-rules";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "settings" | "users" | "assignments" | "auto-transport-rules";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -142,24 +133,6 @@ const Dashboard = () => {
         return <EnhancedBannerManager profile={profile} />;
       case "analytics":
         return <AnalyticsReports profile={profile} />;
-      case "domains":
-        return <DomainManager profile={profile} />;
-      case "dns":
-        return <EmailDNSConfiguration profile={profile} />;
-      case "exchange":
-        return <PermanentExchangeIntegration profile={profile} />;
-      case "microsoft365":
-        return <Microsoft365Integration />;
-      case "smtp-relay":
-        return <SMTPRelayProtocol profile={profile} />;
-      case "exchange-admin":
-        return <ExchangeAdminCenterSetup profile={profile} />;
-      case "email-routing":
-        return <EmailRoutingSetup profile={profile} />;
-      case "exchange-sync":
-        return <ExchangeUserSync profile={profile} />;
-      case "outlook-integration":
-        return <OutlookIntegrationGuide />;
       case "auto-transport-rules":
         return <AutomatedTransportRules profile={profile} />;
       case "settings":

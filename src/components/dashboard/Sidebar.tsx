@@ -5,19 +5,14 @@ import {
   FileText, 
   Image, 
   BarChart3, 
-  Globe, 
   Settings, 
   Users,
   Mail,
-  Cloud,
-  Shield,
   UserCheck,
-  RefreshCw,
-  Workflow,
   Zap
 } from "lucide-react";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing" | "exchange-sync" | "outlook-integration" | "auto-transport-rules";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "settings" | "users" | "assignments" | "auto-transport-rules";
 
 interface SidebarProps {
   activeView: DashboardView;
@@ -28,19 +23,10 @@ interface SidebarProps {
 const menuItems = [
   { id: "home", label: "Dashboard", icon: Home, adminOnly: false },
   { id: "signatures", label: "Email Signatures", icon: FileText, adminOnly: false },
-  { id: "exchange", label: "Exchange Integration", icon: Cloud, adminOnly: false },
-  { id: "exchange-sync", label: "Exchange User Sync", icon: RefreshCw, adminOnly: true },
-  { id: "auto-transport-rules", label: "Auto Transport Rules", icon: Zap, adminOnly: true },
-  { id: "outlook-integration", label: "Outlook Integration Guide", icon: Workflow, adminOnly: true },
   { id: "banners", label: "Banner Management", icon: Image, adminOnly: true },
   { id: "assignments", label: "User Assignments", icon: UserCheck, adminOnly: true },
-  { id: "microsoft365", label: "Microsoft 365 Rules", icon: Shield, adminOnly: true },
-  { id: "smtp-relay", label: "SMTP Relay Protocol", icon: Mail, adminOnly: true },
-  { id: "exchange-admin", label: "Exchange Admin Center", icon: Settings, adminOnly: true },
-  { id: "email-routing", label: "Email Routing", icon: Globe, adminOnly: true },
+  { id: "auto-transport-rules", label: "Deploy to Exchange", icon: Zap, adminOnly: true },
   { id: "analytics", label: "Analytics", icon: BarChart3, adminOnly: true },
-  { id: "domains", label: "Domain Verification", icon: Globe, adminOnly: true },
-  { id: "dns", label: "DNS Configuration", icon: Shield, adminOnly: true },
   { id: "users", label: "User Management", icon: Users, adminOnly: true },
   { id: "settings", label: "Company Settings", icon: Settings, adminOnly: true },
 ];
