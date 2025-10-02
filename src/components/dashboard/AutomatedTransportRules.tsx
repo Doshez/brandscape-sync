@@ -224,9 +224,16 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
       console.log(`✓ Found ${userAssignments?.length || 0} active user assignments`);
 
       const assignmentsData: UserAssignment[] = [];
+      const seenUserIds = new Set<string>(); // Track to prevent duplicates
 
       for (const assignment of userAssignments || []) {
         console.log(`\n📧 Processing assignment ID: ${assignment.id}`);
+        
+        // Skip if we've already processed this user (prevent duplicates)
+        if (seenUserIds.has(assignment.user_id)) {
+          console.log(`  ⏭️ Skipping duplicate assignment for user_id: ${assignment.user_id}`);
+          continue;
+        }
         
         // Get profile for this user
         const { data: profile } = await supabase
@@ -240,6 +247,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           continue;
         }
         
+        seenUserIds.add(assignment.user_id); // Mark as processed
         console.log(`  ✓ Profile: ${profile.email}`);
 
         // Get signature
@@ -762,8 +770,8 @@ Write-Host ""
 Write-Host ""
 Write-Host "=== STEP 4: Verifying Final Rules ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Current EmailSignature rules after update:" -ForegroundColor Yellow
-Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-Table Name, State, Priority, From -AutoSize
+Write-Host "ALL transport rules with disclaimers (signatures/banners):" -ForegroundColor Yellow
+Get-TransportRule | Where-Object { $_.ApplyHtmlDisclaimerText -ne $null } | Format-Table Name, State, Priority, ApplyHtmlDisclaimerLocation, @{Label="UserCount";Expression={($_.From -split ',').Count}} -AutoSize
 
 Write-Host ""
 Write-Host "=== COMPLETED ===" -ForegroundColor Green
