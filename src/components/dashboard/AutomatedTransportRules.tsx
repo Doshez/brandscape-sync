@@ -598,7 +598,7 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
 New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
-    -ApplyHtmlDisclaimerLocation Wrap \`
+    -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true
@@ -720,12 +720,12 @@ if ($signatureRuleExists) {
 New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
-    -ApplyHtmlDisclaimerLocation Wrap \`
+    -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
-    -Comments "Signature for ${userCount} user(s) - Wrap to prevent duplicates"
+    -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
 Write-Host "  ✓ SIGNATURE rule created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
 Write-Host ""
