@@ -604,7 +604,7 @@ New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfBodyContainsText "${exceptionText}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true
 
@@ -647,7 +647,7 @@ New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfBodyContainsText "${bannerException}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority}
@@ -716,7 +716,7 @@ New-TransportRule -Name "BANNER_${groupId}_Top" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfBodyContainsText "${bannerException}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
@@ -741,7 +741,7 @@ New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfBodyContainsText "${exceptionText}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
@@ -775,7 +775,7 @@ New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfBodyContainsText "${exceptionText}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority 5 \`
