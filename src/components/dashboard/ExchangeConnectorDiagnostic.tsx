@@ -232,6 +232,66 @@ export function ExchangeConnectorDiagnostic() {
               <strong>Important:</strong> Even if Exchange validation fails, your connector may still work for actual emails (as shown in your message tracking logs with "250 2.0.0 OK" responses). The validation test is stricter than actual email delivery.
             </AlertDescription>
           </Alert>
+
+          <Separator />
+
+          {/* Mail Loop Warning */}
+          <div>
+            <h3 className="text-lg font-semibold mb-2 text-destructive">⚠️ Mail Loop Error (554 5.4.14)</h3>
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Common Issue:</strong> If you're getting "554 5.4.14 Hop count exceeded - possible mail loop" errors, your transport rule is routing ALL emails through the connector, creating an infinite loop.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-2">What causes this?</h4>
+                <ul className="text-sm space-y-2 list-disc list-inside text-muted-foreground">
+                  <li>Your transport rule catches ALL outbound emails</li>
+                  <li>These emails go to SendGrid</li>
+                  <li>SendGrid sends them back to Exchange (via inbound parse or relay)</li>
+                  <li>Transport rule catches them again → infinite loop</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">How to fix it:</h4>
+                <div className="bg-muted p-4 rounded-lg space-y-3 text-sm">
+                  <p className="font-medium">Option 1: Route only signature-enabled users</p>
+                  <p className="text-muted-foreground">Modify your transport rule condition to only match users who need signatures:</p>
+                  <pre className="bg-background p-2 rounded text-xs overflow-x-auto">
+{`The sender is a member of: "Signature Users" group`}</pre>
+
+                  <Separator />
+
+                  <p className="font-medium">Option 2: Exclude external recipients</p>
+                  <p className="text-muted-foreground">Add an exception to your transport rule:</p>
+                  <pre className="bg-background p-2 rounded text-xs overflow-x-auto">
+{`Except if: The recipient is external/outside the organization`}</pre>
+
+                  <Separator />
+
+                  <p className="font-medium">Option 3: Use specific domains only</p>
+                  <p className="text-muted-foreground">Only route emails from specific domains:</p>
+                  <pre className="bg-background p-2 rounded text-xs overflow-x-auto">
+{`The sender domain is: yourdomain.com`}</pre>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Verify your transport rule:</h4>
+                <ol className="text-sm space-y-2 list-decimal list-inside text-muted-foreground">
+                  <li>Go to Exchange Admin Center → Mail flow → Rules</li>
+                  <li>Find your SendGrid connector rule</li>
+                  <li>Check conditions - should NOT be "Apply to all messages"</li>
+                  <li>Add proper conditions or exceptions as shown above</li>
+                  <li>Save and test with a regular external email</li>
+                </ol>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
