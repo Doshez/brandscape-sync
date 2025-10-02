@@ -37,33 +37,62 @@ export const ExchangeUserSync = ({ profile }: ExchangeUserSyncProps) => {
   const fetchExchangeUsers = async () => {
     setLoading(true);
     try {
-      const { data: connection } = await supabase
+      const { data: connection, error: connError } = await supabase
         .from("exchange_connections")
         .select("*")
         .eq("user_id", profile.user_id)
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
+
+      if (connError) {
+        console.error("Connection error:", connError);
+        throw new Error(`Database error: ${connError.message}`);
+      }
 
       if (!connection) {
         toast({
           title: "No Exchange Connection",
-          description: "Please connect to Microsoft Exchange first",
+          description: "Please connect to Microsoft Exchange first in the Exchange Integration tab",
           variant: "destructive",
         });
         return;
       }
 
-      const response = await fetch("https://graph.microsoft.com/v1.0/users", {
+      // Check if token is expired
+      const tokenExpiry = new Date(connection.token_expires_at);
+      const now = new Date();
+      
+      if (tokenExpiry <= now) {
+        toast({
+          title: "Token Expired",
+          description: "Your Exchange token has expired. Please reconnect in the Exchange Integration tab.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log("Fetching users from Microsoft Graph API...");
+      
+      const response = await fetch("https://graph.microsoft.com/v1.0/users?$select=id,mail,displayName,jobTitle,department,officeLocation", {
         headers: {
           Authorization: `Bearer ${connection.access_token}`,
+          "Content-Type": "application/json",
         },
       });
 
       if (!response.ok) {
-        throw new Error("Failed to fetch users from Exchange");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Graph API error:", response.status, errorData);
+        
+        if (response.status === 401) {
+          throw new Error("Authentication failed. Please reconnect your Exchange account.");
+        }
+        
+        throw new Error(errorData.error?.message || `Failed to fetch users (${response.status})`);
       }
 
       const data = await response.json();
+      console.log("Fetched users:", data.value?.length || 0);
       setUsers(data.value || []);
       
       toast({
@@ -73,8 +102,8 @@ export const ExchangeUserSync = ({ profile }: ExchangeUserSyncProps) => {
     } catch (error: any) {
       console.error("Error fetching Exchange users:", error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to fetch Exchange users",
+        title: "Failed to Fetch Users",
+        description: error.message || "Failed to fetch Exchange users. Check console for details.",
         variant: "destructive",
       });
     } finally {
