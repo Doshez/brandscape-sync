@@ -16,6 +16,7 @@ interface UserAssignment {
   userName: string;
   signatureHtml: string;
   bannerHtml?: string;
+  banners?: Array<{ id: string; click_url?: string; name?: string }>;
 }
 
 interface AutomatedTransportRulesProps {
@@ -98,6 +99,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           .from("user_banner_assignments")
           .select(`
             banners (
+              id,
               html_content,
               click_url,
               name
@@ -108,8 +110,9 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           .limit(1);
 
         let bannerHtml = bannerAssignments?.[0]?.banners?.html_content || undefined;
-        const clickUrl = bannerAssignments?.[0]?.banners?.click_url;
-        const bannerName = bannerAssignments?.[0]?.banners?.name;
+        const bannerData = bannerAssignments?.[0]?.banners;
+        const clickUrl = bannerData?.click_url;
+        const bannerName = bannerData?.name;
 
         if (bannerHtml && clickUrl) {
           console.log(`  ✓ Banner: "${bannerName}" with click URL: ${clickUrl}`);
@@ -128,6 +131,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           userName: `${profile.first_name} ${profile.last_name}`.trim(),
           signatureHtml: signature.html_content,
           bannerHtml: bannerHtml || undefined,
+          banners: bannerData ? [{ id: bannerData.id, click_url: bannerData.click_url, name: bannerData.name }] : undefined,
         });
       }
 
@@ -259,8 +263,21 @@ Write-Host ""
         } 
         // BANNER ONLY MODE
         else if (scriptType === "banner" && assignment.bannerHtml) {
-          // Wrap banner with proper styling to match test email
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${assignment.bannerHtml}</div>`;
+          // Wrap banner with tracking URL if banner has click_url
+          let bannerContent = assignment.bannerHtml;
+          if (assignment.banners && assignment.banners.length > 0) {
+            const firstBanner = assignment.banners[0];
+            if (firstBanner.click_url && firstBanner.id) {
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${firstBanner.id}?email=${encodeURIComponent(assignment.userEmail)}`;
+              // Remove the existing link wrapper that was added during fetch
+              bannerContent = assignment.bannerHtml.replace(/<a href="[^"]*" target="_blank" style="display: block; text-decoration: none;">(.*?)<\/a>/s, '$1');
+              // Add tracking link
+              bannerContent = `<a href="${trackingUrl}" style="display: block; text-decoration: none;">${bannerContent}</a>`;
+            }
+          }
+          
+          // Wrap banner with proper styling
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${bannerContent}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           
           const bannerRuleName = `${baseRuleName}_Banner`;
@@ -284,8 +301,21 @@ Write-Host ""
         // BOTH MODE (signature + banner)
         else if (scriptType === "both" && assignment.bannerHtml) {
           // User has banner - create ONE banner rule and one signature rule
+          // Wrap banner with tracking URL if banner has click_url
+          let bannerContent = assignment.bannerHtml;
+          if (assignment.banners && assignment.banners.length > 0) {
+            const firstBanner = assignment.banners[0];
+            if (firstBanner.click_url && firstBanner.id) {
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${firstBanner.id}?email=${encodeURIComponent(assignment.userEmail)}`;
+              // Remove the existing link wrapper that was added during fetch
+              bannerContent = assignment.bannerHtml.replace(/<a href="[^"]*" target="_blank" style="display: block; text-decoration: none;">(.*?)<\/a>/s, '$1');
+              // Add tracking link
+              bannerContent = `<a href="${trackingUrl}" style="display: block; text-decoration: none;">${bannerContent}</a>`;
+            }
+          }
+          
           // Wrap banner with proper styling to match test email
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${assignment.bannerHtml}</div>`;
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${bannerContent}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           
           // Wrap signature with proper styling to match test email
