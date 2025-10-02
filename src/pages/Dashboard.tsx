@@ -20,8 +20,9 @@ import { SMTPRelayProtocol } from "@/components/dashboard/SMTPRelayProtocol";
 import { ExchangeAdminCenterSetup } from "@/components/dashboard/ExchangeAdminCenterSetup";
 import { EmailRoutingSetup } from "@/components/dashboard/EmailRoutingSetup";
 import { ExchangeUserSync } from "@/components/dashboard/ExchangeUserSync";
+import { OutlookIntegrationGuide } from "@/components/dashboard/OutlookIntegrationGuide";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing" | "exchange-sync";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing" | "exchange-sync" | "outlook-integration";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -156,6 +157,8 @@ const Dashboard = () => {
         return <EmailRoutingSetup profile={profile} />;
       case "exchange-sync":
         return <ExchangeUserSync profile={profile} />;
+      case "outlook-integration":
+        return <OutlookIntegrationGuide />;
       case "settings":
         return <CompanySettings profile={profile} />;
       case "users":
