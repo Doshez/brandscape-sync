@@ -283,7 +283,7 @@ Write-Host "Creating rules for ${assignment.userEmail}..." -ForegroundColor Whit
 `;
         
         // SIGNATURE ONLY MODE
-        if (scriptType === "signature" || (scriptType === "both" && !assignment.bannerHtml)) {
+        if (scriptType === "signature") {
           // Wrap signature with proper styling to match test email
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
@@ -302,7 +302,7 @@ Write-Host ""
 
 `;
         } 
-        // BANNER ONLY MODE
+        // BANNER ONLY MODE - Never create signature rules
         else if (scriptType === "banner" && assignment.bannerHtml) {
           // Replace any existing href with tracking URL, or wrap entire banner
           let finalBannerHtml = assignment.bannerHtml;
@@ -345,7 +345,7 @@ Write-Host ""
 
 `;
         }
-        // BOTH MODE (signature + banner)
+        // BOTH MODE - user needs banner to get both rules
         else if (scriptType === "both" && assignment.bannerHtml) {
           // User has banner - create ONE banner rule and one signature rule
           // Replace any existing href with tracking URL, or wrap entire banner
@@ -413,6 +413,25 @@ New-TransportRule -Name "${baseRuleName}_Signature" \`
     -Priority ${signaturePriority}
 
 Write-Host "  ✓ Signature rule created (Priority: ${signaturePriority})" -ForegroundColor Green
+Write-Host ""
+
+`;
+        }
+        // BOTH MODE - user without banner gets signature only
+        else if (scriptType === "both" && !assignment.bannerHtml && assignment.signatureHtml) {
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
+          const escapedSignature = wrappedSignature.replace(/'/g, "''");
+          
+          script += `# Create signature rule (no banner assigned)
+New-TransportRule -Name "${baseRuleName}_Signature" \`
+    -FromScope InOrganization \`
+    -From "${assignment.userEmail}" \`
+    -ApplyHtmlDisclaimerLocation Append \`
+    -ApplyHtmlDisclaimerText '${escapedSignature}' \`
+    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -Enabled $true
+
+Write-Host "  ✓ Signature rule created (no banner)" -ForegroundColor Green
 Write-Host ""
 
 `;
