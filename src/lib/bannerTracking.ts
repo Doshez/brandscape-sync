@@ -2,7 +2,8 @@
  * Utility functions for banner tracking
  */
 
-const APP_URL = "https://02b67299-3d97-4ebd-ba22-30378309ceb6.lovableproject.com";
+// Use the current domain in production, or preview URL in development
+const APP_URL = window.location.origin;
 
 /**
  * Wraps banner HTML content with tracking links and adds a tracking pixel for views
