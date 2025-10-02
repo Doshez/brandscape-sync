@@ -251,6 +251,11 @@ Write-Host ""
           // Create banner rule (prepend to top of email)
           const bannerRuleName = `${baseRuleName}_Banner`;
           
+          // Calculate valid priorities (0-6 range)
+          // Banner gets higher priority (lower number), signature gets lower priority (higher number)
+          const bannerPriority = Math.min(index, 3); // 0-3 for banners
+          const signaturePriority = Math.min(index + 3, 6); // 3-6 for signatures
+          
           script += `
 # Banner rule (prepends at top)
 New-TransportRule -Name "${bannerRuleName}" \`
@@ -260,9 +265,9 @@ New-TransportRule -Name "${bannerRuleName}" \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${index * 10}
+    -Priority ${bannerPriority}
 
-Write-Host "  ✓ Banner rule created" -ForegroundColor Green
+Write-Host "  ✓ Banner rule created (Priority: ${bannerPriority})" -ForegroundColor Green
 `;
           
           // Create signature rule (append to bottom)
@@ -275,9 +280,9 @@ New-TransportRule -Name "${baseRuleName}_Signature" \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${index * 10 + 100}
+    -Priority ${signaturePriority}
 
-Write-Host "  ✓ Signature rule created" -ForegroundColor Green
+Write-Host "  ✓ Signature rule created (Priority: ${signaturePriority})" -ForegroundColor Green
 Write-Host ""
 
 `;
