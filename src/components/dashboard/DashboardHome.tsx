@@ -35,64 +35,37 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
 
   const fetchDashboardStats = async () => {
     try {
-      // Fetch signatures count
-      const { count: signaturesCount } = await supabase
-        .from("email_signatures")
-        .select("*", { count: "exact", head: true });
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
 
-      // Fetch active banners count
-      const { count: bannersCount } = await supabase
-        .from("banners")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true);
-
-      // Fetch users count (if admin)
-      let usersCount = 0;
-      if (profile?.is_admin) {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id");
-        
-        if (profilesError) {
-          console.error("Error fetching profiles:", profilesError);
-        } else {
-          usersCount = profilesData?.length || 0;
-        }
-      }
-
-      // Fetch clicks from analytics_events table (if admin)
-      let clicksThisMonth = 0;
-      let topBanners: Array<{ id: string; name: string; current_clicks: number }> = [];
-      
-      if (profile?.is_admin) {
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-
-        const { count: clickCount } = await supabase
-          .from("analytics_events")
-          .select("*", { count: "exact", head: true })
-          .eq("event_type", "click")
-          .gte("timestamp", startOfMonth.toISOString());
-        
-        clicksThisMonth = clickCount || 0;
-
-        // Fetch top banners by click count
-        const { data: bannersData } = await supabase
-          .from("banners")
-          .select("id, name, current_clicks")
-          .order("current_clicks", { ascending: false })
-          .limit(5);
-        
-        topBanners = bannersData || [];
-      }
+      // Run all queries in parallel for better performance
+      const [
+        { count: signaturesCount },
+        { count: bannersCount },
+        profilesData,
+        clickData,
+        topBannersData
+      ] = await Promise.all([
+        supabase.from("email_signatures").select("*", { count: "exact", head: true }),
+        supabase.from("banners").select("*", { count: "exact", head: true }).eq("is_active", true),
+        profile?.is_admin 
+          ? supabase.from("profiles").select("id")
+          : Promise.resolve({ data: null, error: null }),
+        profile?.is_admin
+          ? supabase.from("analytics_events").select("*", { count: "exact", head: true }).eq("event_type", "click").gte("timestamp", startOfMonth.toISOString())
+          : Promise.resolve({ count: null }),
+        profile?.is_admin
+          ? supabase.from("banners").select("id, name, current_clicks").order("current_clicks", { ascending: false }).limit(5)
+          : Promise.resolve({ data: null })
+      ]);
 
       setStats({
         totalSignatures: signaturesCount || 0,
         activeBanners: bannersCount || 0,
-        totalUsers: usersCount,
-        clicksThisMonth,
-        topBanners,
+        totalUsers: profilesData.data?.length || 0,
+        clicksThisMonth: clickData.count || 0,
+        topBanners: topBannersData.data || [],
       });
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
