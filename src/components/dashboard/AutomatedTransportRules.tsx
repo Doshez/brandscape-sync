@@ -319,7 +319,7 @@ Write-Host ""
           // Replace any existing href with tracking URL, or wrap entire banner
           let finalBannerHtml = assignment.bannerHtml;
           if (assignment.bannerClickUrl && assignment.bannerId) {
-            const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
+            const trackingUrl = `${window.location.origin}/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
             
             // Check if banner HTML already contains an anchor tag
             if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
@@ -363,7 +363,7 @@ Write-Host ""
           // Replace any existing href with tracking URL, or wrap entire banner
           let finalBannerHtml = assignment.bannerHtml;
           if (assignment.bannerClickUrl && assignment.bannerId) {
-            const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
+            const trackingUrl = `${window.location.origin}/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
             
             // Check if banner HTML already contains an anchor tag
             if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
