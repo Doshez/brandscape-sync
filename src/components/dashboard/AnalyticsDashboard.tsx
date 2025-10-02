@@ -54,14 +54,12 @@ export const AnalyticsDashboard = ({ profile }: AnalyticsDashboardProps) => {
           break;
       }
 
-      // Fetch click count from banners table
-      const { data: bannersData, error: clickBannersError } = await supabase
-        .from("banners")
-        .select("current_clicks");
-
-      const clickCount = bannersData?.reduce((sum, banner) => 
-        sum + (banner.current_clicks || 0), 0
-      ) || 0;
+      // Fetch click count from analytics_events with date filtering
+      const { count: clickCount } = await supabase
+        .from("analytics_events")
+        .select("*", { count: "exact", head: true })
+        .eq("event_type", "click")
+        .gte("timestamp", startDate.toISOString());
 
       // Fetch view count
       const { count: viewCount } = await supabase

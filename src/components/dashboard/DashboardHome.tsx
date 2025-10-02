@@ -7,6 +7,7 @@ import { EmailRoutingPanel } from "./EmailRoutingPanel";
 
 interface DashboardHomeProps {
   profile: any;
+  onNavigateToAnalytics?: () => void;
 }
 
 interface DashboardStats {
@@ -16,7 +17,7 @@ interface DashboardStats {
   clicksThisMonth: number;
 }
 
-export const DashboardHome = ({ profile }: DashboardHomeProps) => {
+export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeProps) => {
   const [stats, setStats] = useState<DashboardStats>({
     totalSignatures: 0,
     activeBanners: 0,
@@ -149,8 +150,13 @@ export const DashboardHome = ({ profile }: DashboardHomeProps) => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => {
           const Icon = card.icon;
+          const isClickable = card.title === "Clicks This Month" && onNavigateToAnalytics;
           return (
-            <Card key={card.title}>
+            <Card 
+              key={card.title}
+              className={isClickable ? "cursor-pointer hover:shadow-lg transition-shadow" : ""}
+              onClick={isClickable ? onNavigateToAnalytics : undefined}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
                   {card.title}
@@ -161,6 +167,7 @@ export const DashboardHome = ({ profile }: DashboardHomeProps) => {
                 <div className="text-2xl font-bold">{card.value}</div>
                 <p className="text-xs text-muted-foreground">
                   {card.description}
+                  {isClickable && " • Click to view details"}
                 </p>
               </CardContent>
             </Card>
