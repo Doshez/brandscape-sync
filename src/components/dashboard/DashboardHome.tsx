@@ -31,7 +31,41 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
 
   useEffect(() => {
     fetchDashboardStats();
-  }, []);
+
+    // Set up real-time subscription for banner clicks
+    const channel = supabase
+      .channel('dashboard-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'analytics_events',
+          filter: 'event_type=eq.click'
+        },
+        () => {
+          // Refresh stats when click events are recorded
+          fetchDashboardStats();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'banners'
+        },
+        () => {
+          // Refresh stats when banners are updated (e.g., current_clicks)
+          fetchDashboardStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile]);
 
   const fetchDashboardStats = async () => {
     try {
