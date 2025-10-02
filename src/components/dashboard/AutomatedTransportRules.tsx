@@ -419,7 +419,9 @@ Write-Host ""
         }
         // BOTH MODE - user needs banner to get both rules
         else if (scriptType === "both" && assignment.bannerHtml) {
-          // User has banner - create ONE banner rule and one signature rule
+          // User has banner - create ONE SINGLE rule with BOTH banner and signature
+          // This prevents duplicate signatures!
+          
           // Replace any existing href with tracking URL, or wrap entire banner
           let finalBannerHtml = assignment.bannerHtml;
           if (assignment.bannerClickUrl && assignment.bannerId) {
@@ -440,51 +442,24 @@ Write-Host ""
             }
           }
           
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
-          const escapedBanner = wrappedBanner.replace(/'/g, "''");
+          // Combine banner (top) and signature (bottom) into ONE HTML block
+          const combinedHtml = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>
+<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
+          const escapedCombined = combinedHtml.replace(/'/g, "''");
           
-          // Wrap signature with proper styling to match test email
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
-          const escapedSignature = wrappedSignature.replace(/'/g, "''");
+          const rulePriority = Math.min(index, 6);
           
-          script += `# Creating 1 banner rule + 1 signature rule
-`;
-
-          // Create banner rule (prepend to top of email)
-          const bannerRuleName = `${baseRuleName}_Banner`;
-          
-          // Calculate valid priorities (0-6 range)
-          // Banner gets higher priority (lower number), signature gets lower priority (higher number)
-          const bannerPriority = Math.min(index, 3); // 0-3 for banners
-          const signaturePriority = Math.min(index + 3, 6); // 3-6 for signatures
-          
-          script += `
-# Banner rule (prepends at top)
-New-TransportRule -Name "${bannerRuleName}" \`
-    -FromScope InOrganization \`
-    -From "${assignment.userEmail}" \`
-    -ApplyHtmlDisclaimerLocation Prepend \`
-    -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
-    -Enabled $true \`
-    -Priority ${bannerPriority}
-
-Write-Host "  ✓ Banner rule created (Priority: ${bannerPriority})" -ForegroundColor Green
-`;
-          
-          // Create signature rule (append to bottom)
-          script += `
-# Signature rule (appends at bottom)
-New-TransportRule -Name "${baseRuleName}_Signature" \`
+          script += `# Create combined banner + signature rule (prevents duplicates!)
+New-TransportRule -Name "${baseRuleName}_Combined" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
     -ApplyHtmlDisclaimerLocation Append \`
-    -ApplyHtmlDisclaimerText '${escapedSignature}' \`
+    -ApplyHtmlDisclaimerText '${escapedCombined}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${signaturePriority}
+    -Priority ${rulePriority}
 
-Write-Host "  ✓ Signature rule created (Priority: ${signaturePriority})" -ForegroundColor Green
+Write-Host "  ✓ Combined banner + signature rule created (Priority: ${rulePriority})" -ForegroundColor Green
 Write-Host ""
 
 `;
