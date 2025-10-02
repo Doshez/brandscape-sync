@@ -195,7 +195,6 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
       });
 
       const scriptTypeLabel = scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only";
-      const uniqueId = Date.now().toString().slice(-6); // Last 6 digits of timestamp for uniqueness
       
       // ALWAYS remove ALL old rules to prevent duplicates
       const ruleFilter = "EmailSignature_*";
@@ -205,7 +204,6 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 # Generated: ${new Date().toISOString()}
 # Selected Users: ${selectedAssignments.length}
 # Total Rules: ${totalRules}
-# Unique ID: ${uniqueId}
 
 # Connect to Exchange Online
 Connect-ExchangeOnline
@@ -266,13 +264,13 @@ if ($pass3Rules) {
 }
 Write-Host ""
 
-Write-Host "=== STEP 3: Creating New Rules (ID: ${uniqueId}) ===" -ForegroundColor Cyan
+Write-Host "=== STEP 3: Creating New Rules ===" -ForegroundColor Cyan
 Write-Host ""
 
 `;
 
       selectedAssignments.forEach((assignment, index) => {
-        const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}_${uniqueId}`;
+        const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
         
         // Skip users without banners if generating banner-only script
         if (scriptType === "banner" && !assignment.bannerHtml) {
