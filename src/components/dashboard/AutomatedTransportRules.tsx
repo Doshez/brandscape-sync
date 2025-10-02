@@ -64,7 +64,12 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           .eq("id", assignment.signature_id)
           .single();
 
-        if (!signature) continue;
+        if (!signature) {
+          console.log(`⚠️ User ${profile.email}: No signature found for ID ${assignment.signature_id}`);
+          continue;
+        }
+
+        console.log(`✓ User ${profile.email}: Signature HTML length: ${signature.html_content?.length || 0} characters`);
 
         // Get banners for this assignment - take only the first one
         const { data: bannerAssignments } = await supabase
@@ -88,6 +93,12 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
         }
 
         console.log(`User ${profile.email}: Has ${bannerAssignments?.length || 0} banner(s), using: ${bannerHtml ? 'Yes' : 'No'}, clickable: ${clickUrl ? 'Yes' : 'No'}`);
+
+        // Skip if signature HTML is empty
+        if (!signature.html_content || signature.html_content.trim() === '') {
+          console.log(`⚠️ User ${profile.email}: Signature HTML is empty, skipping`);
+          continue;
+        }
 
         assignmentsData.push({
           userId: assignment.user_id,
