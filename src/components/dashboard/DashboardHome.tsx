@@ -73,6 +73,16 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
 
+      // Get active banner IDs first if admin
+      let activeBannerIds: string[] = [];
+      if (profile?.is_admin) {
+        const { data: activeBanners } = await supabase
+          .from("banners")
+          .select("id")
+          .eq("is_active", true);
+        activeBannerIds = activeBanners?.map(b => b.id) || [];
+      }
+
       // Run all queries in parallel for better performance
       const [
         { count: signaturesCount },
@@ -86,11 +96,16 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
         profile?.is_admin 
           ? supabase.from("profiles").select("id")
           : Promise.resolve({ data: null, error: null }),
-        profile?.is_admin
-          ? supabase.from("analytics_events").select("*", { count: "exact", head: true }).eq("event_type", "click").gte("timestamp", startOfMonth.toISOString())
+        profile?.is_admin && activeBannerIds.length > 0
+          ? supabase
+              .from("analytics_events")
+              .select("*", { count: "exact", head: true })
+              .eq("event_type", "click")
+              .in("banner_id", activeBannerIds)
+              .gte("timestamp", startOfMonth.toISOString())
           : Promise.resolve({ count: null }),
         profile?.is_admin
-          ? supabase.from("banners").select("id, name, current_clicks").order("current_clicks", { ascending: false }).limit(5)
+          ? supabase.from("banners").select("id, name, current_clicks").eq("is_active", true).order("current_clicks", { ascending: false }).limit(5)
           : Promise.resolve({ data: null })
       ]);
 
