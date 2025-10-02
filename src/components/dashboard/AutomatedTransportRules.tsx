@@ -453,15 +453,11 @@ Disconnect-ExchangeOnline -Confirm:$false
         });
       });
 
-      // Count total rules based on script type
+      // Count total rules - ONE rule per group (combining banner + signature)
       let totalRules = 0;
       groupedRules.forEach(group => {
         if (scriptType === "both") {
-          if (group.bannerHtml) {
-            totalRules += 2; // Banner rule + Signature rule
-          } else {
-            totalRules += 1; // Signature rule only
-          }
+          totalRules += 1; // ONE combined rule (banner + signature together)
         } else if (scriptType === "signature") {
           totalRules += 1; // Signature rule only
         } else if (scriptType === "banner" && group.bannerHtml) {
@@ -686,10 +682,12 @@ Write-Host ""
 
 `;
         }
-        // BOTH MODE
+        // BOTH MODE - COMBINED RULE (Banner + Signature in ONE rule)
         else if (scriptType === "both") {
+          let combinedHtml = '';
+          
           if (group.bannerHtml) {
-            // Group has banner - create ONE banner rule and ONE signature rule for all users
+            // Process banner with tracking
             let finalBannerHtml = group.bannerHtml;
             if (group.bannerClickUrl && group.bannerId) {
               const trackingUrl = `${window.location.origin}/track/${group.bannerId}`;
@@ -705,62 +703,34 @@ Write-Host ""
               }
             }
             
-            const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
-            const escapedBanner = wrappedBanner.replace(/'/g, "''");
-            
-            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
-            const escapedSignature = wrappedSignature.replace(/'/g, "''");
-            
-            const bannerPriority = Math.min(ruleIndex - 1, 3);
-            const signaturePriority = Math.min(ruleIndex + 2, 6);
-            
-            script += `# Creating 1 banner rule + 1 signature rule for ${userCount} user(s)
-
-# Banner rule (prepends at top)
-New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
-    -FromScope InOrganization \`
-    -From "${userEmails}" \`
-    -ApplyHtmlDisclaimerLocation Prepend \`
-    -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
-    -Enabled $true \`
-    -Priority ${bannerPriority}
-
-Write-Host "  ✓ Banner rule created for ${userCount} user(s) (Priority: ${bannerPriority})" -ForegroundColor Green
-
-# Signature rule (appends at bottom)
-New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
-    -FromScope InOrganization \`
-    -From "${userEmails}" \`
-    -ApplyHtmlDisclaimerLocation Append \`
-    -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
-    -Enabled $true \`
-    -Priority ${signaturePriority}
-
-Write-Host "  ✓ Signature rule created for ${userCount} user(s) (Priority: ${signaturePriority})" -ForegroundColor Green
-Write-Host ""
-
-`;
+            // Combine banner + signature in ONE HTML block
+            combinedHtml = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div><div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
           } else {
-            // No banner - signature only for this group
-            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
-            const escapedSignature = wrappedSignature.replace(/'/g, "''");
-            
-            script += `# Shared signature rule for ${userCount} user(s) (no banner)
-New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
+            // Signature only
+            combinedHtml = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
+          }
+          
+          const escapedCombined = combinedHtml.replace(/'/g, "''");
+          const rulePriority = Math.min(ruleIndex - 1, 3);
+          
+          const ruleDescription = group.bannerHtml 
+            ? `# ONE combined rule (banner + signature) for ${userCount} user(s)` 
+            : `# Signature-only rule for ${userCount} user(s)`;
+          
+          script += `${ruleDescription}
+New-TransportRule -Name "EmailSignature_${groupId}_Combined" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
-    -ApplyHtmlDisclaimerText '${escapedSignature}' \`
+    -ApplyHtmlDisclaimerText '${escapedCombined}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
-    -Enabled $true
+    -Enabled $true \`
+    -Priority ${rulePriority}
 
-Write-Host "  ✓ Signature rule created for ${userCount} user(s) (no banner)" -ForegroundColor Green
+Write-Host "  ✓ Combined rule created for ${userCount} user(s) ${group.bannerHtml ? '(banner + signature)' : '(signature only)'} (Priority: ${rulePriority})" -ForegroundColor Green
 Write-Host ""
 
 `;
-          }
         }
       });
 
