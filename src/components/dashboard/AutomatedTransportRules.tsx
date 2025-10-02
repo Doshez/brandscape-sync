@@ -66,7 +66,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
         if (!signature) continue;
 
-        // Get banners for this assignment
+        // Get banners for this assignment - take only the first one
         const { data: bannerAssignments } = await supabase
           .from("user_banner_assignments")
           .select(`
@@ -75,11 +75,10 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
             )
           `)
           .eq("user_assignment_id", assignment.id)
-          .order("display_order", { ascending: true });
+          .order("display_order", { ascending: true })
+          .limit(1);
 
-        const bannerHtml = bannerAssignments
-          ?.map((ba: any) => ba.banners.html_content)
-          .join("\n") || "";
+        const bannerHtml = bannerAssignments?.[0]?.banners?.html_content || undefined;
 
         assignmentsData.push({
           userId: assignment.user_id,
@@ -126,15 +125,13 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
         return;
       }
 
-      // Count total rules (users with multiple banners get multiple rules)
+      // Count total rules (each user gets 1 or 2 rules: banner + signature or just signature)
       let totalRules = 0;
       selectedAssignments.forEach(assignment => {
         if (assignment.bannerHtml) {
-          // If there are multiple banners, we'll create separate rules for rotation
-          const bannerCount = assignment.bannerHtml.split('\n\n').filter(Boolean).length;
-          totalRules += bannerCount > 1 ? bannerCount : 1;
+          totalRules += 2; // Banner rule + Signature rule
         } else {
-          totalRules += 1;
+          totalRules += 1; // Signature rule only
         }
       });
 
@@ -187,21 +184,16 @@ Write-Host ""
 
 `;
         } else {
-          // User has banners - create ONE banner rule (first banner only) and one signature rule
-          const banners = assignment.bannerHtml.split('\n\n').filter(Boolean);
-          
-          // Use only the first banner (to rotate, regenerate script with different banner order)
-          const firstBanner = banners[0];
-          
+          // User has banner - create ONE banner rule and one signature rule
           // Wrap banner with proper styling to match test email
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${firstBanner}</div>`;
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${assignment.bannerHtml}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           
           // Wrap signature with proper styling to match test email
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
-          script += `# Creating 1 banner rule + 1 signature rule${banners.length > 1 ? ` (${banners.length} banners available - showing first)` : ''}
+          script += `# Creating 1 banner rule + 1 signature rule
 `;
 
           // Create banner rule (prepend to top of email)
@@ -223,7 +215,7 @@ Write-Host "  ✓ Banner rule created" -ForegroundColor Green
           
           // Create signature rule (append to bottom)
           script += `
-# Create signature rule (appends at bottom)
+# Signature rule (appends at bottom)
 New-TransportRule -Name "${baseRuleName}_Signature" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
@@ -249,9 +241,6 @@ Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-T
 
 Write-Host ""
 Write-Host "All transport rules have been created successfully!" -ForegroundColor Green
-Write-Host ""
-Write-Host "Note: If users have multiple banners, only the first one is deployed." -ForegroundColor Cyan
-Write-Host "To rotate banners, regenerate and run this script again." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" -ForegroundColor Yellow
 `;
@@ -379,9 +368,7 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
           <>
             <div className="space-y-3 mb-6">
               {assignments.map((assignment) => {
-                const bannerCount = assignment.bannerHtml 
-                  ? assignment.bannerHtml.split('\n\n').filter(Boolean).length 
-                  : 0;
+                const hasBanner = !!assignment.bannerHtml;
                 const isSelected = selectedUserIds.has(assignment.userId);
                 
                 return (
@@ -407,10 +394,8 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
                     </div>
                     <div className="flex gap-2">
                       <Badge>Signature</Badge>
-                      {bannerCount > 0 && (
-                        <Badge variant="secondary">
-                          {bannerCount} Banner{bannerCount > 1 ? 's' : ''}
-                        </Badge>
+                      {hasBanner && (
+                        <Badge variant="secondary">Banner</Badge>
                       )}
                     </div>
                   </div>
@@ -422,8 +407,8 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
                 <strong>How it works:</strong> Banners appear at the <strong>top</strong> of emails with spacing, 
-                signatures at the <strong>bottom</strong> with a separator line. Rules apply to both internal and external recipients. 
-                If a user has multiple banners, only the first one is deployed (regenerate to rotate).
+                signatures at the <strong>bottom</strong> with a separator line. Banner links remain clickable. 
+                Rules apply to both internal and external recipients.
               </AlertDescription>
             </Alert>
 
@@ -490,11 +475,7 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
           </ul>
           <p className="mt-3">
             <strong>Formatting:</strong> Banners and signatures include proper HTML styling (spacing, borders) 
-            to match the test email appearance. Rules apply to both internal and external recipients.
-          </p>
-          <p className="mt-2">
-            <strong>Banner Rotation:</strong> If a user has multiple banners assigned, only the first one is deployed. 
-            To rotate to a different banner, regenerate and run the script again.
+            to match the test email appearance. Banner links remain clickable. Rules apply to both internal and external recipients.
           </p>
         </AlertDescription>
       </Alert>
