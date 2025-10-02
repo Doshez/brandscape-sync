@@ -11,10 +11,11 @@ import {
   Mail,
   Cloud,
   Shield,
-  UserCheck
+  UserCheck,
+  RefreshCw
 } from "lucide-react";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing" | "exchange-sync";
 
 interface SidebarProps {
   activeView: DashboardView;
@@ -26,6 +27,7 @@ const menuItems = [
   { id: "home", label: "Dashboard", icon: Home, adminOnly: false },
   { id: "signatures", label: "Email Signatures", icon: FileText, adminOnly: false },
   { id: "exchange", label: "Exchange Integration", icon: Cloud, adminOnly: false },
+  { id: "exchange-sync", label: "Exchange User Sync", icon: RefreshCw, adminOnly: true },
   { id: "banners", label: "Banner Management", icon: Image, adminOnly: true },
   { id: "assignments", label: "User Assignments", icon: UserCheck, adminOnly: true },
   { id: "microsoft365", label: "Microsoft 365 Rules", icon: Shield, adminOnly: true },
