@@ -617,7 +617,11 @@ Write-Host ""
         else if (scriptType === "banner" && group.bannerHtml) {
           let finalBannerHtml = group.bannerHtml;
           
-          // Extract banner identifier and email for exception check (look for unique text)
+          // Create a unique identifier for this banner to prevent duplicates
+          const bannerId = group.bannerId || `banner_${groupId}`;
+          const uniqueMarker = `banner-id-${bannerId}`;
+          
+          // Extract banner identifier and email for exception check
           const bannerText = group.bannerHtml.replace(/<[^>]*>/g, '').trim().substring(0, 50);
           const bannerException = bannerText || "BannerContent";
           const exceptionEmail = group.users[0].email;
@@ -637,22 +641,25 @@ Write-Host ""
             }
           }
           
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+          // Add unique marker as hidden comment to detect duplicates
+          const wrappedBanner = `<!-- ${uniqueMarker} --><div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           const bannerPriority = Math.min(ruleIndex - 1, 3);
           
           script += `# Shared banner rule for ${userCount} user(s)
+# Exception markers: Banner text, User email, and Unique ID (${uniqueMarker})
 New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${bannerException}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueMarker}", "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority}
 
-Write-Host "  ✓ Banner rule created for ${userCount} user(s) with duplication prevention (text + email, Priority: ${bannerPriority})" -ForegroundColor Green
+Write-Host "  ✓ Banner rule created for ${userCount} user(s)" -ForegroundColor Green
+Write-Host "  ✓ Duplication prevention: ${uniqueMarker}, text match, and email match" -ForegroundColor Cyan
 Write-Host ""
 
 `;
@@ -660,6 +667,11 @@ Write-Host ""
         // BOTH MODE - TWO COMPLETELY SEPARATE RULES (No overlap, no duplicates)
         else if (scriptType === "both") {
           if (group.bannerHtml) {
+            // Create unique identifiers for both banner and signature
+            const bannerId = group.bannerId || `banner_${groupId}`;
+            const uniqueBannerMarker = `banner-id-${bannerId}`;
+            const uniqueSignatureMarker = `signature-${groupId}`;
+            
             // Extract unique text and email for exception checks
             const bannerText = group.bannerHtml.replace(/<[^>]*>/g, '').trim().substring(0, 50);
             const bannerException = bannerText || "BannerContent";
@@ -682,10 +694,11 @@ Write-Host ""
               }
             }
             
-            const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+            // Add unique markers to detect duplicates
+            const wrappedBanner = `<!-- ${uniqueBannerMarker} --><div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
             const escapedBanner = wrappedBanner.replace(/'/g, "''");
             
-            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
+            const wrappedSignature = `<!-- ${uniqueSignatureMarker} --><div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
             const escapedSignature = wrappedSignature.replace(/'/g, "''");
             
             const bannerPriority = 0; // Highest priority (0-5 valid range) - ensures banner runs first
@@ -716,13 +729,14 @@ New-TransportRule -Name "BANNER_${groupId}_Top" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${bannerException}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueBannerMarker}", "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
     -Comments "Banner for ${userCount} user(s) - Prepend ABOVE body"
 
-Write-Host "  ✓ BANNER rule created with duplication prevention (text + email) - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
+Write-Host "  ✓ BANNER rule created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
+Write-Host "  ✓ Exception: ${uniqueBannerMarker}" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
@@ -741,13 +755,14 @@ New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${exceptionText}", "${exceptionEmail}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueSignatureMarker}", "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
     -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
-Write-Host "  ✓ SIGNATURE rule created with duplication prevention (text + email) - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
+Write-Host "  ✓ SIGNATURE rule created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
+Write-Host "  ✓ Exception: ${uniqueSignatureMarker}" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Result: Banner ABOVE body, Signature BELOW body - NO DUPLICATES" -ForegroundColor Green
 Write-Host ""
