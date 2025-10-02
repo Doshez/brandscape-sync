@@ -143,20 +143,30 @@ export const ExchangeUserSync = ({ profile }: ExchangeUserSyncProps) => {
     setIsSyncing(true);
     try {
       const selectedUserList = users.filter(u => selectedUsers.has(u.id));
+      console.log("Syncing users:", selectedUserList.length);
       
       for (const user of selectedUserList) {
+        console.log(`Processing user: ${user.mail}`);
+        
         // Check if profile exists
-        let { data: existingProfile } = await supabase
+        const { data: existingProfile, error: fetchError } = await supabase
           .from("profiles")
           .select("*")
           .eq("email", user.mail)
-          .single();
+          .maybeSingle();
 
-        let userId: string;
+        if (fetchError) {
+          console.error("Error fetching profile:", fetchError);
+          throw new Error(`Failed to check existing profile: ${fetchError.message}`);
+        }
+
+        let profileId: string;
 
         if (!existingProfile) {
-          // Create profile for Exchange user
-          const { data: newProfile, error } = await supabase
+          console.log(`Creating new profile for ${user.mail}`);
+          
+          // Create profile for Exchange user (without user_id as they're not in auth system)
+          const { data: newProfile, error: createError } = await supabase
             .from("profiles")
             .insert({
               email: user.mail,
@@ -164,31 +174,63 @@ export const ExchangeUserSync = ({ profile }: ExchangeUserSyncProps) => {
               last_name: user.displayName?.split(" ").slice(1).join(" ") || "",
               department: user.department,
               job_title: user.jobTitle,
+              is_admin: false,
             })
             .select()
             .single();
 
-          if (error) throw error;
-          userId = newProfile.id;
+          if (createError) {
+            console.error("Error creating profile:", createError);
+            throw new Error(`Failed to create profile for ${user.mail}: ${createError.message}`);
+          }
+          
+          if (!newProfile) {
+            throw new Error(`No profile returned for ${user.mail}`);
+          }
+          
+          profileId = newProfile.id;
+          console.log(`Created profile with ID: ${profileId}`);
         } else {
-          userId = existingProfile.id;
+          profileId = existingProfile.id;
+          console.log(`Using existing profile ID: ${profileId}`);
+        }
+
+        // Deactivate any existing assignments for this profile
+        const { error: deactivateError } = await supabase
+          .from("user_email_assignments")
+          .update({ is_active: false })
+          .eq("user_id", profileId);
+
+        if (deactivateError) {
+          console.error("Error deactivating assignments:", deactivateError);
         }
 
         // Create user assignment
+        console.log(`Creating assignment for profile ${profileId}`);
         const { data: assignment, error: assignError } = await supabase
           .from("user_email_assignments")
           .insert({
-            user_id: userId,
+            user_id: profileId,
             signature_id: selectedSignature,
             is_active: true,
           })
           .select()
           .single();
 
-        if (assignError) throw assignError;
+        if (assignError) {
+          console.error("Error creating assignment:", assignError);
+          throw new Error(`Failed to create assignment for ${user.mail}: ${assignError.message}`);
+        }
+
+        if (!assignment) {
+          throw new Error(`No assignment returned for ${user.mail}`);
+        }
+
+        console.log(`Created assignment with ID: ${assignment.id}`);
 
         // Assign banners if selected
         if (selectedBanners.size > 0) {
+          console.log(`Assigning ${selectedBanners.size} banners`);
           const bannerAssignments = Array.from(selectedBanners).map((bannerId, index) => ({
             user_assignment_id: assignment.id,
             banner_id: bannerId,
@@ -199,8 +241,13 @@ export const ExchangeUserSync = ({ profile }: ExchangeUserSyncProps) => {
             .from("user_banner_assignments")
             .insert(bannerAssignments);
 
-          if (bannerError) throw bannerError;
+          if (bannerError) {
+            console.error("Error creating banner assignments:", bannerError);
+            throw new Error(`Failed to assign banners for ${user.mail}: ${bannerError.message}`);
+          }
         }
+
+        console.log(`Successfully synced ${user.mail}`);
       }
 
       toast({
@@ -215,7 +262,7 @@ export const ExchangeUserSync = ({ profile }: ExchangeUserSyncProps) => {
       console.error("Error syncing users:", error);
       toast({
         title: "Sync Failed",
-        description: error.message || "Failed to sync selected users",
+        description: error.message || "Failed to sync selected users. Check console for details.",
         variant: "destructive",
       });
     } finally {
