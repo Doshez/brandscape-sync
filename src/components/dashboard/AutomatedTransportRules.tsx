@@ -80,6 +80,8 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
         const bannerHtml = bannerAssignments?.[0]?.banners?.html_content || undefined;
 
+        console.log(`User ${profile.email}: Has ${bannerAssignments?.length || 0} banner(s), using: ${bannerHtml ? 'Yes' : 'No'}`);
+
         assignmentsData.push({
           userId: assignment.user_id,
           userEmail: profile.email,
