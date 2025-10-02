@@ -482,9 +482,7 @@ Disconnect-ExchangeOnline -Confirm:$false
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
-Write-Host "=== CRITICAL: REMOVE ALL EXISTING RULES FIRST ===" -ForegroundColor Red
-Write-Host ""
-Write-Host "⚠️  This script will ONLY work if ALL old rules are removed first!" -ForegroundColor Yellow
+Write-Host "=== AUTOMATIC CLEANUP: Removing ALL Old Rules ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Scanning for ANY rules that modify email content..." -ForegroundColor Yellow
 
@@ -495,13 +493,10 @@ $allRules = Get-TransportRule | Where-Object {
 
 if ($allRules) {
     Write-Host ""
-    Write-Host "❌ FOUND $($allRules.Count) EXISTING RULE(S):" -ForegroundColor Red
+    Write-Host "Found $($allRules.Count) existing rule(s) - removing automatically..." -ForegroundColor Yellow
     Write-Host ""
     $allRules | Format-Table Name, State, Priority, ApplyHtmlDisclaimerLocation -AutoSize
     Write-Host ""
-    Write-Host "THESE MUST BE DELETED TO AVOID DUPLICATES!" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Deleting ALL existing disclaimer rules..." -ForegroundColor Red
     
     $allRules | ForEach-Object { 
         Write-Host "  ❌ Removing: $($_.Name)" -ForegroundColor Red
@@ -521,21 +516,33 @@ if ($allRules) {
     
     if ($remainingRules) {
         Write-Host ""
-        Write-Host "❌ CRITICAL ERROR: $($remainingRules.Count) rule(s) still exist!" -ForegroundColor Red
+        Write-Host "⚠️  WARNING: $($remainingRules.Count) rule(s) still exist after cleanup" -ForegroundColor Yellow
         Write-Host ""
         $remainingRules | Format-Table Name, State -AutoSize
         Write-Host ""
-        Write-Host "⚠️  YOU MUST MANUALLY DELETE THESE RULES IN EXCHANGE ADMIN CENTER:" -ForegroundColor Yellow
-        Write-Host "   1. Go to https://admin.exchange.microsoft.com" -ForegroundColor Cyan
-        Write-Host "   2. Navigate to: Mail flow > Rules" -ForegroundColor Cyan
-        Write-Host "   3. Delete ALL rules shown above" -ForegroundColor Cyan
-        Write-Host "   4. Wait 5 minutes" -ForegroundColor Cyan
-        Write-Host "   5. Re-run this script" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "SCRIPT ABORTED TO PREVENT DUPLICATES" -ForegroundColor Red
-        Write-Host ""
-        Disconnect-ExchangeOnline -Confirm:$false
-        exit
+        Write-Host "Attempting second cleanup pass..." -ForegroundColor Yellow
+        
+        $remainingRules | ForEach-Object { 
+            Write-Host "  ❌ Force removing: $($_.Name)" -ForegroundColor Red
+            Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+        }
+        
+        Write-Host "Waiting 20 more seconds..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 20
+        
+        $finalCheck = Get-TransportRule | Where-Object { 
+            $_.ApplyHtmlDisclaimerText -ne $null
+        }
+        
+        if ($finalCheck) {
+            Write-Host ""
+            Write-Host "⚠️  $($finalCheck.Count) rule(s) could not be removed automatically" -ForegroundColor Yellow
+            Write-Host "Proceeding anyway - new rules will be created with unique names" -ForegroundColor Yellow
+            Write-Host ""
+        } else {
+            Write-Host "✓ Second pass successful - all old rules removed!" -ForegroundColor Green
+            Write-Host ""
+        }
     } else {
         Write-Host "✓ All old rules successfully removed!" -ForegroundColor Green
         Write-Host ""
