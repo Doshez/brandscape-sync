@@ -617,6 +617,15 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         </Button>
       </div>
 
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          <strong>⚠️ SEEING DUPLICATE BANNERS/SIGNATURES IN EMAILS?</strong><br/>
+          This means you have OLD transport rules still active in Exchange!<br/>
+          <strong>SOLUTION:</strong> Run <strong>Step 1</strong> cleanup script FIRST, wait 30 seconds for Exchange to sync, then run <strong>Step 2</strong>.
+        </AlertDescription>
+      </Alert>
+
       <Alert>
         <CheckCircle className="h-4 w-4" />
         <AlertDescription>
@@ -720,6 +729,20 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                     </Label>
                   </div>
                 </RadioGroup>
+              </div>
+
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800 mb-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-1">Seeing Duplicates?</h4>
+                    <ol className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1 list-decimal list-inside">
+                      <li>Click <strong>Step 1</strong> below, download and run cleanup script</li>
+                      <li>Wait 30 seconds for Exchange to process deletions</li>
+                      <li>Click <strong>Step 2</strong>, download and run deployment script</li>
+                    </ol>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
