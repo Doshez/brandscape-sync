@@ -686,7 +686,7 @@ Write-Host ""
 
 `;
         }
-        // BOTH MODE - TWO SEPARATE RULES (Banner Prepend + Signature Append)
+        // BOTH MODE - TWO COMPLETELY SEPARATE RULES (No overlap, no duplicates)
         else if (scriptType === "both") {
           if (group.bannerHtml) {
             // Process banner with tracking
@@ -714,33 +714,62 @@ Write-Host ""
             const bannerPriority = 0; // Highest priority - ensures banner runs first
             const signaturePriority = 100; // Lower priority - ensures signature runs after
             
-            script += `# TWO separate rules for ${userCount} user(s) to ensure correct placement
-# Rule 1: Banner (Prepend - ABOVE email body)
-# Rule 2: Signature (Append - BELOW email body)
+            script += `# ========================================
+# TWO COMPLETELY SEPARATE RULES (Group ${ruleIndex})
+# ========================================
+# Rule 1: BANNER ONLY (Prepend - appears ABOVE email body)
+# Rule 2: SIGNATURE ONLY (Append - appears BELOW email body)
+# Different names, priorities, locations = NO DUPLICATES
+# ========================================
 
-# Banner rule - Priority 0 (highest) - Prepends ABOVE email body
-New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
+Write-Host "Creating BANNER rule (Prepend ABOVE body)..." -ForegroundColor Cyan
+
+# RULE 1: BANNER ONLY - Prepends content ABOVE the email body
+# Check if rule exists first
+$bannerRuleExists = Get-TransportRule -Identity "BANNER_${groupId}_Top" -ErrorAction SilentlyContinue
+if ($bannerRuleExists) {
+    Write-Host "  Removing existing banner rule..." -ForegroundColor Yellow
+    Remove-TransportRule -Identity "BANNER_${groupId}_Top" -Confirm:$false
+    Start-Sleep -Seconds 5
+}
+
+New-TransportRule -Name "BANNER_${groupId}_Top" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${bannerPriority}
+    -Priority ${bannerPriority} \`
+    -Comments "Banner for ${userCount} user(s) - Prepend ABOVE body"
 
-Write-Host "  ✓ Banner rule (Prepend ABOVE body) created for ${userCount} user(s) - Priority: ${bannerPriority}" -ForegroundColor Green
+Write-Host "  ✓ BANNER rule created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
+Write-Host ""
 
-# Signature rule - Priority 100 - Appends BELOW email body
-New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
+Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
+
+# RULE 2: SIGNATURE ONLY - Appends content BELOW the email body
+# Check if rule exists first
+$signatureRuleExists = Get-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -ErrorAction SilentlyContinue
+if ($signatureRuleExists) {
+    Write-Host "  Removing existing signature rule..." -ForegroundColor Yellow
+    Remove-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -Confirm:$false
+    Start-Sleep -Seconds 5
+}
+
+New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${signaturePriority}
+    -Priority ${signaturePriority} \`
+    -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
-Write-Host "  ✓ Signature rule (Append BELOW body) created for ${userCount} user(s) - Priority: ${signaturePriority}" -ForegroundColor Green
+Write-Host "  ✓ SIGNATURE rule created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
+Write-Host ""
+Write-Host "Result: Banner ABOVE body, Signature BELOW body - NO DUPLICATES" -ForegroundColor Green
 Write-Host ""
 
 `;
@@ -750,16 +779,26 @@ Write-Host ""
             const escapedSignature = wrappedSignature.replace(/'/g, "''");
             
             script += `# Signature-only rule for ${userCount} user(s) - Appends BELOW email body
-New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
+
+# Check if rule exists first
+$signatureRuleExists = Get-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -ErrorAction SilentlyContinue
+if ($signatureRuleExists) {
+    Write-Host "  Removing existing signature rule..." -ForegroundColor Yellow
+    Remove-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -Confirm:$false
+    Start-Sleep -Seconds 5
+}
+
+New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority 100
+    -Priority 100 \`
+    -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
-Write-Host "  ✓ Signature rule (Append BELOW body) created for ${userCount} user(s)" -ForegroundColor Green
+Write-Host "  ✓ SIGNATURE rule created (BELOW body)" -ForegroundColor Green
 Write-Host ""
 
 `;
