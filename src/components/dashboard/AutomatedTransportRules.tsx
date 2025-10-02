@@ -214,11 +214,11 @@ Write-Host "Current EmailSignature rules in Exchange:" -ForegroundColor Yellow
 Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-Table Name, State, Priority, From -AutoSize
 Write-Host ""
 
-Write-Host "=== STEP 2: Selective Cleanup (${cleanupDescription}) ===" -ForegroundColor Cyan
+Write-Host "=== STEP 2: AGGRESSIVE CLEANUP (${cleanupDescription}) ===" -ForegroundColor Cyan
 Write-Host ""
 
-# IMPORTANT: Only remove rules matching the script type to preserve other rules
-Write-Host "Pass 1: Removing ${cleanupDescription}..." -ForegroundColor Yellow
+# ULTRA-AGGRESSIVE cleanup to eliminate duplicates permanently
+Write-Host "Pass 1: Initial removal of ${cleanupDescription}..." -ForegroundColor Yellow
 $pass1Rules = Get-TransportRule | Where-Object { $_.Name -like "${ruleFilter}" }
 if ($pass1Rules) {
     Write-Host "Found $($pass1Rules.Count) rule(s) to remove in Pass 1" -ForegroundColor Yellow
@@ -226,14 +226,14 @@ if ($pass1Rules) {
         Write-Host "  Removing: $($_.Name)" -ForegroundColor Red
         Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
     }
-    Write-Host "Waiting 10 seconds for Exchange to process..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 10
+    Write-Host "Waiting 15 seconds for Exchange to process..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 15
 } else {
     Write-Host "No ${cleanupDescription} found in Pass 1" -ForegroundColor Gray
 }
 
 Write-Host ""
-Write-Host "Pass 2: Verification and cleanup..." -ForegroundColor Yellow
+Write-Host "Pass 2: Verification and forced cleanup..." -ForegroundColor Yellow
 $pass2Rules = Get-TransportRule | Where-Object { $_.Name -like "${ruleFilter}" }
 if ($pass2Rules) {
     Write-Host "WARNING: $($pass2Rules.Count) rule(s) still exist! Forcing removal..." -ForegroundColor Red
@@ -241,26 +241,46 @@ if ($pass2Rules) {
         Write-Host "  Force removing: $($_.Name)" -ForegroundColor Red
         Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
     }
-    Start-Sleep -Seconds 10
+    Write-Host "Waiting 15 seconds for Exchange to sync..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 15
 } else {
     Write-Host "Pass 2: All clean" -ForegroundColor Green
 }
 
 Write-Host ""
-Write-Host "Pass 3: Final verification..." -ForegroundColor Yellow
+Write-Host "Pass 3: Third verification pass..." -ForegroundColor Yellow
 $pass3Rules = Get-TransportRule | Where-Object { $_.Name -like "${ruleFilter}" }
 if ($pass3Rules) {
-    Write-Host "CRITICAL WARNING: $($pass3Rules.Count) rule(s) STILL present!" -ForegroundColor Red
-    Write-Host "Manual intervention may be required. Rules:" -ForegroundColor Red
-    $pass3Rules | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Red }
+    Write-Host "WARNING: $($pass3Rules.Count) rule(s) STILL present! Attempting aggressive removal..." -ForegroundColor Red
+    $pass3Rules | ForEach-Object { 
+        Write-Host "  Aggressive removal: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    Write-Host "Waiting 20 seconds for final sync..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 20
+} else {
+    Write-Host "Pass 3: Confirmed clean" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Pass 4: FINAL verification before proceeding..." -ForegroundColor Yellow
+$pass4Rules = Get-TransportRule | Where-Object { $_.Name -like "${ruleFilter}" }
+if ($pass4Rules) {
+    Write-Host "CRITICAL: $($pass4Rules.Count) rule(s) STILL PRESENT after 4 passes!" -ForegroundColor Red
+    Write-Host "These rules could not be removed:" -ForegroundColor Red
+    $pass4Rules | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Red }
     Write-Host ""
-    $continue = Read-Host "Continue anyway? (yes/no)"
-    if ($continue -ne "yes") {
-        Write-Host "Aborted. Please manually remove rules and try again." -ForegroundColor Red
+    Write-Host "RECOMMENDED: Stop and manually remove these rules first:" -ForegroundColor Yellow
+    Write-Host "  Get-TransportRule | Where-Object { \\$_.Name -like 'EmailSignature_*' } | Remove-TransportRule -Confirm:\\$false" -ForegroundColor Yellow
+    Write-Host ""
+    $continue = Read-Host "Continue anyway and risk duplicates? (type YES to continue)"
+    if ($continue -ne "YES") {
+        Write-Host "Aborted. Please manually clean up rules and try again." -ForegroundColor Red
+        Disconnect-ExchangeOnline -Confirm:$false
         exit
     }
 } else {
-    Write-Host "Pass 3: Confirmed clean - ready to proceed" -ForegroundColor Green
+    Write-Host "Pass 4: VERIFIED CLEAN - Safe to proceed!" -ForegroundColor Green
 }
 Write-Host ""
 
@@ -277,13 +297,26 @@ Write-Host ""
           return;
         }
         
+        const userEmailSafe = assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_");
+        
         script += `# User ${index + 1}: ${assignment.userName} (${assignment.userEmail})
 Write-Host "Creating rules for ${assignment.userEmail}..." -ForegroundColor White
+
+# Pre-flight check: Ensure no existing rules for this user
+$existingUserRules = Get-TransportRule | Where-Object { $_.Name -like "*${userEmailSafe}*" }
+if ($existingUserRules) {
+    Write-Host "  WARNING: Found existing rule(s) for this user! Removing before creating new ones..." -ForegroundColor Yellow
+    $existingUserRules | ForEach-Object { 
+        Write-Host "    Removing: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 5
+}
 
 `;
         
         // SIGNATURE ONLY MODE
-        if (scriptType === "signature" || (scriptType === "both" && !assignment.bannerHtml)) {
+        if (scriptType === "signature") {
           // Wrap signature with proper styling to match test email
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
@@ -302,7 +335,7 @@ Write-Host ""
 
 `;
         } 
-        // BANNER ONLY MODE
+        // BANNER ONLY MODE - Never create signature rules
         else if (scriptType === "banner" && assignment.bannerHtml) {
           // Replace any existing href with tracking URL, or wrap entire banner
           let finalBannerHtml = assignment.bannerHtml;
@@ -345,7 +378,7 @@ Write-Host ""
 
 `;
         }
-        // BOTH MODE (signature + banner)
+        // BOTH MODE - user needs banner to get both rules
         else if (scriptType === "both" && assignment.bannerHtml) {
           // User has banner - create ONE banner rule and one signature rule
           // Replace any existing href with tracking URL, or wrap entire banner
@@ -413,6 +446,25 @@ New-TransportRule -Name "${baseRuleName}_Signature" \`
     -Priority ${signaturePriority}
 
 Write-Host "  ✓ Signature rule created (Priority: ${signaturePriority})" -ForegroundColor Green
+Write-Host ""
+
+`;
+        }
+        // BOTH MODE - user without banner gets signature only
+        else if (scriptType === "both" && !assignment.bannerHtml && assignment.signatureHtml) {
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
+          const escapedSignature = wrappedSignature.replace(/'/g, "''");
+          
+          script += `# Create signature rule (no banner assigned)
+New-TransportRule -Name "${baseRuleName}_Signature" \`
+    -FromScope InOrganization \`
+    -From "${assignment.userEmail}" \`
+    -ApplyHtmlDisclaimerLocation Append \`
+    -ApplyHtmlDisclaimerText '${escapedSignature}' \`
+    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -Enabled $true
+
+Write-Host "  ✓ Signature rule created (no banner)" -ForegroundColor Green
 Write-Host ""
 
 `;
