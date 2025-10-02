@@ -235,6 +235,84 @@ export function ExchangeConnectorDiagnostic() {
 
           <Separator />
 
+          {/* Authentication Error */}
+          <div>
+            <h3 className="text-lg font-semibold mb-2 text-destructive">⚠️ Authentication Error (550 Unauthenticated senders not allowed)</h3>
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Critical:</strong> If you're getting "550 Unauthenticated senders not allowed" from smtp.sendgrid.net, your connector authentication is incorrect.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-2">What causes this?</h4>
+                <ul className="text-sm space-y-2 list-disc list-inside text-muted-foreground">
+                  <li>Username is not set to "apikey" (must be exactly this)</li>
+                  <li>Password doesn't contain your valid SendGrid API key</li>
+                  <li>API key lacks "Mail Send" permission</li>
+                  <li>API key was deleted or regenerated</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">How to fix it:</h4>
+                <div className="bg-muted p-4 rounded-lg space-y-3 text-sm">
+                  <div>
+                    <p className="font-medium">Step 1: Verify your SendGrid API key</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      asChild
+                    >
+                      <a
+                        href="https://app.sendgrid.com/settings/api_keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open SendGrid API Keys
+                      </a>
+                    </Button>
+                    <ul className="mt-2 text-muted-foreground space-y-1 list-disc list-inside">
+                      <li>Check that your API key exists and is active</li>
+                      <li>Ensure it has "Mail Send" permission (Full Access or restricted)</li>
+                      <li>If unsure, create a new API key with Full Access</li>
+                    </ul>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <p className="font-medium">Step 2: Update your Exchange connector</p>
+                    <p className="text-muted-foreground mb-2">Go to Exchange Admin Center → Mail flow → Connectors → Edit your connector</p>
+                    <div className="bg-background p-3 rounded space-y-2">
+                      <div>
+                        <p className="text-xs font-medium">Username (must be exactly this):</p>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">apikey</code>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium">Password (your SendGrid API key):</p>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</code>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <p className="font-medium">Step 3: Test the connector</p>
+                    <p className="text-muted-foreground">Use the "Validate" button in Exchange Admin Center to test the connection</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Mail Loop Warning */}
           <div>
             <h3 className="text-lg font-semibold mb-2 text-destructive">⚠️ Mail Loop Error (554 5.4.14)</h3>
