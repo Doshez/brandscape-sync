@@ -12,6 +12,7 @@ import { Plus, Edit, Trash2, Eye, Upload, ExternalLink, BarChart3, Users, Calend
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HtmlEditor } from "@/components/ui/html-editor";
+import { wrapBannerWithTracking } from "@/lib/bannerTracking";
 
 interface EnhancedBannerManagerProps {
   profile: any;
@@ -320,6 +321,21 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
 
   return (
     <div className="space-y-6">
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="p-4">
+          <div className="flex items-start space-x-3">
+            <BarChart3 className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <div>
+              <h4 className="font-medium text-blue-900 dark:text-blue-100">Automatic Analytics Tracking</h4>
+              <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+                All banners automatically track clicks and views. Links are wrapped with tracking URLs, and a tracking pixel records views. 
+                Check the Analytics page to see performance metrics.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-medium">Enhanced Banner Management</h3>
@@ -638,6 +654,12 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <p className="text-sm text-blue-900 dark:text-blue-100">
+                      <strong>Tracking Enabled:</strong> This banner will automatically track clicks and views when deployed. 
+                      All links will redirect through our tracking system.
+                    </p>
+                  </div>
                   {banner.image_url && (
                     <img 
                       src={banner.image_url} 
@@ -645,10 +667,24 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                       className="max-w-full h-32 object-contain border rounded"
                     />
                   )}
-                  <div 
-                    className="bg-muted p-4 rounded-lg"
-                    dangerouslySetInnerHTML={{ __html: banner.html_content }}
-                  />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Preview (with tracking):</Label>
+                    <div 
+                      className="bg-muted p-4 rounded-lg border"
+                      dangerouslySetInnerHTML={{ 
+                        __html: wrapBannerWithTracking(
+                          banner.html_content, 
+                          banner.id, 
+                          'preview@example.com'
+                        ) 
+                      }}
+                    />
+                  </div>
+                  {banner.click_url && (
+                    <div className="text-xs text-muted-foreground">
+                      <strong>Target URL:</strong> {banner.click_url}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
