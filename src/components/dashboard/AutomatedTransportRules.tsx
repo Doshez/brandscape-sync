@@ -302,11 +302,24 @@ Write-Host ""
         } 
         // BANNER ONLY MODE
         else if (scriptType === "banner" && assignment.bannerHtml) {
-          // Wrap banner HTML with tracking URL if click_url exists
+          // Replace any existing href with tracking URL, or wrap entire banner
           let finalBannerHtml = assignment.bannerHtml;
           if (assignment.bannerClickUrl && assignment.bannerId) {
             const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
-            finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
+            
+            // Check if banner HTML already contains an anchor tag
+            if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
+              // Replace existing href with tracking URL
+              finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
+              finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
+              // Ensure target="_blank" is set
+              if (!finalBannerHtml.includes('target=')) {
+                finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+              }
+            } else {
+              // No link found, wrap entire banner with tracking link
+              finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
+            }
           }
           
           const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
@@ -333,11 +346,24 @@ Write-Host ""
         // BOTH MODE (signature + banner)
         else if (scriptType === "both" && assignment.bannerHtml) {
           // User has banner - create ONE banner rule and one signature rule
-          // Wrap banner HTML with tracking URL if click_url exists
+          // Replace any existing href with tracking URL, or wrap entire banner
           let finalBannerHtml = assignment.bannerHtml;
           if (assignment.bannerClickUrl && assignment.bannerId) {
             const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
-            finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
+            
+            // Check if banner HTML already contains an anchor tag
+            if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
+              // Replace existing href with tracking URL
+              finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
+              finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
+              // Ensure target="_blank" is set
+              if (!finalBannerHtml.includes('target=')) {
+                finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+              }
+            } else {
+              // No link found, wrap entire banner with tracking link
+              finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
+            }
           }
           
           const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
