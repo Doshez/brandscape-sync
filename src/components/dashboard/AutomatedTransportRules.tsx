@@ -1,0 +1,350 @@
+import { useState, useEffect } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+
+interface UserAssignment {
+  userId: string;
+  userEmail: string;
+  userName: string;
+  signatureHtml: string;
+  bannerHtml?: string;
+}
+
+interface AutomatedTransportRulesProps {
+  profile: any;
+}
+
+export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProps) => {
+  const [assignments, setAssignments] = useState<UserAssignment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [powershellScript, setPowershellScript] = useState<string>("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (profile?.is_admin) {
+      fetchAssignments();
+    }
+  }, [profile]);
+
+  const fetchAssignments = async () => {
+    setLoading(true);
+    try {
+      // Get all active user assignments
+      const { data: userAssignments, error } = await supabase
+        .from("user_email_assignments")
+        .select("id, user_id, signature_id")
+        .eq("is_active", true);
+
+      if (error) throw error;
+
+      const assignmentsData: UserAssignment[] = [];
+
+      for (const assignment of userAssignments || []) {
+        // Get profile for this user
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email, first_name, last_name")
+          .eq("id", assignment.user_id)
+          .single();
+
+        if (!profile) continue;
+
+        // Get signature
+        const { data: signature } = await supabase
+          .from("email_signatures")
+          .select("html_content")
+          .eq("id", assignment.signature_id)
+          .single();
+
+        if (!signature) continue;
+
+        // Get banners for this assignment
+        const { data: bannerAssignments } = await supabase
+          .from("user_banner_assignments")
+          .select(`
+            banners (
+              html_content
+            )
+          `)
+          .eq("user_assignment_id", assignment.id)
+          .order("display_order", { ascending: true });
+
+        const bannerHtml = bannerAssignments
+          ?.map((ba: any) => ba.banners.html_content)
+          .join("\n") || "";
+
+        assignmentsData.push({
+          userId: assignment.user_id,
+          userEmail: profile.email,
+          userName: `${profile.first_name} ${profile.last_name}`.trim(),
+          signatureHtml: signature.html_content,
+          bannerHtml: bannerHtml || undefined,
+        });
+      }
+
+      setAssignments(assignmentsData);
+      
+      toast({
+        title: "Assignments Loaded",
+        description: `Found ${assignmentsData.length} active user assignment(s)`,
+      });
+    } catch (error: any) {
+      console.error("Error fetching assignments:", error);
+      toast({
+        title: "Error Loading Assignments",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generatePowerShellScript = () => {
+    setGenerating(true);
+    try {
+      let script = `# Exchange Online Transport Rules - Auto-generated
+# Generated: ${new Date().toISOString()}
+# Total Rules: ${assignments.length}
+
+# Connect to Exchange Online
+Connect-ExchangeOnline
+
+Write-Host "Creating ${assignments.length} transport rule(s)..." -ForegroundColor Green
+Write-Host ""
+
+`;
+
+      assignments.forEach((assignment, index) => {
+        const ruleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        const combinedHtml = [
+          assignment.bannerHtml || "",
+          assignment.signatureHtml,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+
+        // Escape single quotes for PowerShell
+        const escapedHtml = combinedHtml.replace(/'/g, "''");
+
+        script += `# Rule ${index + 1}: ${assignment.userName} (${assignment.userEmail})
+Write-Host "Creating rule for ${assignment.userEmail}..." -ForegroundColor Cyan
+
+# Remove existing rule if it exists
+$existingRule = Get-TransportRule -Identity "${ruleName}" -ErrorAction SilentlyContinue
+if ($existingRule) {
+    Write-Host "  Removing existing rule..." -ForegroundColor Yellow
+    Remove-TransportRule -Identity "${ruleName}" -Confirm:$false
+}
+
+# Create new transport rule
+New-TransportRule -Name "${ruleName}" \`
+    -FromScope InOrganization \`
+    -From "${assignment.userEmail}" \`
+    -ApplyHtmlDisclaimerLocation Append \`
+    -ApplyHtmlDisclaimerText '${escapedHtml}' \`
+    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -Enabled $true
+
+Write-Host "  ✓ Rule created successfully" -ForegroundColor Green
+Write-Host ""
+
+`;
+      });
+
+      script += `
+# Verify all rules were created
+Write-Host "Verifying transport rules..." -ForegroundColor Green
+${assignments.map((a) => {
+  const ruleName = `EmailSignature_${a.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  return `Get-TransportRule -Identity "${ruleName}" | Format-Table Name, State, Priority`;
+}).join("\n")}
+
+Write-Host ""
+Write-Host "All transport rules have been created successfully!" -ForegroundColor Green
+Write-Host "Emails sent by assigned users will now automatically include their signatures and banners." -ForegroundColor Green
+Write-Host ""
+Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" -ForegroundColor Yellow
+`;
+
+      setPowershellScript(script);
+      
+      toast({
+        title: "PowerShell Script Generated",
+        description: `Created script for ${assignments.length} transport rule(s)`,
+      });
+    } catch (error: any) {
+      console.error("Error generating script:", error);
+      toast({
+        title: "Error Generating Script",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const downloadScript = () => {
+    const blob = new Blob([powershellScript], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `exchange-transport-rules-${new Date().toISOString().split("T")[0]}.ps1`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Script Downloaded",
+      description: "Run this script in Exchange Online PowerShell",
+    });
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(powershellScript);
+    toast({
+      title: "Copied to Clipboard",
+      description: "PowerShell script copied successfully",
+    });
+  };
+
+  if (!profile?.is_admin) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          You need administrator privileges to access this feature.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Automated Transport Rules</h2>
+          <p className="text-muted-foreground">
+            Generate PowerShell scripts to automatically update Exchange transport rules
+          </p>
+        </div>
+        <Button onClick={fetchAssignments} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
+
+      <Alert>
+        <CheckCircle className="h-4 w-4" />
+        <AlertDescription>
+          <strong>How it works:</strong> This generates PowerShell scripts that create Exchange transport rules 
+          for each user assignment. When users send emails, Exchange will automatically append their signature and banner.
+        </AlertDescription>
+      </Alert>
+
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Current User Assignments</h3>
+        
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Loading assignments...
+          </div>
+        ) : assignments.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No active user assignments found. Assign signatures to users first.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3 mb-6">
+              {assignments.map((assignment) => (
+                <div
+                  key={assignment.userId}
+                  className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium">{assignment.userName}</p>
+                    <p className="text-sm text-muted-foreground">{assignment.userEmail}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge>Signature</Badge>
+                    {assignment.bannerHtml && <Badge variant="secondary">Banner</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Separator className="my-6" />
+
+            <div className="flex gap-3">
+              <Button
+                onClick={generatePowerShellScript}
+                disabled={generating}
+                className="flex-1"
+              >
+                <Terminal className="h-4 w-4 mr-2" />
+                {generating ? "Generating..." : "Generate PowerShell Script"}
+              </Button>
+            </div>
+          </>
+        )}
+      </Card>
+
+      {powershellScript && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Generated PowerShell Script</h3>
+            <div className="flex gap-2">
+              <Button onClick={copyToClipboard} variant="outline" size="sm">
+                Copy
+              </Button>
+              <Button onClick={downloadScript} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+          </div>
+
+          <Alert className="mb-4">
+            <Terminal className="h-4 w-4" />
+            <AlertDescription>
+              <strong>How to run:</strong>
+              <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                <li>Download or copy the script</li>
+                <li>Open PowerShell as Administrator</li>
+                <li>Run: <code className="bg-muted px-1 py-0.5 rounded">Connect-ExchangeOnline</code></li>
+                <li>Run the downloaded script</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          <div className="bg-slate-950 text-green-400 p-4 rounded-lg overflow-x-auto">
+            <pre className="text-xs font-mono whitespace-pre-wrap">
+              {powershellScript}
+            </pre>
+          </div>
+        </Card>
+      )}
+
+      <Alert className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-900">
+        <AlertDescription className="text-sm">
+          <strong>Important:</strong> You need to regenerate and run this script whenever:
+          <ul className="list-disc list-inside mt-2 space-y-1">
+            <li>A signature is updated</li>
+            <li>A banner is updated</li>
+            <li>User assignments change</li>
+            <li>New users are added</li>
+          </ul>
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+};

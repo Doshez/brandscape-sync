@@ -21,8 +21,9 @@ import { ExchangeAdminCenterSetup } from "@/components/dashboard/ExchangeAdminCe
 import { EmailRoutingSetup } from "@/components/dashboard/EmailRoutingSetup";
 import { ExchangeUserSync } from "@/components/dashboard/ExchangeUserSync";
 import { OutlookIntegrationGuide } from "@/components/dashboard/OutlookIntegrationGuide";
+import { AutomatedTransportRules } from "@/components/dashboard/AutomatedTransportRules";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing" | "exchange-sync" | "outlook-integration";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "domains" | "dns" | "settings" | "users" | "exchange" | "assignments" | "microsoft365" | "smtp-relay" | "exchange-admin" | "email-routing" | "exchange-sync" | "outlook-integration" | "auto-transport-rules";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -159,6 +160,8 @@ const Dashboard = () => {
         return <ExchangeUserSync profile={profile} />;
       case "outlook-integration":
         return <OutlookIntegrationGuide />;
+      case "auto-transport-rules":
+        return <AutomatedTransportRules profile={profile} />;
       case "settings":
         return <CompanySettings profile={profile} />;
       case "users":
