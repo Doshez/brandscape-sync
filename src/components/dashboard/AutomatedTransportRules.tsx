@@ -656,8 +656,8 @@ Write-Host ""
             const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
             const escapedSignature = wrappedSignature.replace(/'/g, "''");
             
-            const bannerPriority = 0; // Highest priority - ensures banner runs first
-            const signaturePriority = 100; // Lower priority - ensures signature runs after
+            const bannerPriority = 0; // Highest priority (0-5 valid range) - ensures banner runs first
+            const signaturePriority = 5; // Lowest priority (0-5 valid range) - ensures signature runs after
             
             script += `# ========================================
 # TWO COMPLETELY SEPARATE RULES (Group ${ruleIndex})
@@ -740,7 +740,7 @@ New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority 100 \`
+    -Priority 5 \`
     -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
 Write-Host "  ✓ SIGNATURE rule created (BELOW body)" -ForegroundColor Green
