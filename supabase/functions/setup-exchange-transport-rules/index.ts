@@ -35,22 +35,23 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get current user ID from JWT
-    const authHeader = req.headers.get('Authorization');
-    const token = authHeader?.replace('Bearer ', '');
-    
-    let currentUserId = null;
-    if (token) {
-      try {
-        // Skip user authentication for service role operations
-        console.log('Token provided, but skipping user auth for service operations');
-      } catch (e) {
-        console.warn('Could not process token:', e);
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: {
+        headers: {
+          Authorization: req.headers.get('Authorization')!
+        }
       }
+    });
+
+    // Get current user from JWT
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error("Authentication required");
     }
+    
+    const currentUserId = user.id;
 
     // Generate PowerShell scripts for each user (since each might have different signatures)
     const powershellScripts: Array<{
