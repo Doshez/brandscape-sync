@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle, Plus, Trash2, Mail, Image, FileText } from "lucide-react";
+import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle, Plus, Trash2, Mail, Image, FileText, Shield, Settings } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmailRoutingPanel } from "./EmailRoutingPanel";
 
 interface UserAssignment {
   userId: string;
@@ -33,6 +34,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [generating, setGenerating] = useState(false);
   const [powershellScript, setPowershellScript] = useState<string>("");
   const [scriptType, setScriptType] = useState<"both" | "signature" | "banner">("both");
+  const [isEmailPanelOpen, setIsEmailPanelOpen] = useState(false);
   
   // User assignment states
   const [users, setUsers] = useState<any[]>([]);
@@ -905,10 +907,20 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
             Manage user assignments and deploy signatures & banners to Microsoft Exchange
           </p>
         </div>
-        <Button onClick={fetchAllData} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setIsEmailPanelOpen(true)} 
+            variant="outline"
+            className="gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Email Routing & DNS
+          </Button>
+          <Button onClick={fetchAllData} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Alert>
@@ -1244,6 +1256,12 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
           </Alert>
         </TabsContent>
       </Tabs>
+
+      <EmailRoutingPanel 
+        isOpen={isEmailPanelOpen}
+        onClose={() => setIsEmailPanelOpen(false)}
+        profile={profile}
+      />
     </div>
   );
 };
