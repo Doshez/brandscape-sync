@@ -482,125 +482,70 @@ Disconnect-ExchangeOnline -Confirm:$false
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
-Write-Host "=== STEP 1: Scanning ALL Existing Rules ===" -ForegroundColor Cyan
+Write-Host "=== CRITICAL: REMOVE ALL EXISTING RULES FIRST ===" -ForegroundColor Red
 Write-Host ""
-Write-Host "Searching for ALL disclaimer/signature/banner rules..." -ForegroundColor Yellow
-
-# Find ALL rules that apply HTML disclaimers (signatures/banners) - regardless of name
-$existingRules = Get-TransportRule | Where-Object { 
-    $_.ApplyHtmlDisclaimerText -ne $null -or 
-    $_.Name -like "*EmailSignature*" -or 
-    $_.Name -like "*Banner*" -or 
-    $_.Name -like "*Signature*" -or
-    $_.Name -like "*Disclaimer*"
-}
-
-if ($existingRules) {
-    Write-Host "Found $($existingRules.Count) existing disclaimer rule(s):" -ForegroundColor Red
-    $existingRules | Format-Table Name, State, Priority, From -AutoSize
-} else {
-    Write-Host "No existing disclaimer rules found" -ForegroundColor Green
-}
+Write-Host "⚠️  This script will ONLY work if ALL old rules are removed first!" -ForegroundColor Yellow
 Write-Host ""
+Write-Host "Scanning for ANY rules that modify email content..." -ForegroundColor Yellow
 
-Write-Host "=== STEP 2: ULTRA-AGGRESSIVE CLEANUP ===" -ForegroundColor Cyan
-Write-Host "Removing ALL signature/banner/disclaimer rules to prevent duplicates..." -ForegroundColor Yellow
-Write-Host ""
-
-# Pass 1: Remove ALL disclaimer rules
-Write-Host "Pass 1: Removing ALL disclaimer rules..." -ForegroundColor Yellow
-$pass1Rules = Get-TransportRule | Where-Object { 
-    $_.ApplyHtmlDisclaimerText -ne $null -or 
-    $_.Name -like "*EmailSignature*" -or 
-    $_.Name -like "*Banner*" -or 
-    $_.Name -like "*Signature*" -or
-    $_.Name -like "*Disclaimer*"
-}
-if ($pass1Rules) {
-    Write-Host "Found $($pass1Rules.Count) rule(s) to remove" -ForegroundColor Yellow
-    $pass1Rules | ForEach-Object { 
-        Write-Host "  Deleting: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    Write-Host "Waiting 15 seconds for Exchange to sync..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 15
-} else {
-    Write-Host "No rules found in Pass 1" -ForegroundColor Gray
+# SUPER AGGRESSIVE: Find ANY rule with ApplyHtmlDisclaimerText (catches everything)
+$allRules = Get-TransportRule | Where-Object { 
+    $_.ApplyHtmlDisclaimerText -ne $null
 }
 
-Write-Host ""
-Write-Host "Pass 2: Verification and forced cleanup..." -ForegroundColor Yellow
-$pass2Rules = Get-TransportRule | Where-Object { 
-    $_.ApplyHtmlDisclaimerText -ne $null -or 
-    $_.Name -like "*EmailSignature*" -or 
-    $_.Name -like "*Banner*" -or 
-    $_.Name -like "*Signature*" -or
-    $_.Name -like "*Disclaimer*"
-}
-if ($pass2Rules) {
-    Write-Host "WARNING: $($pass2Rules.Count) rule(s) still exist! Force removing..." -ForegroundColor Red
-    $pass2Rules | ForEach-Object { 
-        Write-Host "  Force deleting: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    Write-Host "Waiting 15 seconds..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 15
-} else {
-    Write-Host "Pass 2: All clean" -ForegroundColor Green
-}
-
-Write-Host ""
-Write-Host "Pass 3: Final verification..." -ForegroundColor Yellow
-$pass3Rules = Get-TransportRule | Where-Object { 
-    $_.ApplyHtmlDisclaimerText -ne $null -or 
-    $_.Name -like "*EmailSignature*" -or 
-    $_.Name -like "*Banner*" -or 
-    $_.Name -like "*Signature*" -or
-    $_.Name -like "*Disclaimer*"
-}
-if ($pass3Rules) {
-    Write-Host "CRITICAL: $($pass3Rules.Count) rule(s) STILL PRESENT!" -ForegroundColor Red
-    Write-Host "Attempting final aggressive removal..." -ForegroundColor Red
-    $pass3Rules | ForEach-Object { 
-        Write-Host "  Final attempt: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    Write-Host "Waiting 20 seconds for final sync..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 20
+if ($allRules) {
+    Write-Host ""
+    Write-Host "❌ FOUND $($allRules.Count) EXISTING RULE(S):" -ForegroundColor Red
+    Write-Host ""
+    $allRules | Format-Table Name, State, Priority, ApplyHtmlDisclaimerLocation -AutoSize
+    Write-Host ""
+    Write-Host "THESE MUST BE DELETED TO AVOID DUPLICATES!" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Deleting ALL existing disclaimer rules..." -ForegroundColor Red
     
-    # Final check
-    $pass4Rules = Get-TransportRule | Where-Object { 
-        $_.ApplyHtmlDisclaimerText -ne $null -or 
-        $_.Name -like "*EmailSignature*" -or 
-        $_.Name -like "*Banner*" -or 
-        $_.Name -like "*Signature*" -or
-        $_.Name -like "*Disclaimer*"
+    $allRules | ForEach-Object { 
+        Write-Host "  ❌ Removing: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
     }
-    if ($pass4Rules) {
+    
+    Write-Host ""
+    Write-Host "⏱️  Waiting 30 seconds for Exchange to fully sync..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 30
+    Write-Host ""
+    
+    # VERIFY cleanup was successful
+    Write-Host "Verifying cleanup..." -ForegroundColor Yellow
+    $remainingRules = Get-TransportRule | Where-Object { 
+        $_.ApplyHtmlDisclaimerText -ne $null
+    }
+    
+    if ($remainingRules) {
         Write-Host ""
-        Write-Host "❌ ERROR: $($pass4Rules.Count) rule(s) could NOT be removed!" -ForegroundColor Red
-        $pass4Rules | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Red }
+        Write-Host "❌ CRITICAL ERROR: $($remainingRules.Count) rule(s) still exist!" -ForegroundColor Red
         Write-Host ""
-        Write-Host "⚠️  MANUAL ACTION REQUIRED:" -ForegroundColor Yellow
-        Write-Host "These rules must be manually deleted in Exchange Admin Center" -ForegroundColor Yellow
-        Write-Host "OR run this command:" -ForegroundColor Yellow
-        Write-Host "  Get-TransportRule | Remove-TransportRule -Confirm:\\$false" -ForegroundColor Cyan
+        $remainingRules | Format-Table Name, State -AutoSize
         Write-Host ""
-        $continue = Read-Host "Continue anyway? (type YES to proceed with duplicates risk)"
-        if ($continue -ne "YES") {
-            Write-Host "Aborted. Please manually clean up rules first." -ForegroundColor Red
-            Disconnect-ExchangeOnline -Confirm:$false
-            exit
-        }
+        Write-Host "⚠️  YOU MUST MANUALLY DELETE THESE RULES IN EXCHANGE ADMIN CENTER:" -ForegroundColor Yellow
+        Write-Host "   1. Go to https://admin.exchange.microsoft.com" -ForegroundColor Cyan
+        Write-Host "   2. Navigate to: Mail flow > Rules" -ForegroundColor Cyan
+        Write-Host "   3. Delete ALL rules shown above" -ForegroundColor Cyan
+        Write-Host "   4. Wait 5 minutes" -ForegroundColor Cyan
+        Write-Host "   5. Re-run this script" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "SCRIPT ABORTED TO PREVENT DUPLICATES" -ForegroundColor Red
+        Write-Host ""
+        Disconnect-ExchangeOnline -Confirm:$false
+        exit
     } else {
-        Write-Host "Pass 3: VERIFIED CLEAN ✓" -ForegroundColor Green
+        Write-Host "✓ All old rules successfully removed!" -ForegroundColor Green
+        Write-Host ""
     }
 } else {
-    Write-Host "Pass 3: VERIFIED CLEAN ✓" -ForegroundColor Green
+    Write-Host "✓ No existing disclaimer rules found - ready to proceed" -ForegroundColor Green
+    Write-Host ""
 }
-Write-Host ""
 
-Write-Host "=== STEP 3: Creating Grouped Rules (NO DUPLICATES) ===" -ForegroundColor Cyan
+Write-Host "=== Creating New Rules ===" -ForegroundColor Cyan
 Write-Host ""
 
 `;
