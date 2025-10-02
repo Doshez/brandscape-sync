@@ -424,18 +424,47 @@ Disconnect-ExchangeOnline -Confirm:$false
         return;
       }
 
+      // GROUP users by their signature+banner combination to avoid duplicates
+      const groupedRules = new Map<string, {
+        signatureHtml: string;
+        bannerHtml?: string;
+        bannerId?: string;
+        bannerClickUrl?: string;
+        users: Array<{ email: string; name: string }>;
+      }>();
+
+      selectedAssignments.forEach(assignment => {
+        // Create unique key for this signature+banner combo
+        const key = `${assignment.signatureHtml}_${assignment.bannerHtml || 'NONE'}_${assignment.bannerId || 'NONE'}`;
+        
+        if (!groupedRules.has(key)) {
+          groupedRules.set(key, {
+            signatureHtml: assignment.signatureHtml,
+            bannerHtml: assignment.bannerHtml,
+            bannerId: assignment.bannerId,
+            bannerClickUrl: assignment.bannerClickUrl,
+            users: []
+          });
+        }
+        
+        groupedRules.get(key)!.users.push({
+          email: assignment.userEmail,
+          name: assignment.userName
+        });
+      });
+
       // Count total rules based on script type
       let totalRules = 0;
-      selectedAssignments.forEach(assignment => {
+      groupedRules.forEach(group => {
         if (scriptType === "both") {
-          if (assignment.bannerHtml) {
+          if (group.bannerHtml) {
             totalRules += 2; // Banner rule + Signature rule
           } else {
             totalRules += 1; // Signature rule only
           }
         } else if (scriptType === "signature") {
           totalRules += 1; // Signature rule only
-        } else if (scriptType === "banner" && assignment.bannerHtml) {
+        } else if (scriptType === "banner" && group.bannerHtml) {
           totalRules += 1; // Banner rule only
         }
       });
@@ -447,6 +476,7 @@ Disconnect-ExchangeOnline -Confirm:$false
       let script = `# Exchange Online Transport Rules - Auto-generated (${scriptTypeLabel})
 # Generated: ${new Date().toISOString()}
 # Selected Users: ${selectedAssignments.length}
+# Unique Rule Groups: ${groupedRules.size}
 # Total Rules: ${totalRules}
 
 # Connect to Exchange Online
@@ -570,190 +600,167 @@ if ($pass3Rules) {
 }
 Write-Host ""
 
-Write-Host "=== STEP 3: Creating New Rules ===" -ForegroundColor Cyan
+Write-Host "=== STEP 3: Creating Grouped Rules (NO DUPLICATES) ===" -ForegroundColor Cyan
 Write-Host ""
 
 `;
 
-      selectedAssignments.forEach((assignment, index) => {
-        const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
-        
-        // Skip users without banners if generating banner-only script
-        if (scriptType === "banner" && !assignment.bannerHtml) {
+      let ruleIndex = 0;
+      groupedRules.forEach((group, key) => {
+        // Skip if no users in this group for banner-only mode
+        if (scriptType === "banner" && !group.bannerHtml) {
           return;
         }
-        
-        const userEmailSafe = assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_");
-        
-        script += `# User ${index + 1}: ${assignment.userName} (${assignment.userEmail})
-Write-Host "Creating rules for ${assignment.userEmail}..." -ForegroundColor White
 
-# Pre-flight check: Ensure no existing rules for this user
-$existingUserRules = Get-TransportRule | Where-Object { $_.Name -like "*${userEmailSafe}*" }
-if ($existingUserRules) {
-    Write-Host "  WARNING: Found existing rule(s) for this user! Removing before creating new ones..." -ForegroundColor Yellow
-    $existingUserRules | ForEach-Object { 
-        Write-Host "    Removing: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    Start-Sleep -Seconds 5
-}
+        ruleIndex++;
+        const groupId = `Group${ruleIndex}`;
+        const userEmails = group.users.map(u => u.email).join('", "');
+        const userCount = group.users.length;
+        
+        script += `# ========================================
+# RULE GROUP ${ruleIndex}: ${userCount} user(s)
+# ========================================
+`;
+        group.users.forEach(u => {
+          script += `# - ${u.name} (${u.email})\n`;
+        });
+        script += `
+Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -ForegroundColor White
 
 `;
         
         // SIGNATURE ONLY MODE
         if (scriptType === "signature") {
-          // Wrap signature with proper styling to match test email
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
-          script += `# Create signature rule
-New-TransportRule -Name "${baseRuleName}_Signature" \`
+          script += `# Shared signature rule for ${userCount} user(s)
+New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
     -FromScope InOrganization \`
-    -From "${assignment.userEmail}" \`
+    -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true
 
-Write-Host "  ✓ Signature rule created" -ForegroundColor Green
+Write-Host "  ✓ Signature rule created for ${userCount} user(s)" -ForegroundColor Green
 Write-Host ""
 
 `;
         } 
-        // BANNER ONLY MODE - Never create signature rules
-        else if (scriptType === "banner" && assignment.bannerHtml) {
-          // Replace any existing href with tracking URL, or wrap entire banner
-          let finalBannerHtml = assignment.bannerHtml;
-          if (assignment.bannerClickUrl && assignment.bannerId) {
-            const trackingUrl = `${window.location.origin}/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
+        // BANNER ONLY MODE
+        else if (scriptType === "banner" && group.bannerHtml) {
+          let finalBannerHtml = group.bannerHtml;
+          
+          // For banner-only mode with tracking, we'll use a generic tracking approach
+          if (group.bannerClickUrl && group.bannerId) {
+            const trackingUrl = `${window.location.origin}/track/${group.bannerId}`;
             
-            // Check if banner HTML already contains an anchor tag
             if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
-              // Replace existing href with tracking URL
               finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
               finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
-              // Ensure target="_blank" is set
               if (!finalBannerHtml.includes('target=')) {
                 finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
               }
             } else {
-              // No link found, wrap entire banner with tracking link
-              finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
+              finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${group.bannerHtml}</a>`;
             }
           }
           
           const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
+          const bannerPriority = Math.min(ruleIndex - 1, 3);
           
-          const bannerRuleName = `${baseRuleName}_Banner`;
-          const bannerPriority = Math.min(index, 3);
-          
-          script += `# Create banner rule
-New-TransportRule -Name "${bannerRuleName}" \`
+          script += `# Shared banner rule for ${userCount} user(s)
+New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -FromScope InOrganization \`
-    -From "${assignment.userEmail}" \`
+    -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority}
 
-Write-Host "  ✓ Banner rule created (Priority: ${bannerPriority})" -ForegroundColor Green
+Write-Host "  ✓ Banner rule created for ${userCount} user(s) (Priority: ${bannerPriority})" -ForegroundColor Green
 Write-Host ""
 
 `;
         }
-        // BOTH MODE - user needs banner to get both rules
-        else if (scriptType === "both" && assignment.bannerHtml) {
-          // User has banner - create ONE banner rule and one signature rule
-          // Replace any existing href with tracking URL, or wrap entire banner
-          let finalBannerHtml = assignment.bannerHtml;
-          if (assignment.bannerClickUrl && assignment.bannerId) {
-            const trackingUrl = `${window.location.origin}/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
-            
-            // Check if banner HTML already contains an anchor tag
-            if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
-              // Replace existing href with tracking URL
-              finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
-              finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
-              // Ensure target="_blank" is set
-              if (!finalBannerHtml.includes('target=')) {
-                finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+        // BOTH MODE
+        else if (scriptType === "both") {
+          if (group.bannerHtml) {
+            // Group has banner - create ONE banner rule and ONE signature rule for all users
+            let finalBannerHtml = group.bannerHtml;
+            if (group.bannerClickUrl && group.bannerId) {
+              const trackingUrl = `${window.location.origin}/track/${group.bannerId}`;
+              
+              if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
+                finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
+                finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
+                if (!finalBannerHtml.includes('target=')) {
+                  finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+                }
+              } else {
+                finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${group.bannerHtml}</a>`;
               }
-            } else {
-              // No link found, wrap entire banner with tracking link
-              finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
             }
-          }
-          
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
-          const escapedBanner = wrappedBanner.replace(/'/g, "''");
-          
-          // Wrap signature with proper styling to match test email
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
-          const escapedSignature = wrappedSignature.replace(/'/g, "''");
-          
-          script += `# Creating 1 banner rule + 1 signature rule
-`;
+            
+            const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+            const escapedBanner = wrappedBanner.replace(/'/g, "''");
+            
+            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
+            const escapedSignature = wrappedSignature.replace(/'/g, "''");
+            
+            const bannerPriority = Math.min(ruleIndex - 1, 3);
+            const signaturePriority = Math.min(ruleIndex + 2, 6);
+            
+            script += `# Creating 1 banner rule + 1 signature rule for ${userCount} user(s)
 
-          // Create banner rule (prepend to top of email)
-          const bannerRuleName = `${baseRuleName}_Banner`;
-          
-          // Calculate valid priorities (0-6 range)
-          // Banner gets higher priority (lower number), signature gets lower priority (higher number)
-          const bannerPriority = Math.min(index, 3); // 0-3 for banners
-          const signaturePriority = Math.min(index + 3, 6); // 3-6 for signatures
-          
-          script += `
 # Banner rule (prepends at top)
-New-TransportRule -Name "${bannerRuleName}" \`
+New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -FromScope InOrganization \`
-    -From "${assignment.userEmail}" \`
+    -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority}
 
-Write-Host "  ✓ Banner rule created (Priority: ${bannerPriority})" -ForegroundColor Green
-`;
-          
-          // Create signature rule (append to bottom)
-          script += `
+Write-Host "  ✓ Banner rule created for ${userCount} user(s) (Priority: ${bannerPriority})" -ForegroundColor Green
+
 # Signature rule (appends at bottom)
-New-TransportRule -Name "${baseRuleName}_Signature" \`
+New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
     -FromScope InOrganization \`
-    -From "${assignment.userEmail}" \`
+    -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority}
 
-Write-Host "  ✓ Signature rule created (Priority: ${signaturePriority})" -ForegroundColor Green
+Write-Host "  ✓ Signature rule created for ${userCount} user(s) (Priority: ${signaturePriority})" -ForegroundColor Green
 Write-Host ""
 
 `;
-        }
-        // BOTH MODE - user without banner gets signature only
-        else if (scriptType === "both" && !assignment.bannerHtml && assignment.signatureHtml) {
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
-          const escapedSignature = wrappedSignature.replace(/'/g, "''");
-          
-          script += `# Create signature rule (no banner assigned)
-New-TransportRule -Name "${baseRuleName}_Signature" \`
+          } else {
+            // No banner - signature only for this group
+            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
+            const escapedSignature = wrappedSignature.replace(/'/g, "''");
+            
+            script += `# Shared signature rule for ${userCount} user(s) (no banner)
+New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
     -FromScope InOrganization \`
-    -From "${assignment.userEmail}" \`
+    -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true
 
-Write-Host "  ✓ Signature rule created (no banner)" -ForegroundColor Green
+Write-Host "  ✓ Signature rule created for ${userCount} user(s) (no banner)" -ForegroundColor Green
 Write-Host ""
 
 `;
+          }
         }
       });
 
