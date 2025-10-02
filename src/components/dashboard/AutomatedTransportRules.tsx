@@ -163,6 +163,45 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
     }
   };
 
+  const generateCleanupScript = () => {
+    const script = `# CLEANUP SCRIPT - Remove ALL EmailSignature rules
+# Generated: ${new Date().toISOString()}
+
+# Connect to Exchange Online
+Connect-ExchangeOnline
+
+Write-Host "=== Listing ALL EmailSignature Rules ===" -ForegroundColor Cyan
+$allRules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+if ($allRules) {
+    Write-Host "Found $($allRules.Count) rule(s):" -ForegroundColor Yellow
+    $allRules | Format-Table Name, State, Priority, From -AutoSize
+    Write-Host ""
+    
+    $confirm = Read-Host "Remove ALL these rules? (type YES to proceed)"
+    if ($confirm -eq "YES") {
+        $allRules | ForEach-Object { 
+            Write-Host "Removing: $($_.Name)" -ForegroundColor Red
+            Remove-TransportRule -Identity $_.Name -Confirm:$false
+        }
+        Write-Host ""
+        Write-Host "✓ All rules removed!" -ForegroundColor Green
+    } else {
+        Write-Host "Cancelled" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "No EmailSignature rules found" -ForegroundColor Green
+}
+
+Disconnect-ExchangeOnline -Confirm:$false
+`;
+    
+    setPowershellScript(script);
+    toast({
+      title: "Cleanup Script Generated",
+      description: "Run this first to remove ALL existing rules",
+    });
+  };
+
   const generatePowerShellScript = () => {
     setGenerating(true);
     try {
@@ -683,14 +722,25 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                 </RadioGroup>
               </div>
 
-              <Button
-                onClick={generatePowerShellScript}
-                disabled={generating || selectedUserIds.size === 0}
-                className="w-full"
-              >
-                <Terminal className="h-4 w-4 mr-2" />
-                {generating ? "Generating..." : `Generate ${scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only"} Script for ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`}
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  onClick={generateCleanupScript}
+                  variant="destructive"
+                  className="w-full"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Step 1: Generate Cleanup Script (Remove ALL Old Rules)
+                </Button>
+                
+                <Button
+                  onClick={generatePowerShellScript}
+                  disabled={generating || selectedUserIds.size === 0}
+                  className="w-full"
+                >
+                  <Terminal className="h-4 w-4 mr-2" />
+                  {generating ? "Generating..." : `Step 2: Generate ${scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only"} Script for ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`}
+                </Button>
+              </div>
             </div>
           </>
         )}
