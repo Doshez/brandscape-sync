@@ -184,7 +184,7 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
 
   const getTotalStats = () => {
     return {
-      totalClicks: bannerAnalytics.reduce((sum, banner) => sum + banner.click_count, 0),
+      totalClicks: bannerAnalytics.reduce((sum, banner) => sum + (banner.current_clicks || 0), 0),
       totalImpressions: bannerAnalytics.reduce((sum, banner) => sum + banner.impression_count, 0),
       averageCTR: bannerAnalytics.length > 0 
         ? (bannerAnalytics.reduce((sum, banner) => sum + banner.click_through_rate, 0) / bannerAnalytics.length).toFixed(2)
@@ -357,15 +357,19 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
 
                       <div className="flex items-center space-x-6 text-sm">
                         <div className="text-center">
+                          <div className="font-medium text-lg">{banner.current_clicks}</div>
+                          <div className="text-muted-foreground">Total Clicks</div>
+                        </div>
+                        <div className="text-center">
                           <div className="font-medium">{banner.click_count}</div>
-                          <div className="text-muted-foreground">Clicks</div>
+                          <div className="text-muted-foreground">Period Clicks</div>
                         </div>
                         <div className="text-center">
                           <div className="font-medium">{banner.impression_count}</div>
                           <div className="text-muted-foreground">Views</div>
                         </div>
                         <div className="text-center">
-                          <div className="font-medium">{banner.click_through_rate}%</div>
+                          <div className="font-medium">{banner.click_through_rate.toFixed(2)}%</div>
                           <div className="text-muted-foreground">CTR</div>
                         </div>
                         {banner.max_clicks && (

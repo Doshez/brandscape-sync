@@ -15,6 +15,7 @@ interface DashboardStats {
   activeBanners: number;
   totalUsers: number;
   clicksThisMonth: number;
+  topBanners: Array<{ id: string; name: string; current_clicks: number }>;
 }
 
 export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeProps) => {
@@ -23,6 +24,7 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
     activeBanners: 0,
     totalUsers: 0,
     clicksThisMonth: 0,
+    topBanners: [],
   });
   const [loading, setLoading] = useState(true);
   const [isEmailPanelOpen, setIsEmailPanelOpen] = useState(false);
@@ -58,18 +60,31 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
         }
       }
 
-      // Fetch clicks this month from banners table (if admin)
+      // Fetch clicks from analytics_events table (if admin)
       let clicksThisMonth = 0;
+      let topBanners: Array<{ id: string; name: string; current_clicks: number }> = [];
+      
       if (profile?.is_admin) {
-        const { data: bannersData, error: bannersError } = await supabase
-          .from("banners")
-          .select("current_clicks");
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const { count: clickCount } = await supabase
+          .from("analytics_events")
+          .select("*", { count: "exact", head: true })
+          .eq("event_type", "click")
+          .gte("timestamp", startOfMonth.toISOString());
         
-        if (bannersError) {
-          console.error("Error fetching banner clicks:", bannersError);
-        } else {
-          clicksThisMonth = bannersData?.reduce((sum, banner) => sum + (banner.current_clicks || 0), 0) || 0;
-        }
+        clicksThisMonth = clickCount || 0;
+
+        // Fetch top banners by click count
+        const { data: bannersData } = await supabase
+          .from("banners")
+          .select("id, name, current_clicks")
+          .order("current_clicks", { ascending: false })
+          .limit(5);
+        
+        topBanners = bannersData || [];
       }
 
       setStats({
@@ -77,6 +92,7 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
         activeBanners: bannersCount || 0,
         totalUsers: usersCount,
         clicksThisMonth,
+        topBanners,
       });
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
@@ -233,6 +249,38 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
             </div>
           </CardContent>
         </Card>
+
+        {profile?.is_admin && stats.topBanners.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Performing Banners</CardTitle>
+              <CardDescription>
+                Banners with the most clicks
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {stats.topBanners.map((banner, index) => (
+                  <div key={banner.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{banner.name}</p>
+                        <p className="text-xs text-muted-foreground">{banner.current_clicks} total clicks</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <TrendingUp className="h-4 w-4 text-orange-500" />
+                      <span className="font-bold text-lg">{banner.current_clicks}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
