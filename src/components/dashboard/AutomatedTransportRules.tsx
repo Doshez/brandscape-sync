@@ -37,6 +37,8 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const fetchAssignments = async () => {
     setLoading(true);
     try {
+      console.log("🔍 Fetching user email assignments from user_email_assignments table...");
+      
       // Get all active user assignments
       const { data: userAssignments, error } = await supabase
         .from("user_email_assignments")
@@ -45,9 +47,13 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
       if (error) throw error;
 
+      console.log(`✓ Found ${userAssignments?.length || 0} active user assignments`);
+
       const assignmentsData: UserAssignment[] = [];
 
       for (const assignment of userAssignments || []) {
+        console.log(`\n📧 Processing assignment ID: ${assignment.id}`);
+        
         // Get profile for this user
         const { data: profile } = await supabase
           .from("profiles")
@@ -55,29 +61,43 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           .eq("id", assignment.user_id)
           .single();
 
-        if (!profile) continue;
+        if (!profile) {
+          console.log(`  ⚠️ No profile found for user_id: ${assignment.user_id}`);
+          continue;
+        }
+        
+        console.log(`  ✓ Profile: ${profile.email}`);
 
         // Get signature
+        console.log(`  🔍 Fetching signature ID: ${assignment.signature_id} from email_signatures table`);
         const { data: signature } = await supabase
           .from("email_signatures")
-          .select("html_content")
+          .select("html_content, template_name")
           .eq("id", assignment.signature_id)
           .single();
 
         if (!signature) {
-          console.log(`⚠️ User ${profile.email}: No signature found for ID ${assignment.signature_id}`);
+          console.log(`  ⚠️ No signature found for ID ${assignment.signature_id}`);
           continue;
         }
 
-        console.log(`✓ User ${profile.email}: Signature HTML length: ${signature.html_content?.length || 0} characters`);
+        console.log(`  ✓ Signature: "${signature.template_name}" (${signature.html_content?.length || 0} chars)`);
+
+        // Skip if signature HTML is empty
+        if (!signature.html_content || signature.html_content.trim() === '') {
+          console.log(`  ⚠️ Signature HTML is empty, skipping this assignment`);
+          continue;
+        }
 
         // Get banners for this assignment - take only the first one
+        console.log(`  🔍 Fetching banners from user_banner_assignments table for assignment ID: ${assignment.id}`);
         const { data: bannerAssignments } = await supabase
           .from("user_banner_assignments")
           .select(`
             banners (
               html_content,
-              click_url
+              click_url,
+              name
             )
           `)
           .eq("user_assignment_id", assignment.id)
@@ -86,19 +106,18 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
         let bannerHtml = bannerAssignments?.[0]?.banners?.html_content || undefined;
         const clickUrl = bannerAssignments?.[0]?.banners?.click_url;
+        const bannerName = bannerAssignments?.[0]?.banners?.name;
 
-        // Wrap banner with clickable link if click_url exists
         if (bannerHtml && clickUrl) {
+          console.log(`  ✓ Banner: "${bannerName}" with click URL: ${clickUrl}`);
           bannerHtml = `<a href="${clickUrl}" target="_blank" style="display: block; text-decoration: none;">${bannerHtml}</a>`;
+        } else if (bannerHtml) {
+          console.log(`  ✓ Banner: "${bannerName}" (no click URL)`);
+        } else {
+          console.log(`  ℹ️ No banner assigned`);
         }
 
-        console.log(`User ${profile.email}: Has ${bannerAssignments?.length || 0} banner(s), using: ${bannerHtml ? 'Yes' : 'No'}, clickable: ${clickUrl ? 'Yes' : 'No'}`);
-
-        // Skip if signature HTML is empty
-        if (!signature.html_content || signature.html_content.trim() === '') {
-          console.log(`⚠️ User ${profile.email}: Signature HTML is empty, skipping`);
-          continue;
-        }
+        console.log(`  ✅ Added to assignments list\n`);
 
         assignmentsData.push({
           userId: assignment.user_id,
@@ -108,6 +127,8 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           bannerHtml: bannerHtml || undefined,
         });
       }
+
+      console.log(`\n🎉 Successfully loaded ${assignmentsData.length} complete assignment(s)\n`);
 
       setAssignments(assignmentsData);
       
