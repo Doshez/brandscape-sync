@@ -64,13 +64,23 @@ const handler = async (req: Request): Promise<Response> => {
     if (banner_id) {
       const { data: banner } = await supabase
         .from('banners')
-        .select('html_content')
+        .select('html_content, click_url')
         .eq('id', banner_id)
         .eq('is_active', true)
         .single();
       
       if (banner) {
-        bannerHtml = banner.html_content;
+        // Get user profile to get their email
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('user_id', user_id)
+          .single();
+        
+        // Wrap banner with tracking
+        const appUrl = "https://ddoihmeqpjjiumqndjgk.supabase.co";
+        const userEmail = profile?.email || '';
+        bannerHtml = wrapBannerWithTracking(banner.html_content, banner_id, userEmail, appUrl, banner.click_url);
       }
     }
 
@@ -200,6 +210,53 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+/**
+ * Wraps banner HTML content with tracking links
+ */
+function wrapBannerWithTracking(
+  bannerHtml: string,
+  bannerId: string,
+  userEmail: string,
+  appUrl: string,
+  clickUrl: string
+): string {
+  const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
+  const trackingUrl = `${appUrl}/functions/v1/track-banner-click`;
+  
+  // Add tracking pixel for view tracking (1x1 transparent image)
+  const viewTrackingPixel = `<img src="${appUrl}/functions/v1/track-banner-view/${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
+  
+  // Wrap any clickable elements with tracking
+  let wrappedHtml = bannerHtml;
+  
+  // Wrap images that aren't already in links
+  wrappedHtml = wrappedHtml.replace(
+    /<img(?![^>]*data-tracked)([^>]*)>/gi,
+    (match) => {
+      const beforeImg = bannerHtml.substring(0, bannerHtml.indexOf(match));
+      const openATagsCount = (beforeImg.match(/<a[^>]*>/gi) || []).length;
+      const closeATagsCount = (beforeImg.match(/<\/a>/gi) || []).length;
+      
+      if (openATagsCount > closeATagsCount) {
+        return match;
+      }
+      
+      return `<a href="${clickUrl}" style="text-decoration:none;display:inline-block;">${match}</a>`;
+    }
+  );
+  
+  // Update existing links to go directly to the click URL (tracking happens on view)
+  wrappedHtml = wrappedHtml.replace(
+    /<a\s+([^>]*href=["'][^"']*["'][^>]*)>/gi,
+    `<a href="${clickUrl}">`
+  );
+  
+  // Add view tracking pixel at the end
+  wrappedHtml = `${wrappedHtml}${viewTrackingPixel}`;
+  
+  return wrappedHtml;
+}
 
 async function deployToExchange(accessToken: string, combinedHtml: string, userEmail: string) {
   try {

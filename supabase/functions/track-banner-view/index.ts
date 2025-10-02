@@ -33,10 +33,9 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get client IP address
-    const clientIP = req.headers.get('x-forwarded-for') || 
-                    req.headers.get('x-real-ip') || 
-                    'unknown';
+    // Get client IP address (take only the first IP if multiple are present)
+    const forwardedFor = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip');
+    const clientIP = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
 
     console.log(`Tracking view for banner ${banner_id} from ${user_email || 'unknown user'}`);
 
