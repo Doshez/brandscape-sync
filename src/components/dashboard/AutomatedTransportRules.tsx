@@ -594,8 +594,9 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
-          // Extract text from first user's name for exception check
+          // Extract text from first user's name and email for exception check
           const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
+          const exceptionEmail = group.users[0].email;
           
           script += `# Shared signature rule for ${userCount} user(s)
 New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
@@ -603,22 +604,23 @@ New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfBodyContainsText "${exceptionText}" \`
+    -ExceptIfBodyContainsText "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true
 
-Write-Host "  ✓ Signature rule created for ${userCount} user(s) with duplication prevention" -ForegroundColor Green
+Write-Host "  ✓ Signature rule created for ${userCount} user(s) with duplication prevention (text + email)" -ForegroundColor Green
 Write-Host ""
 
 `;
-        } 
+        }
         // BANNER ONLY MODE
         else if (scriptType === "banner" && group.bannerHtml) {
           let finalBannerHtml = group.bannerHtml;
           
-          // Extract banner identifier for exception check (look for unique text)
+          // Extract banner identifier and email for exception check (look for unique text)
           const bannerText = group.bannerHtml.replace(/<[^>]*>/g, '').trim().substring(0, 50);
           const bannerException = bannerText || "BannerContent";
+          const exceptionEmail = group.users[0].email;
           
           // For banner-only mode with tracking, we'll use a generic tracking approach
           if (group.bannerClickUrl && group.bannerId) {
@@ -645,12 +647,12 @@ New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfBodyContainsText "${bannerException}" \`
+    -ExceptIfBodyContainsText "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority}
 
-Write-Host "  ✓ Banner rule created for ${userCount} user(s) with duplication prevention (Priority: ${bannerPriority})" -ForegroundColor Green
+Write-Host "  ✓ Banner rule created for ${userCount} user(s) with duplication prevention (text + email, Priority: ${bannerPriority})" -ForegroundColor Green
 Write-Host ""
 
 `;
@@ -658,10 +660,11 @@ Write-Host ""
         // BOTH MODE - TWO COMPLETELY SEPARATE RULES (No overlap, no duplicates)
         else if (scriptType === "both") {
           if (group.bannerHtml) {
-            // Extract unique text for exception checks
+            // Extract unique text and email for exception checks
             const bannerText = group.bannerHtml.replace(/<[^>]*>/g, '').trim().substring(0, 50);
             const bannerException = bannerText || "BannerContent";
             const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
+            const exceptionEmail = group.users[0].email;
             
             // Process banner with tracking
             let finalBannerHtml = group.bannerHtml;
@@ -713,13 +716,13 @@ New-TransportRule -Name "BANNER_${groupId}_Top" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfBodyContainsText "${bannerException}" \`
+    -ExceptIfBodyContainsText "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
     -Comments "Banner for ${userCount} user(s) - Prepend ABOVE body"
 
-Write-Host "  ✓ BANNER rule created with duplication prevention - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
+Write-Host "  ✓ BANNER rule created with duplication prevention (text + email) - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
@@ -738,13 +741,13 @@ New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfBodyContainsText "${exceptionText}" \`
+    -ExceptIfBodyContainsText "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
     -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
-Write-Host "  ✓ SIGNATURE rule created with duplication prevention - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
+Write-Host "  ✓ SIGNATURE rule created with duplication prevention (text + email) - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
 Write-Host ""
 Write-Host "Result: Banner ABOVE body, Signature BELOW body - NO DUPLICATES" -ForegroundColor Green
 Write-Host ""
@@ -755,6 +758,7 @@ Write-Host ""
             const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
             const escapedSignature = wrappedSignature.replace(/'/g, "''");
             const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
+            const exceptionEmail = group.users[0].email;
             
             script += `# Signature-only rule for ${userCount} user(s) - Appends BELOW email body
 
@@ -771,13 +775,13 @@ New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfBodyContainsText "${exceptionText}" \`
+    -ExceptIfBodyContainsText "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority 5 \`
     -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
-Write-Host "  ✓ SIGNATURE rule created with duplication prevention (BELOW body)" -ForegroundColor Green
+Write-Host "  ✓ SIGNATURE rule created with duplication prevention (text + email, BELOW body)" -ForegroundColor Green
 Write-Host ""
 
 `;
