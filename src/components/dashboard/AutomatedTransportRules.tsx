@@ -197,19 +197,9 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
       const scriptTypeLabel = scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only";
       const uniqueId = Date.now().toString().slice(-6); // Last 6 digits of timestamp for uniqueness
       
-      // Determine which rules to remove based on script type
-      let ruleFilter = "";
-      let cleanupDescription = "";
-      if (scriptType === "signature") {
-        ruleFilter = "EmailSignature_*_Signature";
-        cleanupDescription = "Signature rules only";
-      } else if (scriptType === "banner") {
-        ruleFilter = "EmailSignature_*_Banner";
-        cleanupDescription = "Banner rules only";
-      } else {
-        ruleFilter = "EmailSignature_*";
-        cleanupDescription = "ALL Signature and Banner rules";
-      }
+      // ALWAYS remove ALL old rules to prevent duplicates
+      const ruleFilter = "EmailSignature_*";
+      const cleanupDescription = "ALL Signature and Banner rules (to prevent duplicates)";
       
       let script = `# Exchange Online Transport Rules - Auto-generated (${scriptTypeLabel})
 # Generated: ${new Date().toISOString()}
