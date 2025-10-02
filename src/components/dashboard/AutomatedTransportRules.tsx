@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle } from "lucide-react";
+import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle, Plus, Trash2, Mail, Image, FileText } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface UserAssignment {
   userId: string;
@@ -31,13 +33,180 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [generating, setGenerating] = useState(false);
   const [powershellScript, setPowershellScript] = useState<string>("");
   const [scriptType, setScriptType] = useState<"both" | "signature" | "banner">("both");
+  
+  // User assignment states
+  const [users, setUsers] = useState<any[]>([]);
+  const [signatures, setSignatures] = useState<any[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState("");
+  const [selectedSignature, setSelectedSignature] = useState("");
+  const [selectedBanner, setSelectedBanner] = useState("");
+  
   const { toast } = useToast();
 
   useEffect(() => {
     if (profile?.is_admin) {
-      fetchAssignments();
+      fetchAllData();
     }
   }, [profile]);
+
+  const fetchAllData = async () => {
+    await Promise.all([
+      fetchAssignments(),
+      fetchUsers(),
+      fetchSignatures(),
+      fetchBanners()
+    ]);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("first_name");
+
+      if (error) throw error;
+      
+      const uniqueUsers = (data || []).filter((user, index, self) => 
+        user.email && 
+        index === self.findIndex(u => u.email === user.email)
+      );
+      
+      setUsers(uniqueUsers);
+    } catch (error: any) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  const fetchSignatures = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("email_signatures")
+        .select("*")
+        .eq("is_active", true)
+        .order("template_name");
+
+      if (error) throw error;
+      setSignatures(data || []);
+    } catch (error: any) {
+      console.error("Error fetching signatures:", error);
+    }
+  };
+
+  const fetchBanners = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("banners")
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) throw error;
+      setBanners(data || []);
+    } catch (error: any) {
+      console.error("Error fetching banners:", error);
+    }
+  };
+
+  const handleCreateAssignment = async () => {
+    if (!selectedUser || !selectedSignature) {
+      toast({
+        title: "Missing Information",
+        description: "Please select both a user and signature",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const selectedUserProfile = users.find(user => user.id === selectedUser);
+      if (!selectedUserProfile) {
+        toast({
+          title: "Error",
+          description: "Selected user not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const userIdForAssignment = selectedUserProfile.user_id || selectedUserProfile.id;
+
+      // Deactivate existing assignments
+      await supabase
+        .from("user_email_assignments")
+        .update({ is_active: false })
+        .eq("user_id", userIdForAssignment);
+
+      // Create new assignment
+      const { data: assignment, error: assignmentError } = await supabase
+        .from("user_email_assignments")
+        .insert({
+          user_id: userIdForAssignment,
+          signature_id: selectedSignature,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (assignmentError) throw assignmentError;
+
+      // Add banner if selected
+      if (selectedBanner && selectedBanner !== "none") {
+        const { error: bannerError } = await supabase
+          .from("user_banner_assignments")
+          .insert({
+            user_assignment_id: assignment.id,
+            banner_id: selectedBanner,
+            display_order: 1
+          });
+
+        if (bannerError) throw bannerError;
+      }
+
+      toast({
+        title: "Success",
+        description: "User assignment created successfully",
+      });
+
+      setSelectedUser("");
+      setSelectedSignature("");
+      setSelectedBanner("");
+      fetchAllData();
+    } catch (error: any) {
+      console.error("Error creating assignment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create user assignment",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveAssignment = async (assignmentId: string) => {
+    try {
+      const { error } = await supabase
+        .from("user_email_assignments")
+        .update({ is_active: false })
+        .eq("id", assignmentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "User assignment removed successfully",
+      });
+
+      fetchAllData();
+    } catch (error: any) {
+      console.error("Error removing assignment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove user assignment",
+        variant: "destructive",
+      });
+    }
+  };
 
   const fetchAssignments = async () => {
     setLoading(true);
@@ -686,10 +855,10 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         <div>
           <h2 className="text-2xl font-bold">Deploy to Exchange Online</h2>
           <p className="text-muted-foreground">
-            The unified solution to deploy email signatures and banners to Microsoft Exchange
+            Manage user assignments and deploy signatures & banners to Microsoft Exchange
           </p>
         </div>
-        <Button onClick={fetchAssignments} disabled={loading}>
+        <Button onClick={fetchAllData} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
@@ -705,6 +874,154 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
           <strong>Important:</strong> This is the ONLY way to deploy to Exchange - all other deployment methods have been removed to prevent duplicate rules.
         </AlertDescription>
       </Alert>
+
+      <Tabs defaultValue="assignments" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="assignments">User Assignments</TabsTrigger>
+          <TabsTrigger value="deployment">Deployment Scripts</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="assignments" className="space-y-6 mt-6">
+          {/* Create Assignment Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="h-5 w-5" />
+                Assign Banner & Signature to User
+              </CardTitle>
+              <CardDescription>
+                Select a user and assign them an email signature and optional banner
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Select User</Label>
+                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.first_name} {user.last_name} ({user.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Select Signature *</Label>
+                  <Select value={selectedSignature} onValueChange={setSelectedSignature}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a signature" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {signatures.map((signature) => (
+                        <SelectItem key={signature.id} value={signature.id}>
+                          {signature.template_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Select Banner (Optional)</Label>
+                  <Select value={selectedBanner} onValueChange={setSelectedBanner}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a banner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No banner</SelectItem>
+                      {banners.map((banner) => (
+                        <SelectItem key={banner.id} value={banner.id}>
+                          {banner.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button onClick={handleCreateAssignment} className="w-full">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Assignment
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Current Assignments List */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Current Assignments</CardTitle>
+              <CardDescription>
+                Users with assigned signatures and banners (ready for deployment)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading assignments...</div>
+              ) : assignments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No assignments found. Create assignments above to get started.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {assignments.map((assignment) => (
+                    <div key={assignment.userId} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-primary" />
+                            <span className="font-medium">{assignment.userName}</span>
+                            <Badge variant="outline">{assignment.userEmail}</Badge>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span>Signature assigned</span>
+                          </div>
+
+                          {assignment.bannerHtml && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Image className="h-4 w-4 text-muted-foreground" />
+                              <span>Banner assigned</span>
+                              {assignment.bannerClickUrl && (
+                                <Badge variant="secondary" className="text-xs">Clickable</Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            const { data } = await supabase
+                              .from("user_email_assignments")
+                              .select("id")
+                              .eq("user_id", assignment.userId)
+                              .eq("is_active", true)
+                              .single();
+                            if (data) {
+                              handleRemoveAssignment(data.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="deployment" className="space-y-6 mt-6">
 
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
@@ -863,21 +1180,23 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         </Card>
       )}
 
-      <Alert className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-900">
-        <AlertDescription className="text-sm">
-          <strong>Important:</strong> You need to regenerate and run this script whenever:
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>A signature is updated</li>
-            <li>A banner is updated</li>
-            <li>User assignments change</li>
-            <li>New users are added</li>
-          </ul>
-          <p className="mt-3">
-            <strong>Formatting:</strong> Banners and signatures include proper HTML styling (spacing, borders) 
-            to match the test email appearance. Banner links remain clickable. Rules apply to both internal and external recipients.
-          </p>
-        </AlertDescription>
-      </Alert>
+          <Alert className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-900">
+            <AlertDescription className="text-sm">
+              <strong>Important:</strong> You need to regenerate and run this script whenever:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>A signature is updated</li>
+                <li>A banner is updated</li>
+                <li>User assignments change</li>
+                <li>New users are added</li>
+              </ul>
+              <p className="mt-3">
+                <strong>Formatting:</strong> Banners and signatures include proper HTML styling (spacing, borders) 
+                to match the test email appearance. Banner links remain clickable. Rules apply to both internal and external recipients.
+              </p>
+            </AlertDescription>
+          </Alert>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
