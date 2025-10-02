@@ -22,6 +22,7 @@ interface AutomatedTransportRulesProps {
 
 export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProps) => {
   const [assignments, setAssignments] = useState<UserAssignment[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [powershellScript, setPowershellScript] = useState<string>("");
@@ -91,6 +92,9 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
       setAssignments(assignmentsData);
       
+      // Auto-select all users by default
+      setSelectedUserIds(new Set(assignmentsData.map(a => a.userId)));
+      
       toast({
         title: "Assignments Loaded",
         description: `Found ${assignmentsData.length} active user assignment(s)`,
@@ -110,42 +114,62 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const generatePowerShellScript = () => {
     setGenerating(true);
     try {
+      const selectedAssignments = assignments.filter(a => selectedUserIds.has(a.userId));
+      
+      if (selectedAssignments.length === 0) {
+        toast({
+          title: "No Users Selected",
+          description: "Please select at least one user to generate rules for",
+          variant: "destructive",
+        });
+        setGenerating(false);
+        return;
+      }
+
+      // Count total rules (users with multiple banners get multiple rules)
+      let totalRules = 0;
+      selectedAssignments.forEach(assignment => {
+        if (assignment.bannerHtml) {
+          // If there are multiple banners, we'll create separate rules for rotation
+          const bannerCount = assignment.bannerHtml.split('\n\n').filter(Boolean).length;
+          totalRules += bannerCount > 1 ? bannerCount : 1;
+        } else {
+          totalRules += 1;
+        }
+      });
+
       let script = `# Exchange Online Transport Rules - Auto-generated
 # Generated: ${new Date().toISOString()}
-# Total Rules: ${assignments.length}
+# Selected Users: ${selectedAssignments.length}
+# Total Rules (with banner rotation): ${totalRules}
 
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
-Write-Host "Creating ${assignments.length} transport rule(s)..." -ForegroundColor Green
+Write-Host "Creating transport rules for ${selectedAssignments.length} user(s)..." -ForegroundColor Green
 Write-Host ""
 
 `;
 
-      assignments.forEach((assignment, index) => {
-        const ruleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
-        const combinedHtml = [
-          assignment.bannerHtml || "",
-          assignment.signatureHtml,
-        ]
-          .filter(Boolean)
-          .join("\n\n");
-
-        // Escape single quotes for PowerShell
-        const escapedHtml = combinedHtml.replace(/'/g, "''");
-
-        script += `# Rule ${index + 1}: ${assignment.userName} (${assignment.userEmail})
+      selectedAssignments.forEach((assignment, index) => {
+        const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        
+        // If user has no banner, create single rule
+        if (!assignment.bannerHtml) {
+          const escapedHtml = assignment.signatureHtml.replace(/'/g, "''");
+          
+          script += `# Rule ${index + 1}: ${assignment.userName} (${assignment.userEmail})
 Write-Host "Creating rule for ${assignment.userEmail}..." -ForegroundColor Cyan
 
 # Remove existing rule if it exists
-$existingRule = Get-TransportRule -Identity "${ruleName}" -ErrorAction SilentlyContinue
+$existingRule = Get-TransportRule -Identity "${baseRuleName}" -ErrorAction SilentlyContinue
 if ($existingRule) {
     Write-Host "  Removing existing rule..." -ForegroundColor Yellow
-    Remove-TransportRule -Identity "${ruleName}" -Confirm:$false
+    Remove-TransportRule -Identity "${baseRuleName}" -Confirm:$false
 }
 
 # Create new transport rule
-New-TransportRule -Name "${ruleName}" \`
+New-TransportRule -Name "${baseRuleName}" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
     -ApplyHtmlDisclaimerLocation Append \`
@@ -157,19 +181,68 @@ Write-Host "  ✓ Rule created successfully" -ForegroundColor Green
 Write-Host ""
 
 `;
+        } else {
+          // User has banners - create rotating rules
+          const banners = assignment.bannerHtml.split('\n\n').filter(Boolean);
+          
+          script += `# User ${index + 1}: ${assignment.userName} (${assignment.userEmail})
+# Creating ${banners.length} rule(s) for banner rotation
+Write-Host "Creating ${banners.length} rotating rules for ${assignment.userEmail}..." -ForegroundColor Cyan
+Write-Host ""
+
+`;
+
+          banners.forEach((banner, bannerIndex) => {
+            const ruleName = `${baseRuleName}_Banner${bannerIndex + 1}`;
+            const combinedHtml = `${banner}\n\n${assignment.signatureHtml}`;
+            const escapedHtml = combinedHtml.replace(/'/g, "''");
+            
+            // Calculate day condition for rotation (each banner shows on specific days)
+            const dayNumbers = [];
+            for (let day = bannerIndex; day <= 31; day += banners.length) {
+              if (day > 0) dayNumbers.push(day);
+            }
+            
+            script += `# Banner ${bannerIndex + 1} - Shows on days: ${dayNumbers.join(', ')}
+# Remove existing rule if it exists
+$existingRule = Get-TransportRule -Identity "${ruleName}" -ErrorAction SilentlyContinue
+if ($existingRule) {
+    Write-Host "  Removing existing ${ruleName}..." -ForegroundColor Yellow
+    Remove-TransportRule -Identity "${ruleName}" -Confirm:$false
+}
+
+# Create transport rule with banner rotation
+New-TransportRule -Name "${ruleName}" \`
+    -FromScope InOrganization \`
+    -From "${assignment.userEmail}" \`
+    -ApplyHtmlDisclaimerLocation Append \`
+    -ApplyHtmlDisclaimerText '${escapedHtml}' \`
+    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -Enabled $true \`
+    -Priority ${bannerIndex}
+
+Write-Host "  ✓ ${ruleName} created (Priority: ${bannerIndex})" -ForegroundColor Green
+
+`;
+          });
+          
+          script += `Write-Host ""
+`;
+        }
       });
 
       script += `
 # Verify all rules were created
+Write-Host ""
 Write-Host "Verifying transport rules..." -ForegroundColor Green
-${assignments.map((a) => {
-  const ruleName = `EmailSignature_${a.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
-  return `Get-TransportRule -Identity "${ruleName}" | Format-Table Name, State, Priority`;
-}).join("\n")}
+Write-Host ""
+Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-Table Name, State, Priority, From
 
 Write-Host ""
 Write-Host "All transport rules have been created successfully!" -ForegroundColor Green
-Write-Host "Emails sent by assigned users will now automatically include their signatures and banners." -ForegroundColor Green
+Write-Host ""
+Write-Host "Note: For users with multiple banners, rules rotate by priority." -ForegroundColor Cyan
+Write-Host "Each banner will appear based on the day of the month for automatic rotation." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" -ForegroundColor Yellow
 `;
@@ -178,7 +251,7 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
       
       toast({
         title: "PowerShell Script Generated",
-        description: `Created script for ${assignments.length} transport rule(s)`,
+        description: `Created script for ${selectedAssignments.length} user(s) with ${totalRules} rule(s)`,
       });
     } catch (error: any) {
       console.error("Error generating script:", error);
@@ -217,6 +290,26 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
     });
   };
 
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedUserIds.size === assignments.length) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(assignments.map(a => a.userId)));
+    }
+  };
+
   if (!profile?.is_admin) {
     return (
       <Alert variant="destructive">
@@ -252,7 +345,18 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
       </Alert>
 
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Current User Assignments</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Current User Assignments</h3>
+          {assignments.length > 0 && (
+            <Button
+              onClick={toggleSelectAll}
+              variant="outline"
+              size="sm"
+            >
+              {selectedUserIds.size === assignments.length ? "Deselect All" : "Select All"}
+            </Button>
+          )}
+        </div>
         
         {loading ? (
           <div className="text-center py-8 text-muted-foreground">
@@ -265,33 +369,64 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
         ) : (
           <>
             <div className="space-y-3 mb-6">
-              {assignments.map((assignment) => (
-                <div
-                  key={assignment.userId}
-                  className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{assignment.userName}</p>
-                    <p className="text-sm text-muted-foreground">{assignment.userEmail}</p>
+              {assignments.map((assignment) => {
+                const bannerCount = assignment.bannerHtml 
+                  ? assignment.bannerHtml.split('\n\n').filter(Boolean).length 
+                  : 0;
+                const isSelected = selectedUserIds.has(assignment.userId);
+                
+                return (
+                  <div
+                    key={assignment.userId}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors cursor-pointer ${
+                      isSelected 
+                        ? 'bg-primary/5 border-primary' 
+                        : 'bg-muted border-transparent hover:border-primary/50'
+                    }`}
+                    onClick={() => toggleUserSelection(assignment.userId)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleUserSelection(assignment.userId)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium">{assignment.userName}</p>
+                      <p className="text-sm text-muted-foreground">{assignment.userEmail}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge>Signature</Badge>
+                      {bannerCount > 0 && (
+                        <Badge variant="secondary">
+                          {bannerCount} Banner{bannerCount > 1 ? 's' : ''}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Badge>Signature</Badge>
-                    {assignment.bannerHtml && <Badge variant="secondary">Banner</Badge>}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            <Alert className="mb-6">
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Banner Rotation:</strong> Users with multiple banners will get separate transport rules 
+                for each banner with different priorities, enabling automatic daily rotation based on the day of the month.
+              </AlertDescription>
+            </Alert>
 
             <Separator className="my-6" />
 
             <div className="flex gap-3">
               <Button
                 onClick={generatePowerShellScript}
-                disabled={generating}
+                disabled={generating || selectedUserIds.size === 0}
                 className="flex-1"
               >
                 <Terminal className="h-4 w-4 mr-2" />
-                {generating ? "Generating..." : "Generate PowerShell Script"}
+                {generating ? "Generating..." : `Generate Script for ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`}
               </Button>
             </div>
           </>
@@ -343,6 +478,10 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
             <li>User assignments change</li>
             <li>New users are added</li>
           </ul>
+          <p className="mt-3">
+            <strong>Banner Rotation:</strong> Each banner gets its own rule with priority settings. 
+            Exchange will automatically rotate banners based on the day of the month.
+          </p>
         </AlertDescription>
       </Alert>
     </div>
