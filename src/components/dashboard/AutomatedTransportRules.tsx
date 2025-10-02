@@ -154,79 +154,87 @@ Write-Host ""
       selectedAssignments.forEach((assignment, index) => {
         const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
         
-        // If user has no banner, create single rule
-        if (!assignment.bannerHtml) {
-          const escapedHtml = assignment.signatureHtml.replace(/'/g, "''");
-          
-          script += `# Rule ${index + 1}: ${assignment.userName} (${assignment.userEmail})
-Write-Host "Creating rule for ${assignment.userEmail}..." -ForegroundColor Cyan
+        // Remove any existing rules for this user first (including old banner rules)
+        script += `# User ${index + 1}: ${assignment.userName} (${assignment.userEmail})
+Write-Host "Processing rules for ${assignment.userEmail}..." -ForegroundColor Cyan
 
-# Remove existing rule if it exists
-$existingRule = Get-TransportRule -Identity "${baseRuleName}" -ErrorAction SilentlyContinue
-if ($existingRule) {
-    Write-Host "  Removing existing rule..." -ForegroundColor Yellow
-    Remove-TransportRule -Identity "${baseRuleName}" -Confirm:$false
+# Remove all existing rules for this user
+$existingRules = Get-TransportRule | Where-Object { $_.Name -like "${baseRuleName}*" }
+if ($existingRules) {
+    Write-Host "  Removing existing rules..." -ForegroundColor Yellow
+    $existingRules | ForEach-Object { Remove-TransportRule -Identity $_.Name -Confirm:$false }
 }
 
-# Create new transport rule
+`;
+        
+        // If user has no banner, create single rule with signature only
+        if (!assignment.bannerHtml) {
+          const escapedSignature = assignment.signatureHtml.replace(/'/g, "''");
+          
+          script += `# Create signature rule (no banner)
 New-TransportRule -Name "${baseRuleName}" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
     -ApplyHtmlDisclaimerLocation Append \`
-    -ApplyHtmlDisclaimerText '${escapedHtml}' \`
+    -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true
 
-Write-Host "  ✓ Rule created successfully" -ForegroundColor Green
+Write-Host "  ✓ Signature rule created" -ForegroundColor Green
 Write-Host ""
 
 `;
         } else {
-          // User has banners - create rotating rules
+          // User has banners - create one banner rule (prepend) and one signature rule (append)
           const banners = assignment.bannerHtml.split('\n\n').filter(Boolean);
+          const escapedSignature = assignment.signatureHtml.replace(/'/g, "''");
           
-          script += `# User ${index + 1}: ${assignment.userName} (${assignment.userEmail})
-# Creating ${banners.length} rule(s) for banner rotation
-Write-Host "Creating ${banners.length} rotating rules for ${assignment.userEmail}..." -ForegroundColor Cyan
-Write-Host ""
-
+          script += `# Creating ${banners.length} banner rule(s) + 1 signature rule
 `;
 
+          // Create banner rotation rules (prepend to top of email)
           banners.forEach((banner, bannerIndex) => {
-            const ruleName = `${baseRuleName}_Banner${bannerIndex + 1}`;
-            const combinedHtml = `${banner}\n\n${assignment.signatureHtml}`;
-            const escapedHtml = combinedHtml.replace(/'/g, "''");
+            const bannerRuleName = `${baseRuleName}_Banner${bannerIndex + 1}`;
+            const escapedBanner = banner.replace(/'/g, "''");
             
-            // Calculate day condition for rotation (each banner shows on specific days)
+            // Calculate day condition for rotation
             const dayNumbers = [];
-            for (let day = bannerIndex; day <= 31; day += banners.length) {
-              if (day > 0) dayNumbers.push(day);
+            for (let day = bannerIndex + 1; day <= 31; day += banners.length) {
+              dayNumbers.push(day);
             }
+            const dayCondition = dayNumbers.join(',');
             
-            script += `# Banner ${bannerIndex + 1} - Shows on days: ${dayNumbers.join(', ')}
-# Remove existing rule if it exists
-$existingRule = Get-TransportRule -Identity "${ruleName}" -ErrorAction SilentlyContinue
-if ($existingRule) {
-    Write-Host "  Removing existing ${ruleName}..." -ForegroundColor Yellow
-    Remove-TransportRule -Identity "${ruleName}" -Confirm:$false
-}
-
-# Create transport rule with banner rotation
-New-TransportRule -Name "${ruleName}" \`
+            script += `
+# Banner ${bannerIndex + 1} - Shows on days: ${dayNumbers.join(', ')}
+New-TransportRule -Name "${bannerRuleName}" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
-    -ApplyHtmlDisclaimerLocation Append \`
-    -ApplyHtmlDisclaimerText '${escapedHtml}' \`
+    -SentToScope NotInOrganization \`
+    -ApplyHtmlDisclaimerLocation Prepend \`
+    -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${bannerIndex}
+    -Priority ${index * 10 + bannerIndex}
 
-Write-Host "  ✓ ${ruleName} created (Priority: ${bannerIndex})" -ForegroundColor Green
-
+Write-Host "  ✓ Banner ${bannerIndex + 1} rule created (Priority: ${index * 10 + bannerIndex})" -ForegroundColor Green
 `;
           });
           
-          script += `Write-Host ""
+          // Create signature rule (append to bottom)
+          script += `
+# Create signature rule (appends at bottom)
+New-TransportRule -Name "${baseRuleName}_Signature" \`
+    -FromScope InOrganization \`
+    -From "${assignment.userEmail}" \`
+    -ApplyHtmlDisclaimerLocation Append \`
+    -ApplyHtmlDisclaimerText '${escapedSignature}' \`
+    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -Enabled $true \`
+    -Priority ${index * 10 + 100}
+
+Write-Host "  ✓ Signature rule created" -ForegroundColor Green
+Write-Host ""
+
 `;
         }
       });
@@ -412,8 +420,9 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
             <Alert className="mb-6">
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Banner Rotation:</strong> Users with multiple banners will get separate transport rules 
-                for each banner with different priorities, enabling automatic daily rotation based on the day of the month.
+                <strong>How it works:</strong> Banners are added at the <strong>top</strong> of emails (prepended), 
+                signatures at the <strong>bottom</strong> (appended). Multiple banners rotate daily by priority. 
+                Each user gets separate rules to prevent duplicates.
               </AlertDescription>
             </Alert>
 
@@ -479,8 +488,8 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
             <li>New users are added</li>
           </ul>
           <p className="mt-3">
-            <strong>Banner Rotation:</strong> Each banner gets its own rule with priority settings. 
-            Exchange will automatically rotate banners based on the day of the month.
+            <strong>How banners work:</strong> Banners are placed at the TOP of emails using "Prepend" rules, 
+            signatures at the BOTTOM using "Append" rules. This prevents duplicates and ensures proper positioning.
           </p>
         </AlertDescription>
       </Alert>
