@@ -195,11 +195,13 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
       });
 
       const scriptTypeLabel = scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only";
+      const uniqueId = Date.now().toString().slice(-6); // Last 6 digits of timestamp for uniqueness
       
       let script = `# Exchange Online Transport Rules - Auto-generated (${scriptTypeLabel})
 # Generated: ${new Date().toISOString()}
 # Selected Users: ${selectedAssignments.length}
 # Total Rules: ${totalRules}
+# Unique ID: ${uniqueId}
 
 # Connect to Exchange Online
 Connect-ExchangeOnline
@@ -210,46 +212,63 @@ Write-Host "Current EmailSignature rules in Exchange:" -ForegroundColor Yellow
 Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-Table Name, State, Priority, From -AutoSize
 Write-Host ""
 
-Write-Host "=== STEP 2: Removing ALL Old EmailSignature Rules ===" -ForegroundColor Cyan
+Write-Host "=== STEP 2: Aggressive Cleanup of ALL Old Rules ===" -ForegroundColor Cyan
 Write-Host ""
 
-# CRITICAL: Remove ALL EmailSignature rules to prevent duplicates
-Write-Host "Removing ALL existing EmailSignature rules..." -ForegroundColor Yellow
-$allOldRules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
-if ($allOldRules) {
-    Write-Host "Found $($allOldRules.Count) existing EmailSignature rule(s)" -ForegroundColor Yellow
-    $allOldRules | ForEach-Object { 
+# CRITICAL: Multiple passes to ensure all old rules are removed
+Write-Host "Pass 1: Initial removal of ALL EmailSignature rules..." -ForegroundColor Yellow
+$pass1Rules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+if ($pass1Rules) {
+    Write-Host "Found $($pass1Rules.Count) rule(s) in Pass 1" -ForegroundColor Yellow
+    $pass1Rules | ForEach-Object { 
         Write-Host "  Removing: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false 
-    }
-    Write-Host "Waiting for Exchange to process deletions..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 5
-    Write-Host "All old rules removed" -ForegroundColor Green
-} else {
-    Write-Host "No existing EmailSignature rules found" -ForegroundColor Gray
-}
-Write-Host ""
-
-# Verify all old rules are gone
-Write-Host "Verifying removal..." -ForegroundColor Cyan
-$remainingRules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
-if ($remainingRules) {
-    Write-Host "WARNING: $($remainingRules.Count) rule(s) still present. Forcing removal..." -ForegroundColor Red
-    $remainingRules | ForEach-Object { 
         Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
     }
-    Start-Sleep -Seconds 3
+    Write-Host "Waiting 10 seconds for Exchange to process..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 10
+} else {
+    Write-Host "No rules found in Pass 1" -ForegroundColor Gray
 }
-Write-Host "Verification complete - ready to create new rules" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "Pass 2: Verification and cleanup..." -ForegroundColor Yellow
+$pass2Rules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+if ($pass2Rules) {
+    Write-Host "WARNING: $($pass2Rules.Count) rule(s) still exist! Forcing removal..." -ForegroundColor Red
+    $pass2Rules | ForEach-Object { 
+        Write-Host "  Force removing: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 10
+} else {
+    Write-Host "Pass 2: All clean" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Pass 3: Final verification..." -ForegroundColor Yellow
+$pass3Rules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+if ($pass3Rules) {
+    Write-Host "CRITICAL WARNING: $($pass3Rules.Count) rule(s) STILL present!" -ForegroundColor Red
+    Write-Host "Manual intervention may be required. Rules:" -ForegroundColor Red
+    $pass3Rules | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Red }
+    Write-Host ""
+    $continue = Read-Host "Continue anyway? (yes/no)"
+    if ($continue -ne "yes") {
+        Write-Host "Aborted. Please manually remove rules and try again." -ForegroundColor Red
+        exit
+    }
+} else {
+    Write-Host "Pass 3: Confirmed clean - ready to proceed" -ForegroundColor Green
+}
 Write-Host ""
 
-Write-Host "=== STEP 3: Creating New Rules ===" -ForegroundColor Cyan
+Write-Host "=== STEP 3: Creating New Rules (ID: ${uniqueId}) ===" -ForegroundColor Cyan
 Write-Host ""
 
 `;
 
       selectedAssignments.forEach((assignment, index) => {
-        const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}_${uniqueId}`;
         
         // Skip users without banners if generating banner-only script
         if (scriptType === "banner" && !assignment.bannerHtml) {
