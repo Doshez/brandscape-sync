@@ -71,16 +71,23 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           .from("user_banner_assignments")
           .select(`
             banners (
-              html_content
+              html_content,
+              click_url
             )
           `)
           .eq("user_assignment_id", assignment.id)
           .order("display_order", { ascending: true })
           .limit(1);
 
-        const bannerHtml = bannerAssignments?.[0]?.banners?.html_content || undefined;
+        let bannerHtml = bannerAssignments?.[0]?.banners?.html_content || undefined;
+        const clickUrl = bannerAssignments?.[0]?.banners?.click_url;
 
-        console.log(`User ${profile.email}: Has ${bannerAssignments?.length || 0} banner(s), using: ${bannerHtml ? 'Yes' : 'No'}`);
+        // Wrap banner with clickable link if click_url exists
+        if (bannerHtml && clickUrl) {
+          bannerHtml = `<a href="${clickUrl}" target="_blank" style="display: block; text-decoration: none;">${bannerHtml}</a>`;
+        }
+
+        console.log(`User ${profile.email}: Has ${bannerAssignments?.length || 0} banner(s), using: ${bannerHtml ? 'Yes' : 'No'}, clickable: ${clickUrl ? 'Yes' : 'No'}`);
 
         assignmentsData.push({
           userId: assignment.user_id,
