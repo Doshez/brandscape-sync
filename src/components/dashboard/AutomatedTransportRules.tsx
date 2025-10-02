@@ -16,8 +16,6 @@ interface UserAssignment {
   userName: string;
   signatureHtml: string;
   bannerHtml?: string;
-  bannerId?: string;
-  bannerClickUrl?: string;
 }
 
 interface AutomatedTransportRulesProps {
@@ -99,9 +97,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
         const { data: bannerAssignments } = await supabase
           .from("user_banner_assignments")
           .select(`
-            banner_id,
             banners (
-              id,
               html_content,
               click_url,
               name
@@ -111,18 +107,15 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           .order("display_order", { ascending: true })
           .limit(1);
 
-        const bannerData = bannerAssignments?.[0]?.banners;
-        const bannerHtml = bannerData?.html_content;
-        const bannerId = bannerData?.id;
-        const clickUrl = bannerData?.click_url;
-        const bannerName = bannerData?.name;
+        let bannerHtml = bannerAssignments?.[0]?.banners?.html_content || undefined;
+        const clickUrl = bannerAssignments?.[0]?.banners?.click_url;
+        const bannerName = bannerAssignments?.[0]?.banners?.name;
 
-        if (bannerHtml) {
-          if (clickUrl) {
-            console.log(`  ✓ Banner: "${bannerName}" with click URL: ${clickUrl}`);
-          } else {
-            console.log(`  ✓ Banner: "${bannerName}" (no click URL)`);
-          }
+        if (bannerHtml && clickUrl) {
+          console.log(`  ✓ Banner: "${bannerName}" with click URL: ${clickUrl}`);
+          bannerHtml = `<a href="${clickUrl}" target="_blank" style="display: block; text-decoration: none;">${bannerHtml}</a>`;
+        } else if (bannerHtml) {
+          console.log(`  ✓ Banner: "${bannerName}" (no click URL)`);
         } else {
           console.log(`  ℹ️ No banner assigned`);
         }
@@ -135,8 +128,6 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
           userName: `${profile.first_name} ${profile.last_name}`.trim(),
           signatureHtml: signature.html_content,
           bannerHtml: bannerHtml || undefined,
-          bannerId: bannerId,
-          bannerClickUrl: clickUrl,
         });
       }
 
@@ -222,25 +213,10 @@ if ($allOldRules) {
         Write-Host "  Removing: $($_.Name)" -ForegroundColor Red
         Remove-TransportRule -Identity $_.Name -Confirm:$false 
     }
-    Write-Host "Waiting for Exchange to process deletions..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 5
     Write-Host "All old rules removed" -ForegroundColor Green
 } else {
     Write-Host "No existing EmailSignature rules found" -ForegroundColor Gray
 }
-Write-Host ""
-
-# Verify all old rules are gone
-Write-Host "Verifying removal..." -ForegroundColor Cyan
-$remainingRules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
-if ($remainingRules) {
-    Write-Host "WARNING: $($remainingRules.Count) rule(s) still present. Forcing removal..." -ForegroundColor Red
-    $remainingRules | ForEach-Object { 
-        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    Start-Sleep -Seconds 3
-}
-Write-Host "Verification complete - ready to create new rules" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "=== STEP 3: Creating New Rules ===" -ForegroundColor Cyan
@@ -283,14 +259,8 @@ Write-Host ""
         } 
         // BANNER ONLY MODE
         else if (scriptType === "banner" && assignment.bannerHtml) {
-          // Wrap banner HTML with tracking URL if click_url exists
-          let finalBannerHtml = assignment.bannerHtml;
-          if (assignment.bannerClickUrl && assignment.bannerId) {
-            const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
-            finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
-          }
-          
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+          // Wrap banner with proper styling to match test email
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${assignment.bannerHtml}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           
           const bannerRuleName = `${baseRuleName}_Banner`;
@@ -314,14 +284,8 @@ Write-Host ""
         // BOTH MODE (signature + banner)
         else if (scriptType === "both" && assignment.bannerHtml) {
           // User has banner - create ONE banner rule and one signature rule
-          // Wrap banner HTML with tracking URL if click_url exists
-          let finalBannerHtml = assignment.bannerHtml;
-          if (assignment.bannerClickUrl && assignment.bannerId) {
-            const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/track/${assignment.bannerId}?email=${encodeURIComponent(assignment.userEmail)}`;
-            finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${assignment.bannerHtml}</a>`;
-          }
-          
-          const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+          // Wrap banner with proper styling to match test email
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${assignment.bannerHtml}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           
           // Wrap signature with proper styling to match test email
