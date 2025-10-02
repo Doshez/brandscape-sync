@@ -169,7 +169,9 @@ if ($existingRules) {
         
         // If user has no banner, create single rule with signature only
         if (!assignment.bannerHtml) {
-          const escapedSignature = assignment.signatureHtml.replace(/'/g, "''");
+          // Wrap signature with proper styling to match test email
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
+          const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
           script += `# Create signature rule (no banner)
 New-TransportRule -Name "${baseRuleName}" \`
@@ -187,7 +189,10 @@ Write-Host ""
         } else {
           // User has banners - create one banner rule (prepend) and one signature rule (append)
           const banners = assignment.bannerHtml.split('\n\n').filter(Boolean);
-          const escapedSignature = assignment.signatureHtml.replace(/'/g, "''");
+          
+          // Wrap signature with proper styling to match test email
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
+          const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
           script += `# Creating ${banners.length} banner rule(s) + 1 signature rule
 `;
@@ -195,7 +200,10 @@ Write-Host ""
           // Create banner rotation rules (prepend to top of email)
           banners.forEach((banner, bannerIndex) => {
             const bannerRuleName = `${baseRuleName}_Banner${bannerIndex + 1}`;
-            const escapedBanner = banner.replace(/'/g, "''");
+            
+            // Wrap banner with proper styling to match test email
+            const wrappedBanner = `<div style="margin-bottom: 20px;">${banner}</div>`;
+            const escapedBanner = wrappedBanner.replace(/'/g, "''");
             
             // Calculate day condition for rotation
             const dayNumbers = [];
@@ -209,7 +217,6 @@ Write-Host ""
 New-TransportRule -Name "${bannerRuleName}" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
-    -SentToScope NotInOrganization \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
@@ -420,9 +427,9 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
             <Alert className="mb-6">
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
-                <strong>How it works:</strong> Banners are added at the <strong>top</strong> of emails (prepended), 
-                signatures at the <strong>bottom</strong> (appended). Multiple banners rotate daily by priority. 
-                Each user gets separate rules to prevent duplicates.
+                <strong>How it works:</strong> Banners appear at the <strong>top</strong> of emails with spacing, 
+                signatures at the <strong>bottom</strong> with a separator line (matching test email format). 
+                Rules apply to both internal and external recipients. Multiple banners rotate daily by priority.
               </AlertDescription>
             </Alert>
 
@@ -488,8 +495,8 @@ Write-Host "To disconnect from Exchange Online, run: Disconnect-ExchangeOnline" 
             <li>New users are added</li>
           </ul>
           <p className="mt-3">
-            <strong>How banners work:</strong> Banners are placed at the TOP of emails using "Prepend" rules, 
-            signatures at the BOTTOM using "Append" rules. This prevents duplicates and ensures proper positioning.
+            <strong>Formatting:</strong> Banners and signatures include proper HTML styling (spacing, borders) 
+            to match the test email appearance. Rules apply to both internal and external recipients.
           </p>
         </AlertDescription>
       </Alert>
