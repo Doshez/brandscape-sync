@@ -201,7 +201,25 @@ Write-Host "Current EmailSignature rules in Exchange:" -ForegroundColor Yellow
 Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-Table Name, State, Priority, From -AutoSize
 Write-Host ""
 
-Write-Host "=== STEP 2: Removing Old Rules ===" -ForegroundColor Cyan
+Write-Host "=== STEP 2: Removing ALL Old EmailSignature Rules ===" -ForegroundColor Cyan
+Write-Host ""
+
+# CRITICAL: Remove ALL EmailSignature rules to prevent duplicates
+Write-Host "Removing ALL existing EmailSignature rules..." -ForegroundColor Yellow
+$allOldRules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+if ($allOldRules) {
+    Write-Host "Found $($allOldRules.Count) existing EmailSignature rule(s)" -ForegroundColor Yellow
+    $allOldRules | ForEach-Object { 
+        Write-Host "  Removing: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false 
+    }
+    Write-Host "All old rules removed" -ForegroundColor Green
+} else {
+    Write-Host "No existing EmailSignature rules found" -ForegroundColor Gray
+}
+Write-Host ""
+
+Write-Host "=== STEP 3: Creating New Rules ===" -ForegroundColor Cyan
 Write-Host ""
 
 `;
@@ -214,21 +232,8 @@ Write-Host ""
           return;
         }
         
-        // Remove any existing rules for this user first (including old banner rules)
         script += `# User ${index + 1}: ${assignment.userName} (${assignment.userEmail})
-Write-Host "Processing ${assignment.userEmail}..." -ForegroundColor White
-
-# Remove ALL existing rules for this user
-$existingRules = Get-TransportRule | Where-Object { $_.Name -like "${baseRuleName}*" }
-if ($existingRules) {
-    Write-Host "  Found $($existingRules.Count) existing rule(s) - removing..." -ForegroundColor Yellow
-    $existingRules | ForEach-Object { 
-        Write-Host "    Removing: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false 
-    }
-} else {
-    Write-Host "  No existing rules found" -ForegroundColor Gray
-}
+Write-Host "Creating rules for ${assignment.userEmail}..." -ForegroundColor White
 
 `;
         
@@ -333,7 +338,7 @@ Write-Host ""
 
       script += `
 Write-Host ""
-Write-Host "=== STEP 3: Verifying Final Rules ===" -ForegroundColor Cyan
+Write-Host "=== STEP 4: Verifying Final Rules ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Current EmailSignature rules after update:" -ForegroundColor Yellow
 Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-Table Name, State, Priority, From -AutoSize
