@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Image, BarChart3, Users, TrendingUp, Clock } from "lucide-react";
+import { FileText, Image, BarChart3, Users, TrendingUp, Clock, Mail, Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmailRoutingPanel } from "./EmailRoutingPanel";
 
 interface DashboardHomeProps {
   profile: any;
@@ -22,6 +24,7 @@ export const DashboardHome = ({ profile }: DashboardHomeProps) => {
     clicksThisMonth: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [isEmailPanelOpen, setIsEmailPanelOpen] = useState(false);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -168,6 +171,30 @@ export const DashboardHome = ({ profile }: DashboardHomeProps) => {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
+            <CardTitle>Email Configuration</CardTitle>
+            <CardDescription>
+              Configure email routing and domain verification
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <Button 
+                onClick={() => setIsEmailPanelOpen(true)}
+                className="w-full justify-start"
+                variant="outline"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Email Routing & Domain Setup
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Set up SMTP settings and verify your domain for email authentication
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
             <CardDescription>
               Latest changes to signatures and banners
@@ -240,6 +267,12 @@ export const DashboardHome = ({ profile }: DashboardHomeProps) => {
           </CardContent>
         </Card>
       </div>
+
+      <EmailRoutingPanel 
+        isOpen={isEmailPanelOpen}
+        onClose={() => setIsEmailPanelOpen(false)}
+        profile={profile}
+      />
     </div>
   );
 };
