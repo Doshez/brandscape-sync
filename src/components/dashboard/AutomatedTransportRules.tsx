@@ -197,6 +197,20 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
       const scriptTypeLabel = scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only";
       const uniqueId = Date.now().toString().slice(-6); // Last 6 digits of timestamp for uniqueness
       
+      // Determine which rules to remove based on script type
+      let ruleFilter = "";
+      let cleanupDescription = "";
+      if (scriptType === "signature") {
+        ruleFilter = "EmailSignature_*_Signature";
+        cleanupDescription = "Signature rules only";
+      } else if (scriptType === "banner") {
+        ruleFilter = "EmailSignature_*_Banner";
+        cleanupDescription = "Banner rules only";
+      } else {
+        ruleFilter = "EmailSignature_*";
+        cleanupDescription = "ALL Signature and Banner rules";
+      }
+      
       let script = `# Exchange Online Transport Rules - Auto-generated (${scriptTypeLabel})
 # Generated: ${new Date().toISOString()}
 # Selected Users: ${selectedAssignments.length}
@@ -212,14 +226,14 @@ Write-Host "Current EmailSignature rules in Exchange:" -ForegroundColor Yellow
 Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-Table Name, State, Priority, From -AutoSize
 Write-Host ""
 
-Write-Host "=== STEP 2: Aggressive Cleanup of ALL Old Rules ===" -ForegroundColor Cyan
+Write-Host "=== STEP 2: Selective Cleanup (${cleanupDescription}) ===" -ForegroundColor Cyan
 Write-Host ""
 
-# CRITICAL: Multiple passes to ensure all old rules are removed
-Write-Host "Pass 1: Initial removal of ALL EmailSignature rules..." -ForegroundColor Yellow
-$pass1Rules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+# IMPORTANT: Only remove rules matching the script type to preserve other rules
+Write-Host "Pass 1: Removing ${cleanupDescription}..." -ForegroundColor Yellow
+$pass1Rules = Get-TransportRule | Where-Object { $_.Name -like "${ruleFilter}" }
 if ($pass1Rules) {
-    Write-Host "Found $($pass1Rules.Count) rule(s) in Pass 1" -ForegroundColor Yellow
+    Write-Host "Found $($pass1Rules.Count) rule(s) to remove in Pass 1" -ForegroundColor Yellow
     $pass1Rules | ForEach-Object { 
         Write-Host "  Removing: $($_.Name)" -ForegroundColor Red
         Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
@@ -227,12 +241,12 @@ if ($pass1Rules) {
     Write-Host "Waiting 10 seconds for Exchange to process..." -ForegroundColor Yellow
     Start-Sleep -Seconds 10
 } else {
-    Write-Host "No rules found in Pass 1" -ForegroundColor Gray
+    Write-Host "No ${cleanupDescription} found in Pass 1" -ForegroundColor Gray
 }
 
 Write-Host ""
 Write-Host "Pass 2: Verification and cleanup..." -ForegroundColor Yellow
-$pass2Rules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+$pass2Rules = Get-TransportRule | Where-Object { $_.Name -like "${ruleFilter}" }
 if ($pass2Rules) {
     Write-Host "WARNING: $($pass2Rules.Count) rule(s) still exist! Forcing removal..." -ForegroundColor Red
     $pass2Rules | ForEach-Object { 
@@ -246,7 +260,7 @@ if ($pass2Rules) {
 
 Write-Host ""
 Write-Host "Pass 3: Final verification..." -ForegroundColor Yellow
-$pass3Rules = Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" }
+$pass3Rules = Get-TransportRule | Where-Object { $_.Name -like "${ruleFilter}" }
 if ($pass3Rules) {
     Write-Host "CRITICAL WARNING: $($pass3Rules.Count) rule(s) STILL present!" -ForegroundColor Red
     Write-Host "Manual intervention may be required. Rules:" -ForegroundColor Red
