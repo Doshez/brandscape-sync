@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 interface UserAssignment {
   userId: string;
@@ -26,6 +28,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [powershellScript, setPowershellScript] = useState<string>("");
+  const [scriptType, setScriptType] = useState<"both" | "signature" | "banner">("both");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -166,20 +169,28 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
         return;
       }
 
-      // Count total rules (each user gets 1 or 2 rules: banner + signature or just signature)
+      // Count total rules based on script type
       let totalRules = 0;
       selectedAssignments.forEach(assignment => {
-        if (assignment.bannerHtml) {
-          totalRules += 2; // Banner rule + Signature rule
-        } else {
+        if (scriptType === "both") {
+          if (assignment.bannerHtml) {
+            totalRules += 2; // Banner rule + Signature rule
+          } else {
+            totalRules += 1; // Signature rule only
+          }
+        } else if (scriptType === "signature") {
           totalRules += 1; // Signature rule only
+        } else if (scriptType === "banner" && assignment.bannerHtml) {
+          totalRules += 1; // Banner rule only
         }
       });
 
-      let script = `# Exchange Online Transport Rules - Auto-generated
+      const scriptTypeLabel = scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only";
+      
+      let script = `# Exchange Online Transport Rules - Auto-generated (${scriptTypeLabel})
 # Generated: ${new Date().toISOString()}
 # Selected Users: ${selectedAssignments.length}
-# Total Rules (with banner rotation): ${totalRules}
+# Total Rules: ${totalRules}
 
 # Connect to Exchange Online
 Connect-ExchangeOnline
@@ -197,6 +208,11 @@ Write-Host ""
 
       selectedAssignments.forEach((assignment, index) => {
         const baseRuleName = `EmailSignature_${assignment.userEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+        
+        // Skip users without banners if generating banner-only script
+        if (scriptType === "banner" && !assignment.bannerHtml) {
+          return;
+        }
         
         // Remove any existing rules for this user first (including old banner rules)
         script += `# User ${index + 1}: ${assignment.userName} (${assignment.userEmail})
@@ -216,14 +232,14 @@ if ($existingRules) {
 
 `;
         
-        // If user has no banner, create single rule with signature only
-        if (!assignment.bannerHtml) {
+        // SIGNATURE ONLY MODE
+        if (scriptType === "signature" || (scriptType === "both" && !assignment.bannerHtml)) {
           // Wrap signature with proper styling to match test email
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${assignment.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
-          script += `# Create signature rule (no banner)
-New-TransportRule -Name "${baseRuleName}" \`
+          script += `# Create signature rule
+New-TransportRule -Name "${baseRuleName}_Signature" \`
     -FromScope InOrganization \`
     -From "${assignment.userEmail}" \`
     -ApplyHtmlDisclaimerLocation Append \`
@@ -235,7 +251,33 @@ Write-Host "  ✓ Signature rule created" -ForegroundColor Green
 Write-Host ""
 
 `;
-        } else {
+        } 
+        // BANNER ONLY MODE
+        else if (scriptType === "banner" && assignment.bannerHtml) {
+          // Wrap banner with proper styling to match test email
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${assignment.bannerHtml}</div>`;
+          const escapedBanner = wrappedBanner.replace(/'/g, "''");
+          
+          const bannerRuleName = `${baseRuleName}_Banner`;
+          const bannerPriority = Math.min(index, 3);
+          
+          script += `# Create banner rule
+New-TransportRule -Name "${bannerRuleName}" \`
+    -FromScope InOrganization \`
+    -From "${assignment.userEmail}" \`
+    -ApplyHtmlDisclaimerLocation Prepend \`
+    -ApplyHtmlDisclaimerText '${escapedBanner}' \`
+    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -Enabled $true \`
+    -Priority ${bannerPriority}
+
+Write-Host "  ✓ Banner rule created (Priority: ${bannerPriority})" -ForegroundColor Green
+Write-Host ""
+
+`;
+        }
+        // BOTH MODE (signature + banner)
+        else if (scriptType === "both" && assignment.bannerHtml) {
           // User has banner - create ONE banner rule and one signature rule
           // Wrap banner with proper styling to match test email
           const wrappedBanner = `<div style="margin-bottom: 20px;">${assignment.bannerHtml}</div>`;
@@ -298,9 +340,8 @@ Get-TransportRule | Where-Object { $_.Name -like "EmailSignature_*" } | Format-T
 
 Write-Host ""
 Write-Host "=== COMPLETED ===" -ForegroundColor Green
-Write-Host "Expected rules per user:" -ForegroundColor White
-Write-Host "  • Users with banners: 2 rules (1 banner + 1 signature)" -ForegroundColor White
-Write-Host "  • Users without banners: 1 rule (signature only)" -ForegroundColor White
+Write-Host "Script Type: ${scriptTypeLabel}" -ForegroundColor White
+Write-Host "Total Rules Created: ${totalRules}" -ForegroundColor White
 Write-Host ""
 Write-Host "If you still see old rules above, manually remove them with:" -ForegroundColor Yellow
 Write-Host "  Remove-TransportRule -Identity '<RuleName>' -Confirm:\$false" -ForegroundColor Yellow
@@ -477,14 +518,38 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 
             <Separator className="my-6" />
 
-            <div className="flex gap-3">
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-medium mb-3">Script Type</h4>
+                <RadioGroup value={scriptType} onValueChange={(value: any) => setScriptType(value)}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="both" id="both" />
+                    <Label htmlFor="both" className="cursor-pointer">
+                      Both (Signature + Banner) - Creates separate rules for each
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="signature" id="signature" />
+                    <Label htmlFor="signature" className="cursor-pointer">
+                      Signature Only - For selected users
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="banner" id="banner" />
+                    <Label htmlFor="banner" className="cursor-pointer">
+                      Banner Only - For selected users with banners assigned
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <Button
                 onClick={generatePowerShellScript}
                 disabled={generating || selectedUserIds.size === 0}
-                className="flex-1"
+                className="w-full"
               >
                 <Terminal className="h-4 w-4 mr-2" />
-                {generating ? "Generating..." : `Generate Script for ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`}
+                {generating ? "Generating..." : `Generate ${scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only"} Script for ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`}
               </Button>
             </div>
           </>
