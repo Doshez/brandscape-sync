@@ -213,26 +213,19 @@ function generateTransportRuleScript(config: {
 # Import the Exchange Online Management module
 Import-Module ExchangeOnlineManagement
 
-# Connect to Exchange Online (you'll be prompted for credentials)
-Write-Host "Connecting to Exchange Online..." -ForegroundColor Cyan
-Connect-ExchangeOnline -ShowBanner:\$false
+# ⚠️ DEPRECATED: This function is no longer used
+# Please use the AutomatedTransportRules component in the dashboard instead
+# This prevents duplicate transport rules from being created
 
-# Check if rule already exists and remove it
-\$existingRule = Get-TransportRule -Identity "${rule_name}" -ErrorAction SilentlyContinue
-if (\$existingRule) {
-    Write-Host "Removing existing rule '${rule_name}'..." -ForegroundColor Yellow
-    Remove-TransportRule -Identity "${rule_name}" -Confirm:\$false
-}
-
-# Create transport rule to append signature
-Write-Host "Creating transport rule '${rule_name}'..." -ForegroundColor Cyan
-New-TransportRule -Name "${rule_name}" \\\`
-  ${userCondition} \\\`
-  -ApplyHtmlDisclaimerLocation Append \\\`
-  -ApplyHtmlDisclaimerText "${escapedHtml}" \\\`
-  -ApplyHtmlDisclaimerFallbackAction Wrap \\\`
-  -Comments "Auto-generated signature rule for ${domain}" \\\`
-  -Enabled \$true
+Write-Host "⚠️  DEPRECATED FUNCTION" -ForegroundColor Red
+Write-Host "This edge function has been deprecated to prevent duplicate transport rules." -ForegroundColor Yellow
+Write-Host "Please use the 'Automated Transport Rules' section in the dashboard instead." -ForegroundColor Yellow
+Write-Host "" 
+Write-Host "The dashboard tool provides:" -ForegroundColor Cyan
+Write-Host "  ✓ Aggressive cleanup of old rules" -ForegroundColor Green
+Write-Host "  ✓ Better duplicate prevention" -ForegroundColor Green
+Write-Host "  ✓ Banner + Signature management" -ForegroundColor Green
+Write-Host ""
 
 # Verify the rule was created
 Write-Host "" -NoNewline
