@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, Mail, Image, UserCheck, FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface UserAssignmentManagerProps {
   profile: any;
@@ -424,53 +426,60 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4">
-            {assignments.map((assignment) => (
-              <Card key={assignment.id}>
-                <CardContent className="pt-6">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-primary" />
-                        <span className="font-medium">
-                          {assignment.profiles?.first_name} {assignment.profiles?.last_name}
-                        </span>
-                        <Badge variant="outline">{assignment.profiles?.email}</Badge>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          Signature: {assignment.email_signatures?.template_name}
-                        </span>
-                        <Badge variant="secondary">
-                          {assignment.email_signatures?.signature_type}
-                        </Badge>
-                      </div>
-
-                      {assignment.user_banner_assignments && assignment.user_banner_assignments.length > 0 && (
+          <Card>
+            <ScrollArea className="h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Signature</TableHead>
+                    <TableHead>Banner</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assignments.map((assignment) => (
+                    <TableRow key={assignment.id}>
+                      <TableCell className="font-medium">
+                        {assignment.profiles?.first_name} {assignment.profiles?.last_name}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {assignment.profiles?.email}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          <Image className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">Banner:</span>
+                          <span className="text-sm">{assignment.email_signatures?.template_name}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {assignment.email_signatures?.signature_type}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {assignment.user_banner_assignments && assignment.user_banner_assignments.length > 0 ? (
                           <Badge variant="outline" className="text-xs">
                             {assignment.user_banner_assignments[0]?.banners?.name}
                           </Badge>
-                        </div>
-                      )}
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRemoveAssignment(assignment.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveAssignment(assignment.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </Card>
         )}
       </div>
     </div>

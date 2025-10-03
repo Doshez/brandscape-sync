@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HtmlEditor } from "@/components/ui/html-editor";
 import { wrapBannerWithTracking } from "@/lib/bannerTracking";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface EnhancedBannerManagerProps {
   profile: any;
@@ -580,117 +582,115 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
         </Dialog>
       </div>
 
-      <div className="grid gap-4">
-        {banners.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h4 className="text-lg font-medium mb-2">No banners yet</h4>
-              <p className="text-muted-foreground mb-4">
-                Create your first email banner to get started.
-              </p>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Banner
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          banners.map((banner) => (
-            <Card key={banner.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center space-x-2">
-                      <span>{banner.name}</span>
+      {banners.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h4 className="text-lg font-medium mb-2">No banners yet</h4>
+            <p className="text-muted-foreground mb-4">
+              Create your first email banner to get started.
+            </p>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Banner
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <ScrollArea className="h-[600px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Banner Name</TableHead>
+                  <TableHead>Campaign</TableHead>
+                  <TableHead>Clicks</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Target Dept</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {banners.map((banner) => (
+                  <TableRow key={banner.id}>
+                    <TableCell className="font-medium">{banner.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {campaigns.find(c => c.id === banner.campaign_id)?.name || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">
+                        {banner.current_clicks}
+                        {banner.max_clicks && <span className="text-muted-foreground"> / {banner.max_clicks}</span>}
+                      </span>
+                    </TableCell>
+                    <TableCell>
                       {banner.is_active ? (
-                        <Badge variant="default">Active</Badge>
+                        <Badge variant="default" className="text-xs">Active</Badge>
                       ) : (
-                        <Badge variant="secondary">Inactive</Badge>
+                        <Badge variant="secondary" className="text-xs">Inactive</Badge>
                       )}
-                      {banner.priority > 0 && (
-                        <Badge variant="outline">Priority: {banner.priority}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {banner.priority > 0 ? (
+                        <Badge variant="outline" className="text-xs">P{banner.priority}</Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
                       )}
-                    </CardTitle>
-                    <CardDescription className="flex items-center space-x-4">
-                      <span>Clicks: {banner.current_clicks}</span>
-                      {banner.max_clicks && (
-                        <span>/ {banner.max_clicks} max</span>
-                      )}
-                      {banner.target_departments && (
-                        <span className="flex items-center">
-                          <Users className="h-3 w-3 mr-1" />
-                          {banner.target_departments.join(", ")}
-                        </span>
-                      )}
-                      {banner.start_date && (
-                        <span className="flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {new Date(banner.start_date).toLocaleDateString()}
-                        </span>
-                      )}
-                    </CardDescription>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => toggleActive(banner)}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleEdit(banner)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDelete(banner.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                    {banner.click_url && (
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={banner.click_url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                    <p className="text-sm text-blue-900 dark:text-blue-100">
-                      <strong>Tracking Enabled:</strong> This banner will automatically track clicks and views when deployed. 
-                      All links will redirect through our tracking system.
-                    </p>
-                  </div>
-                  {banner.image_url && (
-                    <img 
-                      src={banner.image_url} 
-                      alt={banner.name}
-                      className="max-w-full h-32 object-contain border rounded"
-                    />
-                  )}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Preview (with tracking):</Label>
-                    <div 
-                      className="bg-muted p-4 rounded-lg border"
-                      dangerouslySetInnerHTML={{ 
-                        __html: wrapBannerWithTracking(
-                          banner.html_content, 
-                          banner.id, 
-                          'preview@example.com'
-                        ) 
-                      }}
-                    />
-                  </div>
-                  {banner.click_url && (
-                    <div className="text-xs text-muted-foreground">
-                      <strong>Target URL:</strong> {banner.click_url}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {banner.target_departments && banner.target_departments.length > 0
+                        ? banner.target_departments.slice(0, 2).join(", ") + 
+                          (banner.target_departments.length > 2 ? "..." : "")
+                        : "All"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleActive(banner)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(banner)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(banner.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        {banner.click_url && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            className="h-8 w-8 p-0"
+                          >
+                            <a href={banner.click_url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </Card>
+      )}
     </div>
   );
 };

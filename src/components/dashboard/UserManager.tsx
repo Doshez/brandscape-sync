@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye, Send, Target, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface UserManagerProps {
   profile: any;
@@ -1131,150 +1133,144 @@ export const UserManager = ({ profile }: UserManagerProps) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {users.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No users found</p>
-            ) : (
-              users.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <Checkbox
-                      checked={selectedUserIds.has(user.id)}
-                      onCheckedChange={() => toggleUserSelection(user.id)}
-                    />
-                    <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-semibold">
-                      {user.first_name?.[0]}{user.last_name?.[0]}
-                    </div>
-                    
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h4 className="font-medium">
-                          {user.first_name} {user.last_name}
-                        </h4>
-                        {user.is_admin && (
-                          <Badge variant="secondary" className="flex items-center space-x-1">
-                            <ShieldCheck className="h-3 w-3" />
-                            <span>Admin</span>
-                          </Badge>
-                        )}
-                        {user.id === profile.id && (
-                          <Badge variant="outline">You</Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {user.job_title && `${user.job_title}`}
-                        {user.department && ` • ${user.department}`}
-                      </p>
-                      
-                      {/* Show assignment status */}
-                      <div className="flex items-center space-x-2 mt-2">
-                        {userAssignments[user.id]?.signatures?.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            <FileText className="h-3 w-3 mr-1" />
-                            {userAssignments[user.id].signatures.length} Signature(s)
-                          </Badge>
-                        )}
-                        {userAssignments[user.id]?.banners?.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            <Mail className="h-3 w-3 mr-1" />
-                            {userAssignments[user.id].banners.length} Banner(s)
-                          </Badge>
-                        )}
-                        {userAssignments[user.id]?.lastDeployment && (
-                          <Badge 
-                            variant={userAssignments[user.id].lastDeployment?.deployment_status === 'success' ? 'default' : 'destructive'} 
-                            className="text-xs"
+          {users.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No users found</p>
+          ) : (
+            <ScrollArea className="h-[600px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedUserIds.size === users.length}
+                        onCheckedChange={selectAllUsers}
+                      />
+                    </TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Assignments</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedUserIds.has(user.id)}
+                          onCheckedChange={() => toggleUserSelection(user.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-semibold">
+                            {user.first_name?.[0]}{user.last_name?.[0]}
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">
+                              {user.first_name} {user.last_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {user.job_title}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{user.email}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {user.department || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {user.is_admin && (
+                            <Badge variant="secondary" className="text-xs">
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                              Admin
+                            </Badge>
+                          )}
+                          {user.id === profile.id && (
+                            <Badge variant="outline" className="text-xs">You</Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {userAssignments[user.id]?.signatures?.length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              <FileText className="h-3 w-3 mr-1" />
+                              {userAssignments[user.id].signatures.length}
+                            </Badge>
+                          )}
+                          {userAssignments[user.id]?.banners?.length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              <Mail className="h-3 w-3 mr-1" />
+                              {userAssignments[user.id].banners.length}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewAssignments(user)}
+                            title="View Assignments"
+                            className="h-8 w-8 p-0"
                           >
-                            <Send className="h-3 w-3 mr-1" />
-                            {userAssignments[user.id].lastDeployment?.deployment_status === 'success' ? 'Deployed' : 'Failed'}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewAssignments(user)}
-                      title="View Assignments"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedUserId(user.id);
-                        setShowAssignDialog(true);
-                      }}
-                      title="Assign Resources"
-                    >
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeployUserResources(user)}
-                      title="Deploy to Email"
-                      disabled={loading}
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setChangingBannerUser(user);
-                        setShowChangeBannerDialog(true);
-                      }}
-                      title="Change Banner"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleAdminStatus(user)}
-                      disabled={user.id === profile.id}
-                      title={user.is_admin ? "Remove Admin" : "Make Admin"}
-                    >
-                      {user.is_admin ? (
-                        <Shield className="h-4 w-4" />
-                      ) : (
-                        <ShieldCheck className="h-4 w-4" />
-                      )}
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(user)}
-                      title="Edit User"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteUser(user)}
-                      disabled={user.id === profile.id}
-                      title="Delete User"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUserId(user.id);
+                              setShowAssignDialog(true);
+                            }}
+                            title="Assign Resources"
+                            className="h-8 w-8 p-0"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeployUserResources(user)}
+                            title="Deploy to Email"
+                            disabled={loading}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(user)}
+                            title="Edit User"
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user)}
+                            disabled={user.id === profile.id}
+                            title="Delete User"
+                            className="h-8 w-8 p-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          )}
         </CardContent>
       </Card>
 

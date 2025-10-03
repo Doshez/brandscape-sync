@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Eye, FileText, Send, Loader2, Upload, Users, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { HtmlEditor } from "@/components/ui/html-editor";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface EnhancedSignatureManagerProps {
   profile: any;
@@ -653,77 +655,102 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
         </div>
       </div>
 
-      <div className="grid gap-4">
-        {signatures.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h4 className="text-lg font-medium mb-2">No signatures yet</h4>
-              <p className="text-muted-foreground mb-4">
-                Create your first email signature template to get started.
-              </p>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Signature
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          signatures.map((signature) => (
-            <Card key={signature.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center space-x-2">
-                      <span>{signature.template_name}</span>
+      {signatures.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h4 className="text-lg font-medium mb-2">No signatures yet</h4>
+            <p className="text-muted-foreground mb-4">
+              Create your first email signature template to get started.
+            </p>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Signature
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <ScrollArea className="h-[600px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Template Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {signatures.map((signature) => (
+                  <TableRow key={signature.id}>
+                    <TableCell className="font-medium">{signature.template_name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">{signature.signature_type}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {signature.department || "—"}
+                    </TableCell>
+                    <TableCell>
                       {signature.is_active ? (
-                        <Badge variant="default">Active</Badge>
+                        <Badge variant="default" className="text-xs">Active</Badge>
                       ) : (
-                        <Badge variant="secondary">Inactive</Badge>
+                        <Badge variant="secondary" className="text-xs">Inactive</Badge>
                       )}
-                      <Badge variant="outline">{signature.signature_type}</Badge>
-                    </CardTitle>
-                    <CardDescription>
-                      {signature.department && `${signature.department} • `}
-                      Created {new Date(signature.created_at).toLocaleDateString()}
-                    </CardDescription>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deployToExchange(signature)}
-                      disabled={isDeploying === signature.id}
-                    >
-                      {isDeploying === signature.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => toggleActive(signature)}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleEdit(signature)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDelete(signature.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div 
-                  className="bg-muted p-4 rounded-lg"
-                  dangerouslySetInnerHTML={{ __html: signature.html_content }}
-                />
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(signature.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deployToExchange(signature)}
+                          disabled={isDeploying === signature.id}
+                          className="h-8 w-8 p-0"
+                        >
+                          {isDeploying === signature.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => toggleActive(signature)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleEdit(signature)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleDelete(signature.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </Card>
+      )}
     </div>
   );
 };
