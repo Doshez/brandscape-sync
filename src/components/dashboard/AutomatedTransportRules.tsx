@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +45,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedSignature, setSelectedSignature] = useState("");
   const [selectedBanner, setSelectedBanner] = useState("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   
   const { toast } = useToast();
 
@@ -899,6 +901,16 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
     );
   }
 
+  // Filter assignments based on search query
+  const filteredAssignments = assignments.filter(assignment => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      assignment.userEmail.toLowerCase().includes(query) ||
+      assignment.userName.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1087,31 +1099,39 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Current User Assignments</h3>
-          {assignments.length > 0 && (
-            <Button
-              onClick={toggleSelectAll}
-              variant="outline"
-              size="sm"
-            >
-              {selectedUserIds.size === assignments.length ? "Deselect All" : "Select All"}
-            </Button>
-          )}
+          <h3 className="text-lg font-semibold">Current User Assignments ({filteredAssignments.length})</h3>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Search by name or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-xs"
+            />
+            {filteredAssignments.length > 0 && (
+              <Button
+                onClick={toggleSelectAll}
+                variant="outline"
+                size="sm"
+              >
+                {selectedUserIds.size === filteredAssignments.length ? "Deselect All" : "Select All"}
+              </Button>
+            )}
+          </div>
         </div>
         
         {loading ? (
           <div className="text-center py-8 text-muted-foreground">
             Loading assignments...
           </div>
-        ) : assignments.length === 0 ? (
+        ) : filteredAssignments.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No active user assignments found. Assign signatures to users first.
+            {assignments.length === 0 ? 'No active user assignments found. Assign signatures to users first.' : 'No matching assignments found.'}
           </div>
         ) : (
           <>
             <ScrollArea className="h-[400px] mb-6">
               <div className="space-y-3 pr-4">
-                {assignments.map((assignment) => {
+                {filteredAssignments.map((assignment) => {
                   const hasBanner = !!assignment.bannerHtml;
                   const isSelected = selectedUserIds.has(assignment.userId);
                   

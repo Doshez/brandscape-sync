@@ -54,6 +54,9 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBanner, setPreviewBanner] = useState<Banner | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -321,6 +324,13 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
     );
   }
 
+  // Filter banners based on search query
+  const filteredBanners = banners.filter(banner => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return banner.name.toLowerCase().includes(query);
+  });
+
   return (
     <div className="space-y-6">
       <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
@@ -582,22 +592,35 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
         </Dialog>
       </div>
 
-      {banners.length === 0 ? (
+      {filteredBanners.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h4 className="text-lg font-medium mb-2">No banners yet</h4>
+            <h4 className="text-lg font-medium mb-2">{banners.length === 0 ? 'No banners yet' : 'No matching banners'}</h4>
             <p className="text-muted-foreground mb-4">
-              Create your first email banner to get started.
+              {banners.length === 0 ? 'Create your first email banner to get started.' : 'Try adjusting your search query.'}
             </p>
-            <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Banner
-            </Button>
+            {banners.length === 0 && (
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Banner
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
         <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Email Banners ({filteredBanners.length})</CardTitle>
+              <Input
+                placeholder="Search by banner name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="max-w-xs"
+              />
+            </div>
+          </CardHeader>
           <ScrollArea className="h-[600px]">
             <Table>
               <TableHeader>
@@ -613,7 +636,7 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {banners.map((banner) => (
+                {filteredBanners.map((banner) => (
                   <TableRow key={banner.id}>
                     <TableCell>
                       <Dialog>

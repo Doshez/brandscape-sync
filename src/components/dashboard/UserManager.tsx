@@ -83,6 +83,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const [changingBannerUser, setChangingBannerUser] = useState<UserProfile | null>(null);
   const [newBannerId, setNewBannerId] = useState<string>("");
   const [viewingUser, setViewingUser] = useState<UserProfile | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -707,6 +708,19 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     );
   }
 
+  // Filter users based on search query
+  const filteredUsers = users.filter(user => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      user.first_name?.toLowerCase().includes(query) ||
+      user.last_name?.toLowerCase().includes(query) ||
+      user.email?.toLowerCase().includes(query) ||
+      user.department?.toLowerCase().includes(query) ||
+      user.job_title?.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1126,14 +1140,22 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Users className="h-5 w-5" />
-            <span>All Users ({users.length})</span>
+            <span>All Users ({filteredUsers.length})</span>
           </CardTitle>
           <CardDescription>
             Registered users in the email signature system
           </CardDescription>
+          <div className="mt-4">
+            <Input
+              placeholder="Search by name, email, department, or job title..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="max-w-md"
+            />
+          </div>
         </CardHeader>
         <CardContent>
-          {users.length === 0 ? (
+          {filteredUsers.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No users found</p>
           ) : (
             <ScrollArea className="h-[600px]">
@@ -1142,7 +1164,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={selectedUserIds.size === users.length}
+                        checked={selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0}
                         onCheckedChange={selectAllUsers}
                       />
                     </TableHead>
@@ -1155,7 +1177,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <Checkbox

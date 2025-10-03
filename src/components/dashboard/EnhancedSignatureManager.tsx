@@ -52,6 +52,9 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
   const [isDeploying, setIsDeploying] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewSignature, setPreviewSignature] = useState<EmailSignature | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -414,6 +417,13 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
     );
   }
 
+  // Filter signatures based on search query
+  const filteredSignatures = signatures.filter(signature => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return signature.template_name.toLowerCase().includes(query);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -655,22 +665,35 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
         </div>
       </div>
 
-      {signatures.length === 0 ? (
+      {filteredSignatures.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h4 className="text-lg font-medium mb-2">No signatures yet</h4>
+            <h4 className="text-lg font-medium mb-2">{signatures.length === 0 ? 'No signatures yet' : 'No matching signatures'}</h4>
             <p className="text-muted-foreground mb-4">
-              Create your first email signature template to get started.
+              {signatures.length === 0 ? 'Create your first email signature template to get started.' : 'Try adjusting your search query.'}
             </p>
-            <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Signature
-            </Button>
+            {signatures.length === 0 && (
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Signature
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
         <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Email Signatures ({filteredSignatures.length})</CardTitle>
+              <Input
+                placeholder="Search by template name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="max-w-xs"
+              />
+            </div>
+          </CardHeader>
           <ScrollArea className="h-[600px]">
             <Table>
               <TableHeader>
@@ -685,7 +708,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {signatures.map((signature) => (
+                {filteredSignatures.map((signature) => (
                   <TableRow key={signature.id}>
                     <TableCell>
                       <Dialog>
