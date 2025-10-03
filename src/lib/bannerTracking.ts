@@ -2,8 +2,8 @@
  * Utility functions for banner tracking
  */
 
-// Use the current domain in production, or preview URL in development
-const APP_URL = window.location.origin;
+// Use Supabase project URL for direct edge function calls (no auth required)
+const SUPABASE_URL = "https://ddoihmeqpjjiumqndjgk.supabase.co";
 
 /**
  * Wraps banner HTML content with tracking links and adds a tracking pixel for views
@@ -13,11 +13,12 @@ export function wrapBannerWithTracking(
   bannerId: string,
   userEmail?: string
 ): string {
-  const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
-  const trackingUrl = `${APP_URL}/track/${bannerId}${emailParam}`;
+  const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
+  // Call edge function directly - no auth required
+  const trackingUrl = `${SUPABASE_URL}/functions/v1/track-banner-click?banner_id=${bannerId}${emailParam}`;
   
-  // Add tracking pixel for view tracking (1x1 transparent image)
-  const viewTrackingPixel = `<img src="${APP_URL}/api/track-view/${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
+  // Add tracking pixel for view tracking (1x1 transparent image) - calls edge function directly
+  const viewTrackingPixel = `<img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
   
   // Wrap any clickable elements (a tags and images) with tracking
   let wrappedHtml = bannerHtml;
@@ -53,17 +54,17 @@ export function wrapBannerWithTracking(
 }
 
 /**
- * Generates tracking URL for a banner
+ * Generates tracking URL for a banner - calls edge function directly
  */
 export function getBannerTrackingUrl(bannerId: string, userEmail?: string): string {
-  const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
-  return `${APP_URL}/track/${bannerId}${emailParam}`;
+  const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
+  return `${SUPABASE_URL}/functions/v1/track-banner-click?banner_id=${bannerId}${emailParam}`;
 }
 
 /**
- * Generates view tracking pixel URL
+ * Generates view tracking pixel URL - calls edge function directly
  */
 export function getViewTrackingPixelUrl(bannerId: string, userEmail?: string): string {
-  const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
-  return `${APP_URL}/api/track-view/${bannerId}${emailParam}`;
+  const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
+  return `${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}`;
 }

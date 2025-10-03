@@ -19,10 +19,17 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Support both query params and POST body
     const url = new URL(req.url);
-    const pathParts = url.pathname.split('/');
-    const banner_id = pathParts[pathParts.length - 1];
-    const user_email = url.searchParams.get('email');
+    let banner_id = url.searchParams.get('banner_id');
+    let user_email = url.searchParams.get('email');
+
+    // If POST, try to get from body as well
+    if (req.method === 'POST') {
+      const body: TrackViewRequest = await req.json();
+      banner_id = body.banner_id || banner_id;
+      user_email = body.user_email || user_email;
+    }
 
     if (!banner_id) {
       throw new Error("Missing required parameter: banner_id");

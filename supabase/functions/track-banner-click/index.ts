@@ -21,14 +21,25 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { 
-      banner_id, 
-      campaign_id, 
-      user_email, 
-      user_agent, 
-      referrer,
-      metadata 
-    }: TrackClickRequest = await req.json();
+    // Support both GET (with query params) and POST (with body)
+    const url = new URL(req.url);
+    let banner_id = url.searchParams.get('banner_id');
+    let user_email = url.searchParams.get('email');
+    let campaign_id, user_agent, referrer, metadata;
+
+    // If POST, try to get from body as well
+    if (req.method === 'POST') {
+      const body: TrackClickRequest = await req.json();
+      banner_id = body.banner_id || banner_id;
+      campaign_id = body.campaign_id;
+      user_email = body.user_email || user_email;
+      user_agent = body.user_agent;
+      referrer = body.referrer;
+      metadata = body.metadata;
+    } else {
+      user_agent = req.headers.get('user-agent') || undefined;
+      referrer = req.headers.get('referer') || undefined;
+    }
 
     if (!banner_id) {
       throw new Error("Missing required parameter: banner_id");
@@ -91,21 +102,26 @@ const handler = async (req: Request): Promise<Response> => {
         .eq('id', banner_id);
     }
 
-    // Return the redirect URL
-    return new Response(
-      JSON.stringify({
-        success: true,
-        redirect_url: banner.click_url,
-        message: "Click tracked successfully"
-      }),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
-    );
+    // For GET requests (direct link clicks), redirect to the click URL
+    // For POST requests (programmatic), return JSON with redirect URL
+    if (req.method === 'GET') {
+      return Response.redirect(banner.click_url, 302);
+    } else {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          redirect_url: banner.click_url,
+          message: "Click tracked successfully"
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        }
+      );
+    }
 
   } catch (error: any) {
     console.error("Click tracking error:", error);
