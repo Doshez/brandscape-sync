@@ -2,8 +2,8 @@
  * Utility functions for banner tracking
  */
 
-// Use Supabase URL for tracking to ensure it works without login
-const APP_URL = "https://ddoihmeqpjjiumqndjgk.supabase.co";
+// Use the current domain in production, or preview URL in development
+const APP_URL = window.location.origin;
 
 /**
  * Wraps banner HTML content with tracking links and adds a tracking pixel for views
@@ -14,11 +14,10 @@ export function wrapBannerWithTracking(
   userEmail?: string
 ): string {
   const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
-  // Use direct edge function endpoint for click tracking
-  const trackingUrl = `${APP_URL}/functions/v1/track-banner-click`;
+  const trackingUrl = `${APP_URL}/track/${bannerId}${emailParam}`;
   
   // Add tracking pixel for view tracking (1x1 transparent image)
-  const viewTrackingPixel = `<img src="${APP_URL}/functions/v1/track-banner-view/${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
+  const viewTrackingPixel = `<img src="${APP_URL}/api/track-view/${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
   
   // Wrap any clickable elements (a tags and images) with tracking
   let wrappedHtml = bannerHtml;
@@ -58,7 +57,7 @@ export function wrapBannerWithTracking(
  */
 export function getBannerTrackingUrl(bannerId: string, userEmail?: string): string {
   const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
-  return `${APP_URL}/functions/v1/track-banner-click${emailParam}`;
+  return `${APP_URL}/track/${bannerId}${emailParam}`;
 }
 
 /**
@@ -66,5 +65,5 @@ export function getBannerTrackingUrl(bannerId: string, userEmail?: string): stri
  */
 export function getViewTrackingPixelUrl(bannerId: string, userEmail?: string): string {
   const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
-  return `${APP_URL}/functions/v1/track-banner-view/${bannerId}${emailParam}`;
+  return `${APP_URL}/api/track-view/${bannerId}${emailParam}`;
 }
