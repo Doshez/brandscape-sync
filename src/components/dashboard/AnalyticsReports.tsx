@@ -37,18 +37,10 @@ interface AnalyticsEvent {
   metadata: any;
 }
 
-interface DepartmentStats {
-  department: string;
-  total_banners: number;
-  total_clicks: number;
-  total_impressions: number;
-  avg_ctr: number;
-}
 
 export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
   const [bannerAnalytics, setBannerAnalytics] = useState<BannerAnalytics[]>([]);
   const [recentEvents, setRecentEvents] = useState<AnalyticsEvent[]>([]);
-  const [departmentStats, setDepartmentStats] = useState<DepartmentStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("7d");
   const [selectedMetric, setSelectedMetric] = useState("clicks");
@@ -99,9 +91,6 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
       setBannerAnalytics(analyticsResult.data || []);
       setRecentEvents(eventsResult.data || []);
 
-      // Calculate department stats
-      await calculateDepartmentStats();
-
     } catch (error) {
       console.error("Error fetching analytics:", error);
       toast({
@@ -111,39 +100,6 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const calculateDepartmentStats = async () => {
-    try {
-      // This would ideally be done with a more complex query
-      // For now, we'll calculate basic stats
-      const { data: banners } = await supabase
-        .from("banners")
-        .select("*, analytics_events(*)");
-
-      // Group by department and calculate stats
-      const deptStats: { [key: string]: DepartmentStats } = {};
-      
-      // This is a simplified calculation - in a real app you'd want more sophisticated analytics
-      banners?.forEach(banner => {
-        const dept = banner.target_departments?.[0] || "General";
-        if (!deptStats[dept]) {
-          deptStats[dept] = {
-            department: dept,
-            total_banners: 0,
-            total_clicks: 0,
-            total_impressions: 0,
-            avg_ctr: 0
-          };
-        }
-        deptStats[dept].total_banners++;
-        deptStats[dept].total_clicks += banner.current_clicks || 0;
-      });
-
-      setDepartmentStats(Object.values(deptStats));
-    } catch (error) {
-      console.error("Error calculating department stats:", error);
     }
   };
 
@@ -318,7 +274,6 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
       <Tabs defaultValue="banners" className="space-y-4">
         <TabsList>
           <TabsTrigger value="banners">Banner Performance</TabsTrigger>
-          <TabsTrigger value="departments">Department Stats</TabsTrigger>
           <TabsTrigger value="events">Recent Activity</TabsTrigger>
         </TabsList>
 
@@ -380,48 +335,6 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
                             <div className="text-muted-foreground">Limit</div>
                           </div>
                         )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="departments" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Department Statistics</CardTitle>
-              <CardDescription>
-                Performance breakdown by department targeting
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {departmentStats.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No department data available
-                  </p>
-                ) : (
-                  departmentStats.map((dept) => (
-                    <div key={dept.department} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <h4 className="font-medium">{dept.department}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {dept.total_banners} banner{dept.total_banners !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center space-x-6 text-sm">
-                        <div className="text-center">
-                          <div className="font-medium">{dept.total_clicks}</div>
-                          <div className="text-muted-foreground">Clicks</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-medium">{dept.total_impressions}</div>
-                          <div className="text-muted-foreground">Views</div>
-                        </div>
                       </div>
                     </div>
                   ))

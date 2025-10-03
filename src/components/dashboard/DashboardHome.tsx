@@ -255,13 +255,6 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">New banner campaign</p>
-                  <p className="text-xs text-muted-foreground">Q4 Product Launch - 1 day ago</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
                 <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">User registered</p>
