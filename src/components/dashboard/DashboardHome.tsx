@@ -4,10 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { FileText, Image, BarChart3, Users, TrendingUp, Clock, Mail, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmailRoutingPanel } from "./EmailRoutingPanel";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface DashboardHomeProps {
   profile: any;
   onNavigateToAnalytics?: () => void;
+  onNavigateToSignatures?: () => void;
+  onNavigateToBanners?: () => void;
 }
 
 interface DashboardStats {
@@ -18,7 +21,7 @@ interface DashboardStats {
   topBanners: Array<{ id: string; name: string; current_clicks: number }>;
 }
 
-export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeProps) => {
+export const DashboardHome = ({ profile, onNavigateToAnalytics, onNavigateToSignatures, onNavigateToBanners }: DashboardHomeProps) => {
   const [stats, setStats] = useState<DashboardStats>({
     totalSignatures: 0,
     activeBanners: 0,
@@ -274,25 +277,27 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {stats.topBanners.map((banner, index) => (
-                  <div key={banner.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
-                        {index + 1}
+              <ScrollArea className="h-[300px]">
+                <div className="space-y-3 pr-4">
+                  {stats.topBanners.map((banner, index) => (
+                    <div key={banner.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{banner.name}</p>
+                          <p className="text-xs text-muted-foreground">{banner.current_clicks} total clicks</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">{banner.name}</p>
-                        <p className="text-xs text-muted-foreground">{banner.current_clicks} total clicks</p>
+                      <div className="flex items-center space-x-1">
+                        <TrendingUp className="h-4 w-4 text-orange-500" />
+                        <span className="font-bold text-lg">{banner.current_clicks}</span>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <TrendingUp className="h-4 w-4 text-orange-500" />
-                      <span className="font-bold text-lg">{banner.current_clicks}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         )}
@@ -306,31 +311,34 @@ export const DashboardHome = ({ profile, onNavigateToAnalytics }: DashboardHomeP
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  <span className="text-sm font-medium">Create New Signature</span>
-                </div>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </div>
+              <Button 
+                variant="outline"
+                className="w-full justify-start"
+                onClick={onNavigateToSignatures}
+              >
+                <FileText className="h-5 w-5 text-blue-600 mr-3" />
+                <span className="text-sm font-medium">Create New Signature</span>
+              </Button>
               
               {profile?.is_admin && (
                 <>
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <Image className="h-5 w-5 text-green-600" />
-                      <span className="text-sm font-medium">Upload Banner</span>
-                    </div>
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  </div>
+                  <Button 
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={onNavigateToBanners}
+                  >
+                    <Image className="h-5 w-5 text-green-600 mr-3" />
+                    <span className="text-sm font-medium">Upload Banner</span>
+                  </Button>
                   
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <BarChart3 className="h-5 w-5 text-orange-600" />
-                      <span className="text-sm font-medium">View Analytics</span>
-                    </div>
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                  </div>
+                  <Button 
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={onNavigateToAnalytics}
+                  >
+                    <BarChart3 className="h-5 w-5 text-orange-600 mr-3" />
+                    <span className="text-sm font-medium">View Analytics</span>
+                  </Button>
                 </>
               )}
             </div>

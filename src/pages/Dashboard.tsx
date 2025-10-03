@@ -126,7 +126,14 @@ const Dashboard = () => {
   const renderActiveView = () => {
     switch (activeView) {
       case "home":
-        return <DashboardHome profile={profile} onNavigateToAnalytics={() => setActiveView("analytics")} />;
+        return (
+          <DashboardHome 
+            profile={profile} 
+            onNavigateToAnalytics={() => setActiveView("analytics")}
+            onNavigateToSignatures={() => setActiveView("signatures")}
+            onNavigateToBanners={() => setActiveView("banners")}
+          />
+        );
       case "signatures":
         return <EnhancedSignatureManager profile={profile} />;
       case "banners":
