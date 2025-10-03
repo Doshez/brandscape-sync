@@ -148,38 +148,53 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const fetchUserAssignments = async (usersList: UserProfile[]) => {
     const assignments: Record<string, UserAssignments> = {};
 
-    for (const user of usersList) {
-      try {
-        // Get assigned signatures
-        const { data: userSignatures } = await supabase
-          .from("email_signatures")
-          .select("*")
-          .eq("user_id", user.user_id)
-          .eq("is_active", true);
+    try {
+      // Batch fetch all signatures for all users at once
+      const userIds = usersList.map(u => u.user_id).filter(id => id != null);
+      const { data: allSignatures } = await supabase
+        .from("email_signatures")
+        .select("*")
+        .in("user_id", userIds)
+        .eq("is_active", true);
 
-        // Get assigned banners (check if user is in target_departments)
-        const { data: userBanners } = await supabase
-          .from("banners")
-          .select("*")
-          .or(`target_departments.is.null,target_departments.cs.{${user.id}}`)
-          .eq("is_active", true);
+      // Batch fetch all active banners
+      const { data: allBanners } = await supabase
+        .from("banners")
+        .select("*")
+        .eq("is_active", true);
 
-        // Get latest deployment
-        const { data: latestDeployment } = await supabase
-          .from("deployment_history")
-          .select("*")
-          .eq("target_user_email", user.email)
-          .order("deployed_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      // Batch fetch all deployment history
+      const userEmails = usersList.map(u => u.email).filter(email => email != null);
+      const { data: allDeployments } = await supabase
+        .from("deployment_history")
+        .select("*")
+        .in("target_user_email", userEmails)
+        .order("deployed_at", { ascending: false });
+
+      // Group data by user
+      for (const user of usersList) {
+        const userSignatures = allSignatures?.filter(sig => sig.user_id === user.user_id) || [];
+        
+        // Filter banners by target_departments
+        const userBanners = allBanners?.filter(banner => 
+          !banner.target_departments || 
+          banner.target_departments.length === 0 || 
+          banner.target_departments.includes(user.id)
+        ) || [];
+
+        // Get latest deployment for this user
+        const latestDeployment = allDeployments?.find(dep => dep.target_user_email === user.email) || null;
 
         assignments[user.id] = {
-          signatures: userSignatures || [],
-          banners: userBanners || [],
+          signatures: userSignatures,
+          banners: userBanners,
           lastDeployment: latestDeployment
         };
-      } catch (error) {
-        console.error(`Error fetching assignments for ${user.email}:`, error);
+      }
+    } catch (error) {
+      console.error("Error fetching user assignments:", error);
+      // Initialize empty assignments for all users on error
+      for (const user of usersList) {
         assignments[user.id] = {
           signatures: [],
           banners: [],
