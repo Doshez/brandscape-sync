@@ -602,6 +602,7 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Preview</TableHead>
                   <TableHead>Banner Name</TableHead>
                   <TableHead>Campaign</TableHead>
                   <TableHead>Clicks</TableHead>
@@ -614,6 +615,49 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
               <TableBody>
                 {banners.map((banner) => (
                   <TableRow key={banner.id}>
+                    <TableCell>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl">
+                          <DialogHeader>
+                            <DialogTitle>Banner Preview: {banner.name}</DialogTitle>
+                            <DialogDescription>
+                              Full preview of the email banner with tracking enabled
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            {banner.image_url && (
+                              <div className="border rounded-lg p-4">
+                                <img 
+                                  src={banner.image_url} 
+                                  alt={banner.name}
+                                  className="max-w-full h-auto object-contain"
+                                />
+                              </div>
+                            )}
+                            <div 
+                              className="border rounded-lg p-6 bg-background max-h-[400px] overflow-y-auto"
+                              dangerouslySetInnerHTML={{ 
+                                __html: wrapBannerWithTracking(
+                                  banner.html_content, 
+                                  banner.id, 
+                                  'preview@example.com'
+                                ) 
+                              }}
+                            />
+                            {banner.click_url && (
+                              <div className="text-sm text-muted-foreground p-4 bg-muted rounded">
+                                <strong>Click URL:</strong> {banner.click_url}
+                              </div>
+                            )}
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </TableCell>
                     <TableCell className="font-medium">{banner.name}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {campaigns.find(c => c.id === banner.campaign_id)?.name || "—"}
@@ -651,14 +695,16 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                           size="sm"
                           onClick={() => toggleActive(banner)}
                           className="h-8 w-8 p-0"
+                          title={banner.is_active ? "Deactivate" : "Activate"}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className={banner.is_active ? "h-4 w-4" : "h-4 w-4 opacity-50"} />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(banner)}
                           className="h-8 w-8 p-0"
+                          title="Edit"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -667,6 +713,7 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                           size="sm"
                           onClick={() => handleDelete(banner.id)}
                           className="h-8 w-8 p-0"
+                          title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -676,6 +723,7 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                             size="sm"
                             asChild
                             className="h-8 w-8 p-0"
+                            title="Open URL"
                           >
                             <a href={banner.click_url} target="_blank" rel="noopener noreferrer">
                               <ExternalLink className="h-4 w-4" />

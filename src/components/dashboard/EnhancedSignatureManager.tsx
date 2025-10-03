@@ -675,6 +675,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Preview</TableHead>
                   <TableHead>Template Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Department</TableHead>
@@ -686,6 +687,27 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
               <TableBody>
                 {signatures.map((signature) => (
                   <TableRow key={signature.id}>
+                    <TableCell>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl">
+                          <DialogHeader>
+                            <DialogTitle>Signature Preview: {signature.template_name}</DialogTitle>
+                            <DialogDescription>
+                              Full preview of the email signature
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div 
+                            className="border rounded-lg p-6 bg-background max-h-[500px] overflow-y-auto"
+                            dangerouslySetInnerHTML={{ __html: signature.html_content }}
+                          />
+                        </DialogContent>
+                      </Dialog>
+                    </TableCell>
                     <TableCell className="font-medium">{signature.template_name}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">{signature.signature_type}</Badge>
@@ -711,6 +733,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                           onClick={() => deployToExchange(signature)}
                           disabled={isDeploying === signature.id}
                           className="h-8 w-8 p-0"
+                          title="Deploy to Exchange"
                         >
                           {isDeploying === signature.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -723,14 +746,16 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                           size="sm" 
                           onClick={() => toggleActive(signature)}
                           className="h-8 w-8 p-0"
+                          title={signature.is_active ? "Deactivate" : "Activate"}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className={signature.is_active ? "h-4 w-4" : "h-4 w-4 opacity-50"} />
                         </Button>
                         <Button 
                           variant="ghost" 
                           size="sm" 
                           onClick={() => handleEdit(signature)}
                           className="h-8 w-8 p-0"
+                          title="Edit"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -739,6 +764,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                           size="sm" 
                           onClick={() => handleDelete(signature.id)}
                           className="h-8 w-8 p-0"
+                          title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
