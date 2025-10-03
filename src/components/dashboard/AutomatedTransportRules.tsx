@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmailRoutingPanel } from "./EmailRoutingPanel";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface UserAssignment {
   userId: string;
@@ -1027,54 +1028,56 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                   No assignments found. Create assignments above to get started.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {assignments.map((assignment) => (
-                    <div key={assignment.userId} className="border rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2">
-                            <Mail className="h-4 w-4 text-primary" />
-                            <span className="font-medium">{assignment.userName}</span>
-                            <Badge variant="outline">{assignment.userEmail}</Badge>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-sm">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
-                            <span>Signature assigned</span>
-                          </div>
-
-                          {assignment.bannerHtml && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Image className="h-4 w-4 text-muted-foreground" />
-                              <span>Banner assigned</span>
-                              {assignment.bannerClickUrl && (
-                                <Badge variant="secondary" className="text-xs">Clickable</Badge>
-                              )}
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-3 pr-4">
+                    {assignments.map((assignment) => (
+                      <div key={assignment.userId} className="border rounded-lg p-4 space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-4 w-4 text-primary" />
+                              <span className="font-medium">{assignment.userName}</span>
+                              <Badge variant="outline">{assignment.userEmail}</Badge>
                             </div>
-                          )}
-                        </div>
+                            
+                            <div className="flex items-center gap-2 text-sm">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span>Signature assigned</span>
+                            </div>
 
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={async () => {
-                            const { data } = await supabase
-                              .from("user_email_assignments")
-                              .select("id")
-                              .eq("user_id", assignment.userId)
-                              .eq("is_active", true)
-                              .single();
-                            if (data) {
-                              handleRemoveAssignment(data.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                            {assignment.bannerHtml && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Image className="h-4 w-4 text-muted-foreground" />
+                                <span>Banner assigned</span>
+                                {assignment.bannerClickUrl && (
+                                  <Badge variant="secondary" className="text-xs">Clickable</Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              const { data } = await supabase
+                                .from("user_email_assignments")
+                                .select("id")
+                                .eq("user_id", assignment.userId)
+                                .eq("is_active", true)
+                                .single();
+                              if (data) {
+                                handleRemoveAssignment(data.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               )}
             </CardContent>
           </Card>
@@ -1106,42 +1109,44 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
           </div>
         ) : (
           <>
-            <div className="space-y-3 mb-6">
-              {assignments.map((assignment) => {
-                const hasBanner = !!assignment.bannerHtml;
-                const isSelected = selectedUserIds.has(assignment.userId);
-                
-                return (
-                  <div
-                    key={assignment.userId}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors cursor-pointer ${
-                      isSelected 
-                        ? 'bg-primary/5 border-primary' 
-                        : 'bg-muted border-transparent hover:border-primary/50'
-                    }`}
-                    onClick={() => toggleUserSelection(assignment.userId)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleUserSelection(assignment.userId)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium">{assignment.userName}</p>
-                      <p className="text-sm text-muted-foreground">{assignment.userEmail}</p>
+            <ScrollArea className="h-[400px] mb-6">
+              <div className="space-y-3 pr-4">
+                {assignments.map((assignment) => {
+                  const hasBanner = !!assignment.bannerHtml;
+                  const isSelected = selectedUserIds.has(assignment.userId);
+                  
+                  return (
+                    <div
+                      key={assignment.userId}
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors cursor-pointer ${
+                        isSelected 
+                          ? 'bg-primary/5 border-primary' 
+                          : 'bg-muted border-transparent hover:border-primary/50'
+                      }`}
+                      onClick={() => toggleUserSelection(assignment.userId)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleUserSelection(assignment.userId)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium">{assignment.userName}</p>
+                        <p className="text-sm text-muted-foreground">{assignment.userEmail}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge>Signature</Badge>
+                        {hasBanner && (
+                          <Badge variant="secondary">Banner</Badge>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Badge>Signature</Badge>
-                      {hasBanner && (
-                        <Badge variant="secondary">Banner</Badge>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
 
             <Alert className="mb-6">
               <CheckCircle className="h-4 w-4" />
