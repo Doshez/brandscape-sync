@@ -725,14 +725,6 @@ Write-Host ""
 Write-Host "Creating BANNER rule (Prepend ABOVE body)..." -ForegroundColor Cyan
 
 # RULE 1: BANNER ONLY - Prepends content ABOVE the email body
-# Check if rule exists first
-$bannerRuleExists = Get-TransportRule -Identity "BANNER_${groupId}_Top" -ErrorAction SilentlyContinue
-if ($bannerRuleExists) {
-    Write-Host "  Removing existing banner rule..." -ForegroundColor Yellow
-    Remove-TransportRule -Identity "BANNER_${groupId}_Top" -Confirm:$false
-    Start-Sleep -Seconds 5
-}
-
 New-TransportRule -Name "BANNER_${groupId}_Top" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
@@ -751,14 +743,6 @@ Write-Host ""
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
 
 # RULE 2: SIGNATURE ONLY - Appends content BELOW the email body
-# Check if rule exists first
-$signatureRuleExists = Get-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -ErrorAction SilentlyContinue
-if ($signatureRuleExists) {
-    Write-Host "  Removing existing signature rule..." -ForegroundColor Yellow
-    Remove-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -Confirm:$false
-    Start-Sleep -Seconds 5
-}
-
 New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
@@ -785,14 +769,6 @@ Write-Host ""
             const exceptionEmail = group.users[0].email;
             
             script += `# Signature-only rule for ${userCount} user(s) - Appends BELOW email body
-
-# Check if rule exists first
-$signatureRuleExists = Get-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -ErrorAction SilentlyContinue
-if ($signatureRuleExists) {
-    Write-Host "  Removing existing signature rule..." -ForegroundColor Yellow
-    Remove-TransportRule -Identity "SIGNATURE_${groupId}_Bottom" -Confirm:$false
-    Start-Sleep -Seconds 5
-}
 
 New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
     -FromScope InOrganization \`
