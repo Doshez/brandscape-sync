@@ -713,6 +713,11 @@ Write-Host ""
             const bannerPriority = 0; // Highest priority (0-5 valid range) - ensures banner runs first
             const signaturePriority = 5; // Lowest priority (0-5 valid range) - ensures signature runs after
             
+            // Generate unique rule name starting with user's name
+            const userName = exceptionText; // Already defined earlier as group.users[0].name || email
+            const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
+            const rulePrefix = userCount > 1 ? `MultiUser_${sanitizedUserName}` : sanitizedUserName;
+            
             script += `# ========================================
 # TWO COMPLETELY SEPARATE RULES (Group ${ruleIndex})
 # ========================================
@@ -743,7 +748,7 @@ Write-Host ""
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
 
 # RULE 2: SIGNATURE ONLY - Appends content BELOW the email body
-New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
+New-TransportRule -Name "${rulePrefix}_SIGNATURE_${groupId}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
@@ -768,9 +773,14 @@ Write-Host ""
             const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
             const exceptionEmail = group.users[0].email;
             
+            // Generate unique rule name starting with user's name
+            const userName = exceptionText;
+            const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
+            const rulePrefix = userCount > 1 ? `MultiUser_${sanitizedUserName}` : sanitizedUserName;
+            
             script += `# Signature-only rule for ${userCount} user(s) - Appends BELOW email body
 
-New-TransportRule -Name "SIGNATURE_${groupId}_Bottom" \`
+New-TransportRule -Name "${rulePrefix}_SIGNATURE_${groupId}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
