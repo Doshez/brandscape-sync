@@ -437,6 +437,10 @@ Disconnect-ExchangeOnline -Confirm:$false
         return;
       }
 
+      // Generate unique timestamp for this batch of rules
+      const uniqueTimestamp = Date.now().toString().slice(-8);
+      const dateStamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+
       // GROUP users by their signature+banner combination to avoid duplicates
       const groupedRules = new Map<string, {
         signatureHtml: string;
@@ -578,7 +582,7 @@ Write-Host ""
         }
 
         ruleIndex++;
-        const groupId = `Group${ruleIndex}`;
+        const groupId = `${dateStamp}_${uniqueTimestamp}_G${ruleIndex}`;
         const userEmails = group.users.map(u => u.email).join('", "');
         const userCount = group.users.length;
         
