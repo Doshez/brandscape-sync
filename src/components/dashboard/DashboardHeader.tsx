@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bell, Settings } from "lucide-react";
+import { LogOut, Bell, Settings, Key } from "lucide-react";
 import { User } from "@supabase/supabase-js";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 
 interface DashboardHeaderProps {
   user: User;
@@ -9,7 +11,11 @@ interface DashboardHeaderProps {
 }
 
 export const DashboardHeader = ({ user, profile, onSignOut }: DashboardHeaderProps) => {
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  
   return (
+    <>
+      <ChangePasswordDialog open={showChangePassword} onOpenChange={setShowChangePassword} />
     <header className="bg-background border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
         <div>
@@ -26,8 +32,8 @@ export const DashboardHeader = ({ user, profile, onSignOut }: DashboardHeaderPro
             <Bell className="h-4 w-4" />
           </Button>
           
-          <Button variant="ghost" size="sm">
-            <Settings className="h-4 w-4" />
+          <Button variant="ghost" size="sm" onClick={() => setShowChangePassword(true)}>
+            <Key className="h-4 w-4" />
           </Button>
           
           <Button 
@@ -41,5 +47,6 @@ export const DashboardHeader = ({ user, profile, onSignOut }: DashboardHeaderPro
         </div>
       </div>
     </header>
+    </>
   );
 };

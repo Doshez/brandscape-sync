@@ -13,6 +13,7 @@ import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { InviteAdminDialog } from "./InviteAdminDialog";
 
 interface UserManagerProps {
   profile: any;
@@ -76,6 +77,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
   const [showBulkDeployDialog, setShowBulkDeployDialog] = useState(false);
   const [showChangeBannerDialog, setShowChangeBannerDialog] = useState(false);
+  const [showInviteAdminDialog, setShowInviteAdminDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -747,6 +749,14 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         </div>
 
         <div className="flex space-x-2">
+          <Button 
+            onClick={() => setShowInviteAdminDialog(true)}
+            variant="default"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invite Admin
+          </Button>
+
           <Dialog open={showBulkDeployDialog} onOpenChange={setShowBulkDeployDialog}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -1418,6 +1428,12 @@ export const UserManager = ({ profile }: UserManagerProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <InviteAdminDialog 
+        open={showInviteAdminDialog}
+        onOpenChange={setShowInviteAdminDialog}
+        onSuccess={fetchData}
+      />
     </div>
   );
 };
