@@ -442,16 +442,71 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     }
 
     try {
-      const { error } = await supabase
+      const newAdminStatus = !user.is_admin;
+      
+      // Update the user's admin status
+      const { error: updateError } = await supabase
         .from("profiles")
-        .update({ is_admin: !user.is_admin })
+        .update({ is_admin: newAdminStatus })
         .eq("id", user.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Also update user_roles table
+      if (newAdminStatus) {
+        // Add admin role
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: user.user_id,
+            role: "admin",
+            created_by: profile.user_id
+          });
+        
+        if (roleError && roleError.code !== '23505') { // Ignore duplicate key error
+          console.error("Error adding admin role:", roleError);
+        }
+      } else {
+        // Remove admin role
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", user.user_id)
+          .eq("role", "admin");
+        
+        if (roleError) {
+          console.error("Error removing admin role:", roleError);
+        }
+      }
+
+      // Send notification email
+      if (user.email && user.user_id) {
+        const { data: session } = await supabase.auth.getSession();
+        
+        const { error: emailError } = await supabase.functions.invoke("notify-role-change", {
+          body: {
+            email: user.email,
+            firstName: user.first_name || "User",
+            lastName: user.last_name || "",
+            isPromoted: newAdminStatus
+          },
+          headers: {
+            Authorization: `Bearer ${session.session?.access_token}`
+          }
+        });
+
+        if (emailError) {
+          console.error("Failed to send notification email:", emailError);
+          toast({
+            title: "Warning",
+            description: "Role updated but notification email failed to send",
+          });
+        }
+      }
 
       toast({
         title: "Success",
-        description: `User ${!user.is_admin ? "promoted to" : "removed from"} admin`,
+        description: `User ${newAdminStatus ? "promoted to" : "removed from"} admin`,
       });
 
       fetchData();
