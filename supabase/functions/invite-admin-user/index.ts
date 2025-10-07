@@ -97,7 +97,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send welcome email with temporary password
     const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-    const loginUrl = `${Deno.env.get("SUPABASE_URL").replace("https://ddoihmeqpjjiumqndjgk.supabase.co", "https://02b67299-3d97-4ebd-ba22-30378309ceb6.lovableproject.com")}/auth`;
+    const loginUrl = "https://emailsigdash.cioafrica.co/auth";
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
