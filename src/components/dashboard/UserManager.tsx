@@ -479,43 +479,63 @@ export const UserManager = ({ profile }: UserManagerProps) => {
       }
 
       // Send notification email with temporary password for new admins
-      if (user.email && user.user_id) {
-        const { data: session } = await supabase.auth.getSession();
-        
-        const { error: emailError } = await supabase.functions.invoke("notify-role-change", {
-          body: {
-            email: user.email,
-            firstName: user.first_name || "User",
-            lastName: user.last_name || "",
-            isPromoted: newAdminStatus,
-            userId: user.user_id
-          },
-          headers: {
-            Authorization: `Bearer ${session.session?.access_token}`
-          }
+      if (!user.user_id) {
+        console.warn("User has no auth account (user_id is null). Cannot send email or set temporary password.");
+        toast({
+          title: "Warning",
+          description: "User promoted but has no login account. They cannot log in to the system.",
+          variant: "destructive",
         });
+        fetchData();
+        return;
+      }
 
-        if (emailError) {
-          console.error("Failed to send notification email:", emailError);
-          toast({
-            title: "Warning",
-            description: "Role updated but notification email failed to send",
-          });
-        } else if (newAdminStatus) {
-          toast({
-            title: "Success",
-            description: `User promoted to admin. Temporary password sent to ${user.email}`,
-          });
-        } else {
-          toast({
-            title: "Success",
-            description: "User removed from admin role",
-          });
+      if (!user.email) {
+        console.warn("User has no email address.");
+        toast({
+          title: "Warning",
+          description: "User promoted but has no email address to send credentials to.",
+          variant: "destructive",
+        });
+        fetchData();
+        return;
+      }
+
+      console.log("Sending role change notification to:", user.email, "Promoted:", newAdminStatus);
+      
+      const { data: session } = await supabase.auth.getSession();
+      
+      const { data: emailData, error: emailError } = await supabase.functions.invoke("notify-role-change", {
+        body: {
+          email: user.email,
+          firstName: user.first_name || "User",
+          lastName: user.last_name || "",
+          isPromoted: newAdminStatus,
+          userId: user.user_id
+        },
+        headers: {
+          Authorization: `Bearer ${session.session?.access_token}`
         }
+      });
+
+      console.log("Email function response:", emailData, "Error:", emailError);
+
+      if (emailError) {
+        console.error("Failed to send notification email:", emailError);
+        toast({
+          title: "Warning",
+          description: `Role updated but notification email failed: ${emailError.message}`,
+          variant: "destructive",
+        });
+      } else if (newAdminStatus) {
+        toast({
+          title: "Success",
+          description: `User promoted to admin. Temporary password sent to ${user.email}`,
+        });
       } else {
         toast({
           title: "Success",
-          description: `User ${newAdminStatus ? "promoted to" : "removed from"} admin`,
+          description: "User removed from admin role",
         });
       }
 
