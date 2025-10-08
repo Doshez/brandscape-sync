@@ -542,11 +542,15 @@ export const UserManager = ({ profile }: UserManagerProps) => {
     if (!confirm(`Are you sure you want to delete ${user.first_name} ${user.last_name}?`)) return;
 
     try {
-      // Delete the user profile (this will cascade to auth.users due to the foreign key)
-      const { error } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", user.id);
+      setLoading(true);
+
+      // Use edge function to properly delete user from both auth and profiles
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: {
+          userId: user.user_id,
+          profileId: user.id,
+        },
+      });
 
       if (error) throw error;
 
@@ -557,11 +561,14 @@ export const UserManager = ({ profile }: UserManagerProps) => {
 
       fetchData();
     } catch (error: any) {
+      console.error("Error deleting user:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to delete user",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
