@@ -12,6 +12,7 @@ interface RoleChangeRequest {
   firstName: string;
   lastName: string;
   isPromoted: boolean;
+  userId: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -57,13 +58,34 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("User is not an admin");
     }
 
-    const { email, firstName, lastName, isPromoted }: RoleChangeRequest = await req.json();
+    const { email, firstName, lastName, isPromoted, userId }: RoleChangeRequest = await req.json();
 
     console.log(`Admin ${user.email} changed role for: ${email}, promoted: ${isPromoted}`);
 
+    let temporaryPassword = "";
+
+    // If promoting to admin, generate temporary password and update user auth
+    if (isPromoted) {
+      // Generate a temporary password
+      temporaryPassword = `TempAdmin${Math.random().toString(36).slice(-8)}!${Date.now().toString().slice(-4)}`;
+      
+      // Update user's password using admin client
+      const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        { password: temporaryPassword }
+      );
+
+      if (passwordError) {
+        console.error("Error updating user password:", passwordError);
+        throw new Error("Failed to set temporary password");
+      }
+
+      console.log(`Temporary password set for user: ${email}`);
+    }
+
     // Send notification email
     const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-    const loginUrl = "https://emailsigdash.cioafrica.co/auth";
+    const loginUrl = "https://emailsigdash.cioafrica.co/";
 
     const emailHtml = isPromoted ? `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -71,6 +93,15 @@ const handler = async (req: Request): Promise<Response> => {
         <p>Hello ${firstName},</p>
         <p>Great news! You have been promoted to administrator in the CIO Africa Email Signature Management system.</p>
         
+        <div style="background-color: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+          <h2 style="color: #333; margin-top: 0;">Your Login Credentials</h2>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Temporary Password:</strong> <code style="background-color: #f4f4f4; padding: 4px 8px; border-radius: 3px; font-size: 14px;">${temporaryPassword}</code></p>
+          <p style="color: #856404; margin-top: 15px;">
+            <strong>⚠️ Important:</strong> You must change this password immediately after logging in for security purposes.
+          </p>
+        </div>
+
         <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 20px 0;">
           <h2 style="color: #333; margin-top: 0;">Your New Privileges</h2>
           <p>As an admin, you can now:</p>

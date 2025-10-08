@@ -13,7 +13,7 @@ import { Users, UserPlus, Edit, Trash2, Shield, ShieldCheck, Mail, FileText, Eye
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { InviteAdminDialog } from "./InviteAdminDialog";
+
 
 interface UserManagerProps {
   profile: any;
@@ -77,7 +77,6 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
   const [showBulkDeployDialog, setShowBulkDeployDialog] = useState(false);
   const [showChangeBannerDialog, setShowChangeBannerDialog] = useState(false);
-  const [showInviteAdminDialog, setShowInviteAdminDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
@@ -479,7 +478,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         }
       }
 
-      // Send notification email
+      // Send notification email with temporary password for new admins
       if (user.email && user.user_id) {
         const { data: session } = await supabase.auth.getSession();
         
@@ -488,7 +487,8 @@ export const UserManager = ({ profile }: UserManagerProps) => {
             email: user.email,
             firstName: user.first_name || "User",
             lastName: user.last_name || "",
-            isPromoted: newAdminStatus
+            isPromoted: newAdminStatus,
+            userId: user.user_id
           },
           headers: {
             Authorization: `Bearer ${session.session?.access_token}`
@@ -501,13 +501,23 @@ export const UserManager = ({ profile }: UserManagerProps) => {
             title: "Warning",
             description: "Role updated but notification email failed to send",
           });
+        } else if (newAdminStatus) {
+          toast({
+            title: "Success",
+            description: `User promoted to admin. Temporary password sent to ${user.email}`,
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: "User removed from admin role",
+          });
         }
+      } else {
+        toast({
+          title: "Success",
+          description: `User ${newAdminStatus ? "promoted to" : "removed from"} admin`,
+        });
       }
-
-      toast({
-        title: "Success",
-        description: `User ${newAdminStatus ? "promoted to" : "removed from"} admin`,
-      });
 
       fetchData();
     } catch (error: any) {
@@ -804,14 +814,6 @@ export const UserManager = ({ profile }: UserManagerProps) => {
         </div>
 
         <div className="flex space-x-2">
-          <Button 
-            onClick={() => setShowInviteAdminDialog(true)}
-            variant="default"
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite Admin
-          </Button>
-
           <Dialog open={showBulkDeployDialog} onOpenChange={setShowBulkDeployDialog}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -1483,12 +1485,6 @@ export const UserManager = ({ profile }: UserManagerProps) => {
           </div>
         </DialogContent>
       </Dialog>
-
-      <InviteAdminDialog 
-        open={showInviteAdminDialog}
-        onOpenChange={setShowInviteAdminDialog}
-        onSuccess={fetchData}
-      />
     </div>
   );
 };
