@@ -441,7 +441,7 @@ Disconnect-ExchangeOnline -Confirm:$false
       const uniqueTimestamp = Date.now().toString().slice(-8);
       const dateStamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
-      // GROUP users by their signature+banner combination to avoid duplicates
+      // Create individual rules per user to enable email tracking
       const groupedRules = new Map<string, {
         signatureHtml: string;
         bannerHtml?: string;
@@ -451,8 +451,8 @@ Disconnect-ExchangeOnline -Confirm:$false
       }>();
 
       selectedAssignments.forEach(assignment => {
-        // Create unique key for this signature+banner combo
-        const key = `${assignment.signatureHtml}_${assignment.bannerHtml || 'NONE'}_${assignment.bannerId || 'NONE'}`;
+        // Create unique key per user to enable email tracking in banner clicks
+        const key = `${assignment.userEmail}_${assignment.signatureHtml}_${assignment.bannerHtml || 'NONE'}_${assignment.bannerId || 'NONE'}`;
         
         if (!groupedRules.has(key)) {
           groupedRules.set(key, {
@@ -635,10 +635,11 @@ Write-Host ""
           const bannerException = bannerText || "BannerContent";
           const exceptionEmail = group.users[0].email;
           
-            // For banner-only mode with tracking, use DIRECT edge function URL for instant redirect
+            // For banner-only mode with tracking, use DIRECT edge function URL with email for tracking
             if (group.bannerClickUrl && group.bannerId) {
-              // Direct edge function URL - no intermediate page, instant redirect
-              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}`;
+              // Include user email in tracking URL for proper analytics
+              const userEmail = encodeURIComponent(group.users[0].email);
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}&email=${userEmail}`;
               
               if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
                 finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
@@ -688,11 +689,12 @@ Write-Host ""
             const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
             const exceptionEmail = group.users[0].email;
             
-            // Process banner with tracking - use DIRECT edge function URL for instant redirect
+            // Process banner with tracking - use DIRECT edge function URL with email for tracking
             let finalBannerHtml = group.bannerHtml;
             if (group.bannerClickUrl && group.bannerId) {
-              // Direct edge function URL - no intermediate page, instant redirect
-              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}`;
+              // Include user email in tracking URL for proper analytics
+              const userEmail = encodeURIComponent(group.users[0].email);
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}&email=${userEmail}`;
               
               if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
                 finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
