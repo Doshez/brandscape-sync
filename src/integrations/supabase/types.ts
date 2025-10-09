@@ -417,6 +417,57 @@ export type Database = {
         }
         Relationships: []
       }
+      email_tracking_sessions: {
+        Row: {
+          banner_id: string | null
+          click_count: number | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          last_clicked_at: string | null
+          recipient_email: string
+          sender_email: string
+          tracking_id: string
+        }
+        Insert: {
+          banner_id?: string | null
+          click_count?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          last_clicked_at?: string | null
+          recipient_email: string
+          sender_email: string
+          tracking_id: string
+        }
+        Update: {
+          banner_id?: string | null
+          click_count?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          last_clicked_at?: string | null
+          recipient_email?: string
+          sender_email?: string
+          tracking_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_tracking_sessions_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banner_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_tracking_sessions_banner_id_fkey"
+            columns: ["banner_id"]
+            isOneToOne: false
+            referencedRelation: "banners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exchange_connections: {
         Row: {
           access_token: string
@@ -737,6 +788,10 @@ export type Database = {
       }
     }
     Functions: {
+      generate_tracking_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
