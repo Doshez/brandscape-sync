@@ -47,6 +47,11 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [selectedBanner, setSelectedBanner] = useState("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   
+  // Domain-wide assignment states
+  const [domainWideMode, setDomainWideMode] = useState(false);
+  const [domainName, setDomainName] = useState("cioaafrica.co");
+  const [domainWideBanner, setDomainWideBanner] = useState("");
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -422,7 +427,151 @@ Disconnect-ExchangeOnline -Confirm:$false
     });
   };
 
+  const generateDomainWideScript = () => {
+    setGenerating(true);
+    try {
+      if (!domainName || !domainWideBanner) {
+        toast({
+          title: "Missing Information",
+          description: "Please enter domain name and select a banner",
+          variant: "destructive",
+        });
+        setGenerating(false);
+        return;
+      }
+
+      const banner = banners.find(b => b.id === domainWideBanner);
+      if (!banner) {
+        toast({
+          title: "Banner Not Found",
+          description: "Selected banner could not be found",
+          variant: "destructive",
+        });
+        setGenerating(false);
+        return;
+      }
+
+      const uniqueTimestamp = Date.now().toString().slice(-8);
+      const dateStamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const groupId = `${dateStamp}_${uniqueTimestamp}_DomainWide`;
+      
+      let finalBannerHtml = banner.html_content;
+      const bannerId = banner.id;
+      const uniqueMarker = `banner-id-${bannerId}`;
+      
+      // Add tracking URL if click_url exists
+      if (banner.click_url && bannerId) {
+        const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${bannerId}&email=domain-wide`;
+        
+        if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
+          finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
+          finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
+          if (!finalBannerHtml.includes('target=')) {
+            finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+          }
+        } else {
+          finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${banner.html_content}</a>`;
+        }
+      }
+      
+      const wrappedBanner = `<!-- ${uniqueMarker} --><div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+      const escapedBanner = wrappedBanner.replace(/'/g, "''");
+      const bannerText = banner.html_content.replace(/<[^>]*>/g, '').trim().substring(0, 50);
+      const bannerException = bannerText || "BannerContent";
+      
+      const script = `# Exchange Online Domain-Wide Banner Rule
+# Generated: ${new Date().toISOString()}
+# Domain: ${domainName}
+# Banner: ${banner.name}
+# Applies to: ALL users in domain
+
+# Connect to Exchange Online
+Connect-ExchangeOnline
+
+Write-Host "=== AUTOMATIC CLEANUP: Removing Old Domain-Wide Rules ===" -ForegroundColor Cyan
+Write-Host ""
+
+# Remove any existing domain-wide banner rules
+$oldRules = Get-TransportRule | Where-Object { 
+    $_.Name -like "*DomainWide*" -and $_.ApplyHtmlDisclaimerText -ne $null
+}
+
+if ($oldRules) {
+    Write-Host "Found $($oldRules.Count) old domain-wide rule(s) - removing..." -ForegroundColor Yellow
+    $oldRules | ForEach-Object { 
+        Write-Host "  ❌ Removing: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    Write-Host "Waiting 10 seconds for Exchange to sync..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 10
+    Write-Host "✓ Cleanup complete" -ForegroundColor Green
+} else {
+    Write-Host "✓ No old domain-wide rules found" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "=== Creating Domain-Wide Banner Rule ===" -ForegroundColor Cyan
+Write-Host ""
+
+# Create domain-wide banner rule
+# Applies to ALL users sending from @${domainName}
+New-TransportRule -Name "BANNER_${groupId}_DomainWide_${domainName}" \`
+    -FromScope InOrganization \`
+    -SenderAddressLocation HeaderOrEnvelope \`
+    -SenderDomainIs "${domainName}" \`
+    -ApplyHtmlDisclaimerLocation Prepend \`
+    -ApplyHtmlDisclaimerText '${escapedBanner}' \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueMarker}", "${bannerException}" \`
+    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -Enabled $true \`
+    -Priority 0 \`
+    -Comments "Domain-wide banner for all users @${domainName}"
+
+Write-Host "✓ Domain-wide banner rule created successfully!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Rule Details:" -ForegroundColor Cyan
+Write-Host "  - Applies to: ALL users @${domainName}" -ForegroundColor White
+Write-Host "  - Banner: ${banner.name}" -ForegroundColor White
+Write-Host "  - Location: Above email body (Prepend)" -ForegroundColor White
+Write-Host "  - Duplication prevention: ${uniqueMarker}" -ForegroundColor White
+Write-Host ""
+
+Write-Host "=== Verifying Rule ===" -ForegroundColor Cyan
+Write-Host ""
+Get-TransportRule -Identity "BANNER_${groupId}_DomainWide_${domainName}" | Format-List Name, State, Priority, SenderDomainIs, ApplyHtmlDisclaimerLocation
+
+Write-Host ""
+Write-Host "=== COMPLETED ===" -ForegroundColor Green
+Write-Host "Domain-wide banner is now active for @${domainName}" -ForegroundColor White
+Write-Host ""
+Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
+`;
+
+      setPowershellScript(script);
+      
+      toast({
+        title: "Domain-Wide Script Generated",
+        description: `Banner will apply to all users @${domainName}`,
+      });
+    } catch (error: any) {
+      console.error("Error generating domain-wide script:", error);
+      toast({
+        title: "Error Generating Script",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const generatePowerShellScript = () => {
+    // Use domain-wide script generator if that mode is enabled
+    if (domainWideMode) {
+      generateDomainWideScript();
+      return;
+    }
+    
     setGenerating(true);
     try {
       const selectedAssignments = assignments.filter(a => selectedUserIds.has(a.userId));
@@ -1091,9 +1240,90 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 
         <TabsContent value="deployment" className="space-y-6 mt-6">
 
-      <Card className="p-6">
+      {/* Domain-Wide Banner Assignment */}
+      <Card className="p-6 border-2 border-primary/20">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Current User Assignments ({filteredAssignments.length})</h3>
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Domain-Wide Banner Deployment
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Deploy a banner to ALL users in your domain (overrides individual assignments)
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="domainWideMode"
+              checked={domainWideMode}
+              onChange={(e) => setDomainWideMode(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <Label htmlFor="domainWideMode" className="cursor-pointer font-medium">
+              Enable domain-wide banner deployment
+            </Label>
+          </div>
+
+          {domainWideMode && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="domainName">Domain Name</Label>
+                  <Input
+                    id="domainName"
+                    placeholder="e.g., cioaafrica.co"
+                    value={domainName}
+                    onChange={(e) => setDomainName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="domainWideBanner">Banner</Label>
+                  <Select value={domainWideBanner} onValueChange={setDomainWideBanner}>
+                    <SelectTrigger id="domainWideBanner">
+                      <SelectValue placeholder="Select banner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {banners.map((banner) => (
+                        <SelectItem key={banner.id} value={banner.id}>
+                          {banner.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Note:</strong> This will generate a script that applies the selected banner to ALL users 
+                  sending from @{domainName}. This is separate from individual user assignments and will apply 
+                  regardless of user-specific settings.
+                </AlertDescription>
+              </Alert>
+
+              <Button
+                onClick={generatePowerShellScript}
+                disabled={generating || !domainName || !domainWideBanner}
+                className="w-full"
+              >
+                <Terminal className="h-4 w-4 mr-2" />
+                {generating ? "Generating..." : "Generate Domain-Wide Banner Script"}
+              </Button>
+            </>
+          )}
+        </div>
+      </Card>
+
+      {!domainWideMode && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Current User Assignments ({filteredAssignments.length})</h3>
           <div className="flex items-center gap-2">
             <Input
               placeholder="Search by name or email..."
@@ -1221,6 +1451,7 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
           </>
         )}
       </Card>
+      )}
 
       {powershellScript && (
         <Card className="p-6">
