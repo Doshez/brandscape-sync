@@ -222,7 +222,8 @@ function wrapBannerWithTracking(
   clickUrl: string
 ): string {
   const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
-  const trackingUrl = `${appUrl}/functions/v1/track-banner-click`;
+  // Direct edge function URL for instant redirect (no intermediate page)
+  const trackingUrl = `${appUrl}/functions/v1/track-banner-click?banner_id=${bannerId}${emailParam}`;
   
   // Add tracking pixel for view tracking (1x1 transparent image) - fixed URL format
   const viewTrackingPixel = `<img src="${appUrl}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
@@ -242,14 +243,14 @@ function wrapBannerWithTracking(
         return match;
       }
       
-      return `<a href="${clickUrl}" style="text-decoration:none;display:inline-block;">${match}</a>`;
+      return `<a href="${trackingUrl}" target="_blank" style="text-decoration:none;display:inline-block;">${match}</a>`;
     }
   );
   
-  // Update existing links to go directly to the click URL (tracking happens on view)
+  // Update existing links to go through tracking (edge function redirects instantly)
   wrappedHtml = wrappedHtml.replace(
     /<a\s+([^>]*href=["'][^"']*["'][^>]*)>/gi,
-    `<a href="${clickUrl}">`
+    `<a href="${trackingUrl}" target="_blank">`
   );
   
   // Add view tracking pixel at the end

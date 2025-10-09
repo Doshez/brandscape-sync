@@ -635,19 +635,20 @@ Write-Host ""
           const bannerException = bannerText || "BannerContent";
           const exceptionEmail = group.users[0].email;
           
-          // For banner-only mode with tracking, we'll use a generic tracking approach
-          if (group.bannerClickUrl && group.bannerId) {
-            const trackingUrl = `${window.location.origin}/track/${group.bannerId}`;
-            
-            if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
-              finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
-              finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
-              if (!finalBannerHtml.includes('target=')) {
-                finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+            // For banner-only mode with tracking, use DIRECT edge function URL for instant redirect
+            if (group.bannerClickUrl && group.bannerId) {
+              // Direct edge function URL - no intermediate page, instant redirect
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}`;
+              
+              if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
+                finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
+                finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
+                if (!finalBannerHtml.includes('target=')) {
+                  finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+                }
+              } else {
+                finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${group.bannerHtml}</a>`;
               }
-            } else {
-              finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${group.bannerHtml}</a>`;
-            }
           }
           
           // Add unique marker as hidden comment to detect duplicates
@@ -687,10 +688,11 @@ Write-Host ""
             const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
             const exceptionEmail = group.users[0].email;
             
-            // Process banner with tracking
+            // Process banner with tracking - use DIRECT edge function URL for instant redirect
             let finalBannerHtml = group.bannerHtml;
             if (group.bannerClickUrl && group.bannerId) {
-              const trackingUrl = `${window.location.origin}/track/${group.bannerId}`;
+              // Direct edge function URL - no intermediate page, instant redirect
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}`;
               
               if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
                 finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
