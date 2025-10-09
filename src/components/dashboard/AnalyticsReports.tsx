@@ -44,6 +44,8 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("7d");
   const [selectedMetric, setSelectedMetric] = useState("clicks");
+  const [selectedBannerId, setSelectedBannerId] = useState<string>("");
+  const [exportingEmails, setExportingEmails] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -135,6 +137,78 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
         description: "Failed to export analytics data",
         variant: "destructive",
       });
+    }
+  };
+
+  const exportBannerEmails = async () => {
+    if (!selectedBannerId) {
+      toast({
+        title: "No Banner Selected",
+        description: "Please select a banner to export email data",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setExportingEmails(true);
+
+      // Fetch all click events for this banner
+      const { data: clickEvents, error } = await supabase
+        .from("analytics_events")
+        .select("*")
+        .eq("banner_id", selectedBannerId)
+        .eq("event_type", "click")
+        .order("timestamp", { ascending: false });
+
+      if (error) throw error;
+
+      if (!clickEvents || clickEvents.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No click events found for this banner",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Find banner name
+      const banner = bannerAnalytics.find(b => b.id === selectedBannerId);
+      const bannerName = banner?.name || "Unknown Banner";
+
+      // Create CSV content
+      const csvContent = [
+        ["Email", "Click Date", "Click Time", "User Agent", "IP Address"].join(","),
+        ...clickEvents.map(event => [
+          event.email_recipient || "Anonymous",
+          new Date(event.timestamp).toLocaleDateString(),
+          new Date(event.timestamp).toLocaleTimeString(),
+          event.user_agent ? `"${event.user_agent.replace(/"/g, '""')}"` : "N/A",
+          event.ip_address || "N/A"
+        ].join(","))
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `banner-clicks-${bannerName.replace(/[^a-z0-9]/gi, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Complete",
+        description: `Exported ${clickEvents.length} click records for ${bannerName}`,
+      });
+    } catch (error) {
+      console.error("Error exporting banner emails:", error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export banner email data",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingEmails(false);
     }
   };
 
@@ -275,6 +349,7 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
         <TabsList>
           <TabsTrigger value="banners">Banner Performance</TabsTrigger>
           <TabsTrigger value="events">Recent Activity</TabsTrigger>
+          <TabsTrigger value="export">Email Export</TabsTrigger>
         </TabsList>
 
         <TabsContent value="banners" className="space-y-4">
@@ -384,6 +459,57 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
                   ))
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="export" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Export Banner Click Emails</CardTitle>
+              <CardDescription>
+                Download a CSV file with email addresses and details of users who clicked on a specific banner
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Select Banner</label>
+                <Select value={selectedBannerId} onValueChange={setSelectedBannerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a banner to export clicks..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bannerAnalytics.map((banner) => (
+                      <SelectItem key={banner.id} value={banner.id}>
+                        {banner.name} ({banner.current_clicks} clicks)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="pt-2">
+                <Button 
+                  onClick={exportBannerEmails} 
+                  disabled={!selectedBannerId || exportingEmails}
+                  className="w-full"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {exportingEmails ? "Exporting..." : "Download Click Data (CSV)"}
+                </Button>
+              </div>
+
+              {selectedBannerId && (
+                <div className="text-sm text-muted-foreground bg-muted p-4 rounded-lg">
+                  <p className="font-medium mb-2">Export will include:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Email addresses of users who clicked</li>
+                    <li>Click date and time</li>
+                    <li>User agent (browser/device info)</li>
+                    <li>IP address</li>
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
