@@ -662,13 +662,16 @@ export const EnhancedBannerManager = ({ profile }: EnhancedBannerManagerProps) =
                                 />
                               </div>
                             )}
+                            <div className="mb-2 px-4 py-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded text-sm">
+                              <strong>Preview Mode:</strong> This is a test view. Actual deployments will track real user email addresses.
+                            </div>
                             <div 
                               className="border rounded-lg p-6 bg-background max-h-[400px] overflow-y-auto"
                               dangerouslySetInnerHTML={{ 
                                 __html: wrapBannerWithTracking(
                                   banner.html_content, 
                                   banner.id, 
-                                  'preview@example.com'
+                                  undefined // Don't track preview emails
                                 ) 
                               }}
                             />

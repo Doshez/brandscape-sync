@@ -13,11 +13,13 @@ export function wrapBannerWithTracking(
   bannerId: string,
   userEmail?: string
 ): string {
+  // Only add email param if email is provided and not empty
   const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
-  // Call edge function directly - no auth required
+  // Call edge function directly - no auth required  
   const trackingUrl = `${SUPABASE_URL}/functions/v1/track-banner-click?banner_id=${bannerId}${emailParam}`;
   
   // Add tracking pixel for view tracking (1x1 transparent image) - calls edge function directly
+  // Fixed URL format: banner_id as query param, not path param
   const viewTrackingPixel = `<img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
   
   // Wrap any clickable elements (a tags and images) with tracking

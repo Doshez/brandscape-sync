@@ -221,11 +221,11 @@ function wrapBannerWithTracking(
   appUrl: string,
   clickUrl: string
 ): string {
-  const emailParam = userEmail ? `?email=${encodeURIComponent(userEmail)}` : '';
+  const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
   const trackingUrl = `${appUrl}/functions/v1/track-banner-click`;
   
-  // Add tracking pixel for view tracking (1x1 transparent image)
-  const viewTrackingPixel = `<img src="${appUrl}/functions/v1/track-banner-view/${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
+  // Add tracking pixel for view tracking (1x1 transparent image) - fixed URL format
+  const viewTrackingPixel = `<img src="${appUrl}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
   
   // Wrap any clickable elements with tracking
   let wrappedHtml = bannerHtml;
