@@ -635,15 +635,11 @@ Write-Host ""
           const bannerException = bannerText || "BannerContent";
           const exceptionEmail = group.users[0].email;
           
-            // For banner-only mode with tracking, use sender email in tracking URL
-            // NOTE: This tracks the SENDER, not the recipient. Exchange transport rules
-            // do not support dynamic recipient-specific URLs.
-            // For true recipient tracking, use the generate-tracking-link API endpoint
-            // to create unique tracking URLs per sender-recipient pair.
+            // For banner-only mode with tracking, use DIRECT edge function URL with email for tracking
             if (group.bannerClickUrl && group.bannerId) {
-              // Include sender email in tracking URL
-              const senderEmail = encodeURIComponent(group.users[0].email);
-              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}&email=${senderEmail}`;
+              // Include user email in tracking URL for proper analytics
+              const userEmail = encodeURIComponent(group.users[0].email);
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}&email=${userEmail}`;
               
               if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
                 finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
@@ -663,12 +659,6 @@ Write-Host ""
           
           script += `# Shared banner rule for ${userCount} user(s)
 # Exception markers: Banner text, User email, and Unique ID (${uniqueMarker})
-# 
-# TRACKING NOTE: This banner tracks clicks by SENDER email (the user sending the email).
-# Exchange transport rules cannot dynamically insert recipient emails into tracking URLs.
-# Analytics will show which SENDER's banner was clicked, along with IP/user-agent data.
-# For true recipient tracking, use the generate-tracking-link API endpoint to create
-# unique tracking URLs per sender-recipient pair before sending emails.
 New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
@@ -681,7 +671,6 @@ New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
 
 Write-Host "  ✓ Banner rule created for ${userCount} user(s)" -ForegroundColor Green
 Write-Host "  ✓ Duplication prevention: ${uniqueMarker}, text match, and email match" -ForegroundColor Cyan
-Write-Host "  ⓘ  Tracking captures sender email + click metadata (IP, user-agent)" -ForegroundColor Yellow
 Write-Host ""
 
 `;
@@ -700,16 +689,12 @@ Write-Host ""
             const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
             const exceptionEmail = group.users[0].email;
             
-            // Process banner with tracking - use sender email in tracking URL
-            // NOTE: This tracks the SENDER, not the recipient. Exchange transport rules
-            // do not support dynamic recipient-specific URLs.
-            // For true recipient tracking, use the generate-tracking-link API endpoint
-            // to create unique tracking URLs per sender-recipient pair.
+            // Process banner with tracking - use DIRECT edge function URL with email for tracking
             let finalBannerHtml = group.bannerHtml;
             if (group.bannerClickUrl && group.bannerId) {
-              // Include sender email in tracking URL
-              const senderEmail = encodeURIComponent(group.users[0].email);
-              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}&email=${senderEmail}`;
+              // Include user email in tracking URL for proper analytics
+              const userEmail = encodeURIComponent(group.users[0].email);
+              const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${group.bannerId}&email=${userEmail}`;
               
               if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
                 finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
@@ -744,12 +729,6 @@ Write-Host ""
 # Rule 2: SIGNATURE ONLY (Append - appears BELOW email body)
 # Different names, priorities, locations = NO DUPLICATES
 # ExceptIfBodyContainsText prevents duplication
-# 
-# TRACKING NOTE: Banner tracks clicks by SENDER email (the user sending the email).
-# Exchange transport rules cannot dynamically insert recipient emails into tracking URLs.
-# Analytics will show which SENDER's banner was clicked, along with IP/user-agent data.
-# For true recipient tracking, use the generate-tracking-link API endpoint to create
-# unique tracking URLs per sender-recipient pair before sending emails.
 # ========================================
 
 Write-Host "Creating BANNER rule (Prepend ABOVE body)..." -ForegroundColor Cyan
@@ -768,7 +747,6 @@ New-TransportRule -Name "BANNER_${groupId}_Top" \`
 
 Write-Host "  ✓ BANNER rule created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
 Write-Host "  ✓ Exception: ${uniqueBannerMarker}" -ForegroundColor Cyan
-Write-Host "  ⓘ  Tracking captures sender email + click metadata (IP, user-agent)" -ForegroundColor Yellow
 Write-Host ""
 
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan

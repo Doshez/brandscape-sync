@@ -25,10 +25,7 @@ const handler = async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     let banner_id = url.searchParams.get('banner_id');
     let user_email = url.searchParams.get('email');
-    const tracking_id = url.searchParams.get('tid'); // New: tracking ID for recipient tracking
     let campaign_id, user_agent, referrer, metadata;
-    let sender_email: string | null = null;
-    let recipient_email: string | null = null;
 
     // If POST, try to get from body as well
     if (req.method === 'POST') {
@@ -44,64 +41,31 @@ const handler = async (req: Request): Promise<Response> => {
       referrer = req.headers.get('referer') || undefined;
     }
 
-    // Initialize Supabase client early for tracking ID lookup
+    if (!banner_id) {
+      throw new Error("Missing required parameter: banner_id");
+    }
+
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // If tracking_id is provided, look up sender and recipient
-    if (tracking_id) {
-      const { data: session, error: sessionError } = await supabase
-        .from('email_tracking_sessions')
-        .select('*')
-        .eq('tracking_id', tracking_id)
-        .single();
-
-      if (session && !sessionError) {
-        sender_email = session.sender_email;
-        recipient_email = session.recipient_email;
-        banner_id = session.banner_id;
-        
-        // Update session stats
-        await supabase
-          .from('email_tracking_sessions')
-          .update({
-            click_count: session.click_count + 1,
-            last_clicked_at: new Date().toISOString(),
-          })
-          .eq('tracking_id', tracking_id);
-
-        console.log(`Tracking session found: sender=${sender_email}, recipient=${recipient_email}`);
-      } else {
-        console.warn(`Tracking session not found for ID: ${tracking_id}`);
-      }
-    }
-
-    if (!banner_id) {
-      throw new Error("Missing required parameter: banner_id or valid tracking_id");
-    }
 
     // Get client IP address (take only the first IP if multiple are present)
     const forwardedFor = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip');
     const clientIP = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
 
-    // Record the click event with both sender and recipient info
-    const eventMetadata: any = metadata || {};
-    if (sender_email) eventMetadata.sender_email = sender_email;
-    if (recipient_email) eventMetadata.recipient_email = recipient_email;
-    if (tracking_id) eventMetadata.tracking_id = tracking_id;
-
+    // Record the click event
     const { error: eventError } = await supabase
       .from('analytics_events')
       .insert({
         event_type: 'click',
         banner_id: banner_id,
         campaign_id: campaign_id || null,
-        email_recipient: recipient_email || user_email || null, // Prioritize recipient from tracking session
+        email_recipient: user_email || null,
         user_agent: user_agent || req.headers.get('user-agent'),
         ip_address: clientIP,
         referrer: referrer || req.headers.get('referer'),
-        metadata: eventMetadata,
+        metadata: metadata || {},
         timestamp: new Date().toISOString()
       });
 

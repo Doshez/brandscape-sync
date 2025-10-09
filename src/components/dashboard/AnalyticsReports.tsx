@@ -176,24 +176,16 @@ export const AnalyticsReports = ({ profile }: AnalyticsReportsProps) => {
       const banner = bannerAnalytics.find(b => b.id === selectedBannerId);
       const bannerName = banner?.name || "Unknown Banner";
 
-      // Create CSV content with sender and recipient info
+      // Create CSV content
       const csvContent = [
-        ["Sender Email", "Recipient Email", "Click Date", "Click Time", "User Agent", "IP Address"].join(","),
-        ...clickEvents.map(event => {
-          // Extract sender and recipient from metadata if available
-          const metadata = event.metadata as Record<string, any> | null;
-          const senderEmail = metadata?.sender_email || event.email_recipient || "Unknown";
-          const recipientEmail = metadata?.recipient_email || event.email_recipient || "Unknown";
-          
-          return [
-            senderEmail,
-            recipientEmail,
-            new Date(event.timestamp).toLocaleDateString(),
-            new Date(event.timestamp).toLocaleTimeString(),
-            event.user_agent ? `"${event.user_agent.replace(/"/g, '""')}"` : "N/A",
-            event.ip_address || "N/A"
-          ].join(",");
-        })
+        ["Email", "Click Date", "Click Time", "User Agent", "IP Address"].join(","),
+        ...clickEvents.map(event => [
+          event.email_recipient || "Anonymous",
+          new Date(event.timestamp).toLocaleDateString(),
+          new Date(event.timestamp).toLocaleTimeString(),
+          event.user_agent ? `"${event.user_agent.replace(/"/g, '""')}"` : "N/A",
+          event.ip_address || "N/A"
+        ].join(","))
       ].join("\n");
 
       const blob = new Blob([csvContent], { type: "text/csv" });
