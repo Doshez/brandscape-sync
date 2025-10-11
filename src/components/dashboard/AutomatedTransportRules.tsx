@@ -488,8 +488,29 @@ Disconnect-ExchangeOnline -Confirm:$false
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
+Write-Host "=== AUTOMATIC CLEANUP: Removing Old Domain-Wide Rules ===" -ForegroundColor Cyan
+Write-Host ""
+
+# Remove any existing domain-wide banner rules
+$oldRules = Get-TransportRule | Where-Object { 
+    $_.Name -like "*DomainWide*" -and $_.ApplyHtmlDisclaimerText -ne $null
+}
+
+if ($oldRules) {
+    Write-Host "Found $($oldRules.Count) old domain-wide rule(s) - removing..." -ForegroundColor Yellow
+    $oldRules | ForEach-Object { 
+        Write-Host "  ❌ Removing: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    Write-Host "Waiting 10 seconds for Exchange to sync..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 10
+    Write-Host "✓ Cleanup complete" -ForegroundColor Green
+} else {
+    Write-Host "✓ No old domain-wide rules found" -ForegroundColor Green
+}
+
+Write-Host ""
 Write-Host "=== Creating Domain-Wide Banner Rule ===" -ForegroundColor Cyan
-Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
 Write-Host ""
 
 # Create domain-wide banner rule
@@ -616,30 +637,88 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 
       const scriptTypeLabel = scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only";
       
+      // ALWAYS remove ALL old disclaimer/signature/banner rules to prevent duplicates
+      
       let script = `# Exchange Online Transport Rules - Auto-generated (${scriptTypeLabel})
 # Generated: ${new Date().toISOString()}
 # Selected Users: ${selectedAssignments.length}
 # Unique Rule Groups: ${groupedRules.size}
 # Total Rules: ${totalRules}
-#
-# IMPORTANT: This script will NOT delete existing rules
-# New rules will be created alongside your existing transport rules
-# To remove old rules, use the Cleanup tab or manually delete them via Exchange Admin Center
-#
-# SIGNATURE BEHAVIOR IN EMAIL REPLIES:
-# - Signatures are added to each NEW outbound message you send
-# - In reply threads, the signature appears after YOUR NEW MESSAGE CONTENT
-# - Previous messages in the thread will NOT have signatures added to them
-# - If you want signatures to appear immediately after your reply text:
-#   1. Configure your email client to "reply inline" or "reply above" mode
-#   2. This ensures your new message (with signature) appears at the top
-#   3. The transport rule will append the signature right after your text
 
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
+Write-Host "=== AUTOMATIC CLEANUP: Removing ALL Old Rules ===" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Scanning for ANY rules that modify email content..." -ForegroundColor Yellow
+
+# SUPER AGGRESSIVE: Find ANY rule with ApplyHtmlDisclaimerText (catches everything)
+$allRules = Get-TransportRule | Where-Object { 
+    $_.ApplyHtmlDisclaimerText -ne $null
+}
+
+if ($allRules) {
+    Write-Host ""
+    Write-Host "Found $($allRules.Count) existing rule(s) - removing automatically..." -ForegroundColor Yellow
+    Write-Host ""
+    $allRules | Format-Table Name, State, Priority, ApplyHtmlDisclaimerLocation -AutoSize
+    Write-Host ""
+    
+    $allRules | ForEach-Object { 
+        Write-Host "  ❌ Removing: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+    }
+    
+    Write-Host ""
+    Write-Host "⏱️  Waiting 30 seconds for Exchange to fully sync..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 30
+    Write-Host ""
+    
+    # VERIFY cleanup was successful
+    Write-Host "Verifying cleanup..." -ForegroundColor Yellow
+    $remainingRules = Get-TransportRule | Where-Object { 
+        $_.ApplyHtmlDisclaimerText -ne $null
+    }
+    
+    if ($remainingRules) {
+        Write-Host ""
+        Write-Host "⚠️  WARNING: $($remainingRules.Count) rule(s) still exist after cleanup" -ForegroundColor Yellow
+        Write-Host ""
+        $remainingRules | Format-Table Name, State -AutoSize
+        Write-Host ""
+        Write-Host "Attempting second cleanup pass..." -ForegroundColor Yellow
+        
+        $remainingRules | ForEach-Object { 
+            Write-Host "  ❌ Force removing: $($_.Name)" -ForegroundColor Red
+            Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+        }
+        
+        Write-Host "Waiting 20 more seconds..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 20
+        
+        $finalCheck = Get-TransportRule | Where-Object { 
+            $_.ApplyHtmlDisclaimerText -ne $null
+        }
+        
+        if ($finalCheck) {
+            Write-Host ""
+            Write-Host "⚠️  $($finalCheck.Count) rule(s) could not be removed automatically" -ForegroundColor Yellow
+            Write-Host "Proceeding anyway - new rules will be created with unique names" -ForegroundColor Yellow
+            Write-Host ""
+        } else {
+            Write-Host "✓ Second pass successful - all old rules removed!" -ForegroundColor Green
+            Write-Host ""
+        }
+    } else {
+        Write-Host "✓ All old rules successfully removed!" -ForegroundColor Green
+        Write-Host ""
+    }
+} else {
+    Write-Host "✓ No existing disclaimer rules found - ready to proceed" -ForegroundColor Green
+    Write-Host ""
+}
+
 Write-Host "=== Creating New Rules ===" -ForegroundColor Cyan
-Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
 Write-Host ""
 
 `;
@@ -670,33 +749,24 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
         
         // SIGNATURE ONLY MODE
         if (scriptType === "signature") {
-          // Create unique signature marker
-          const uniqueSignatureMarker = `signature-${groupId}`;
-          const wrappedSignature = `<!-- ${uniqueSignatureMarker} --><div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
-          // Extract image IDs from signature HTML for exception check
-          const imageIdMatches = group.signatureHtml.match(/id="([^"]+)"/g) || [];
-          const imageIds = imageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-          const imageException = imageIds || uniqueSignatureMarker;
+          // Extract text from first user's name and email for exception check
+          const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
+          const exceptionEmail = group.users[0].email;
           
-          // Sanitize user name for rule name (remove special characters)
-          const userName = group.users[0].name || group.users[0].email.split('@')[0];
-          const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
-          const ruleName = userCount > 1 ? `SIGNATURE_${sanitizedUserName}_Group${ruleIndex}` : `SIGNATURE_${sanitizedUserName}`;
-          
-          script += `# Signature rule for ${userCount} user(s)
-New-TransportRule -Name "${ruleName}" \`
+          script += `# Shared signature rule for ${userCount} user(s)
+New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueSignatureMarker}", "${imageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
-    -Enabled $true \`
-    -Comments "Signature for ${userName}"
+    -Enabled $true
 
-Write-Host "  ✓ Signature rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
+Write-Host "  ✓ Signature rule created for ${userCount} user(s) with duplication prevention (text + email)" -ForegroundColor Green
 Write-Host ""
 
 `;
@@ -709,15 +779,10 @@ Write-Host ""
           const bannerId = group.bannerId || `banner_${groupId}`;
           const uniqueMarker = `banner-id-${bannerId}`;
           
-          // Extract image IDs from banner HTML for exception check
-          const imageIdMatches = group.bannerHtml.match(/id="([^"]+)"/g) || [];
-          const imageIds = imageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-          const imageException = imageIds || uniqueMarker;
-          
-          // Sanitize user name for rule name
-          const userName = group.users[0].name || group.users[0].email.split('@')[0];
-          const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
-          const ruleName = userCount > 1 ? `BANNER_${sanitizedUserName}_Group${ruleIndex}` : `BANNER_${sanitizedUserName}`;
+          // Extract banner identifier and email for exception check
+          const bannerText = group.bannerHtml.replace(/<[^>]*>/g, '').trim().substring(0, 50);
+          const bannerException = bannerText || "BannerContent";
+          const exceptionEmail = group.users[0].email;
           
             // For banner-only mode with tracking, use DIRECT edge function URL with email for tracking
             if (group.bannerClickUrl && group.bannerId) {
@@ -741,21 +806,20 @@ Write-Host ""
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           const bannerPriority = Math.min(ruleIndex - 1, 3);
           
-          script += `# Banner rule for ${userCount} user(s): ${userName}
-# Exception markers: Banner ID and Image IDs (${uniqueMarker})
-New-TransportRule -Name "${ruleName}" \`
+          script += `# Shared banner rule for ${userCount} user(s)
+# Exception markers: Banner text, User email, and Unique ID (${uniqueMarker})
+New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueMarker}", "${imageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueMarker}", "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${bannerPriority} \`
-    -Comments "Banner for ${userName}"
+    -Priority ${bannerPriority}
 
-Write-Host "  ✓ Banner rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
-Write-Host "  ✓ Duplication prevention: ${uniqueMarker}, ${imageException}" -ForegroundColor Cyan
+Write-Host "  ✓ Banner rule created for ${userCount} user(s)" -ForegroundColor Green
+Write-Host "  ✓ Duplication prevention: ${uniqueMarker}, text match, and email match" -ForegroundColor Cyan
 Write-Host ""
 
 `;
@@ -768,15 +832,11 @@ Write-Host ""
             const uniqueBannerMarker = `banner-id-${bannerId}`;
             const uniqueSignatureMarker = `signature-${groupId}`;
             
-            // Extract image IDs from banner HTML for exception check
-            const bannerImageIdMatches = group.bannerHtml.match(/id="([^"]+)"/g) || [];
-            const bannerImageIds = bannerImageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-            const bannerImageException = bannerImageIds || uniqueBannerMarker;
-            
-            // Extract image IDs from signature HTML for exception check
-            const signatureImageIdMatches = group.signatureHtml.match(/id="([^"]+)"/g) || [];
-            const signatureImageIds = signatureImageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-            const signatureImageException = signatureImageIds || uniqueSignatureMarker;
+            // Extract unique text and email for exception checks
+            const bannerText = group.bannerHtml.replace(/<[^>]*>/g, '').trim().substring(0, 50);
+            const bannerException = bannerText || "BannerContent";
+            const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
+            const exceptionEmail = group.users[0].email;
             
             // Process banner with tracking - use DIRECT edge function URL with email for tracking
             let finalBannerHtml = group.bannerHtml;
@@ -807,7 +867,7 @@ Write-Host ""
             const signaturePriority = 5; // Lowest priority (0-5 valid range) - ensures signature runs after
             
             // Generate unique rule name starting with user's name
-            const userName = group.users[0].name || group.users[0].email.split('@')[0];
+            const userName = exceptionText; // Already defined earlier as group.users[0].name || email
             const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
             const rulePrefix = userCount > 1 ? `MultiUser_${sanitizedUserName}` : sanitizedUserName;
             
@@ -817,43 +877,43 @@ Write-Host ""
 # Rule 1: BANNER ONLY (Prepend - appears ABOVE email body)
 # Rule 2: SIGNATURE ONLY (Append - appears BELOW email body)
 # Different names, priorities, locations = NO DUPLICATES
-# ExceptIfBodyContainsText prevents duplication with Image IDs and Signature ID
+# ExceptIfBodyContainsText prevents duplication
 # ========================================
 
 Write-Host "Creating BANNER rule (Prepend ABOVE body)..." -ForegroundColor Cyan
 
 # RULE 1: BANNER ONLY - Prepends content ABOVE the email body
-New-TransportRule -Name "BANNER_${rulePrefix}_${groupId}" \`
+New-TransportRule -Name "BANNER_${groupId}_Top" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueBannerMarker}", "${bannerImageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueBannerMarker}", "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
-    -Comments "Banner for ${userName}"
+    -Comments "Banner for ${userCount} user(s) - Prepend ABOVE body"
 
-Write-Host "  ✓ BANNER rule 'BANNER_${rulePrefix}_${groupId}' created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
-Write-Host "  ✓ Exception: ${uniqueBannerMarker}, Image IDs: ${bannerImageException}" -ForegroundColor Cyan
+Write-Host "  ✓ BANNER rule created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
+Write-Host "  ✓ Exception: ${uniqueBannerMarker}" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
 
 # RULE 2: SIGNATURE ONLY - Appends content BELOW the email body
-New-TransportRule -Name "SIGNATURE_${rulePrefix}_${groupId}" \`
+New-TransportRule -Name "${rulePrefix}_SIGNATURE_${groupId}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueSignatureMarker}", "${signatureImageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueSignatureMarker}", "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
-    -Comments "Signature for ${userName}"
+    -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
-Write-Host "  ✓ SIGNATURE rule 'SIGNATURE_${rulePrefix}_${groupId}' created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
-Write-Host "  ✓ Exception: ${uniqueSignatureMarker}, Image IDs: ${signatureImageException}" -ForegroundColor Cyan
+Write-Host "  ✓ SIGNATURE rule created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
+Write-Host "  ✓ Exception: ${uniqueSignatureMarker}" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Result: Banner ABOVE body, Signature BELOW body - NO DUPLICATES" -ForegroundColor Green
 Write-Host ""
