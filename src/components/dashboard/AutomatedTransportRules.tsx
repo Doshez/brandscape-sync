@@ -474,13 +474,10 @@ Disconnect-ExchangeOnline -Confirm:$false
         }
       }
       
-      const wrappedBanner = `<!-- ${uniqueMarker} --><div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+      // Use a hidden span with unique text that Exchange can detect (not HTML comment)
+      const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
+      const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${uniqueText}</span>${finalBannerHtml}</div>`;
       const escapedBanner = wrappedBanner.replace(/'/g, "''");
-      
-      // Extract image IDs from banner HTML for exception check (prevents duplicates)
-      const imageIdMatches = banner.html_content.match(/id="([^"]+)"/g) || [];
-      const imageIds = imageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-      const bannerException = imageIds || uniqueMarker;
       
       const script = `# Exchange Online Domain-Wide Banner Rule
 # Generated: ${new Date().toISOString()}
@@ -497,14 +494,14 @@ Write-Host ""
 
 # Create domain-wide banner rule  
 # Applies to ALL users sending from @${domainName}
-# Exception check: Banner ID (${uniqueMarker}) and Image IDs to prevent duplicates
+# Exception check: Hidden text marker (${uniqueText}) prevents duplicates
 New-TransportRule -Name "BANNER_${groupId}_DomainWide_${domainName}" \`
     -FromScope InOrganization \`
     -SenderAddressLocation HeaderOrEnvelope \`
     -SenderDomainIs "${domainName}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueMarker}", "${bannerException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority 0 \`
@@ -516,7 +513,7 @@ Write-Host "Rule Details:" -ForegroundColor Cyan
 Write-Host "  - Applies to: ALL users @${domainName}" -ForegroundColor White
 Write-Host "  - Banner: ${banner.name}" -ForegroundColor White
 Write-Host "  - Location: Above email body (Prepend)" -ForegroundColor White
-Write-Host "  - Duplication prevention: Banner ID (${uniqueMarker}) + Image IDs" -ForegroundColor White
+Write-Host "  - Duplication prevention: ${uniqueText}" -ForegroundColor White
 Write-Host ""
 
 Write-Host "=== Verifying Rule ===" -ForegroundColor Cyan
@@ -674,15 +671,11 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
         
         // SIGNATURE ONLY MODE
         if (scriptType === "signature") {
-          // Create unique signature marker
+          // Create unique signature marker with hidden detectable text
           const uniqueSignatureMarker = `signature-${groupId}`;
-          const wrappedSignature = `<!-- ${uniqueSignatureMarker} --><div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
+          const uniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${uniqueText}</span>${group.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
-          
-          // Extract image IDs from signature HTML for exception check
-          const imageIdMatches = group.signatureHtml.match(/id="([^"]+)"/g) || [];
-          const imageIds = imageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-          const imageException = imageIds || uniqueSignatureMarker;
           
           // Sanitize user name for rule name (remove special characters)
           const userName = group.users[0].name || group.users[0].email.split('@')[0];
@@ -695,7 +688,7 @@ New-TransportRule -Name "${ruleName}" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueSignatureMarker}", "${imageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Comments "Signature for ${userName}"
@@ -712,11 +705,7 @@ Write-Host ""
           // Create a unique identifier for this banner to prevent duplicates
           const bannerId = group.bannerId || `banner_${groupId}`;
           const uniqueMarker = `banner-id-${bannerId}`;
-          
-          // Extract image IDs from banner HTML for exception check
-          const imageIdMatches = group.bannerHtml.match(/id="([^"]+)"/g) || [];
-          const imageIds = imageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-          const imageException = imageIds || uniqueMarker;
+          const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
           
           // Sanitize user name for rule name
           const userName = group.users[0].name || group.users[0].email.split('@')[0];
@@ -740,26 +729,26 @@ Write-Host ""
               }
           }
           
-          // Add unique marker as hidden comment to detect duplicates
-          const wrappedBanner = `<!-- ${uniqueMarker} --><div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+          // Add unique marker as hidden span to detect duplicates
+          const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${uniqueText}</span>${finalBannerHtml}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           const bannerPriority = Math.min(ruleIndex - 1, 3);
           
           script += `# Banner rule for ${userCount} user(s): ${userName}
-# Exception markers: Banner ID and Image IDs (${uniqueMarker})
+# Exception marker: ${uniqueText} (prevents duplicates)
 New-TransportRule -Name "${ruleName}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueMarker}", "${imageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
     -Comments "Banner for ${userName}"
 
 Write-Host "  ✓ Banner rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
-Write-Host "  ✓ Duplication prevention: ${uniqueMarker}, ${imageException}" -ForegroundColor Cyan
+Write-Host "  ✓ Duplication prevention: ${uniqueText}" -ForegroundColor Cyan
 Write-Host ""
 
 `;
@@ -771,16 +760,8 @@ Write-Host ""
             const bannerId = group.bannerId || `banner_${groupId}`;
             const uniqueBannerMarker = `banner-id-${bannerId}`;
             const uniqueSignatureMarker = `signature-${groupId}`;
-            
-            // Extract image IDs from banner HTML for exception check
-            const bannerImageIdMatches = group.bannerHtml.match(/id="([^"]+)"/g) || [];
-            const bannerImageIds = bannerImageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-            const bannerImageException = bannerImageIds || uniqueBannerMarker;
-            
-            // Extract image IDs from signature HTML for exception check
-            const signatureImageIdMatches = group.signatureHtml.match(/id="([^"]+)"/g) || [];
-            const signatureImageIds = signatureImageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
-            const signatureImageException = signatureImageIds || uniqueSignatureMarker;
+            const bannerUniqueText = `BANNER_MARKER_${uniqueBannerMarker.replace('banner-id-', '')}`;
+            const signatureUniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
             
             // Process banner with tracking - use DIRECT edge function URL with email for tracking
             let finalBannerHtml = group.bannerHtml;
@@ -800,11 +781,11 @@ Write-Host ""
               }
             }
             
-            // Add unique markers to detect duplicates
-            const wrappedBanner = `<!-- ${uniqueBannerMarker} --><div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
+            // Add unique markers to detect duplicates (hidden spans, not comments)
+            const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${bannerUniqueText}</span>${finalBannerHtml}</div>`;
             const escapedBanner = wrappedBanner.replace(/'/g, "''");
             
-            const wrappedSignature = `<!-- ${uniqueSignatureMarker} --><div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${group.signatureHtml}</div>`;
+            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${signatureUniqueText}</span>${group.signatureHtml}</div>`;
             const escapedSignature = wrappedSignature.replace(/'/g, "''");
             
             const bannerPriority = 0; // Highest priority (0-5 valid range) - ensures banner runs first
@@ -821,7 +802,7 @@ Write-Host ""
 # Rule 1: BANNER ONLY (Prepend - appears ABOVE email body)
 # Rule 2: SIGNATURE ONLY (Append - appears BELOW email body)
 # Different names, priorities, locations = NO DUPLICATES
-# ExceptIfBodyContainsText prevents duplication with Image IDs and Signature ID
+# Exception markers prevent duplication: ${bannerUniqueText}, ${signatureUniqueText}
 # ========================================
 
 Write-Host "Creating BANNER rule (Prepend ABOVE body)..." -ForegroundColor Cyan
@@ -832,14 +813,14 @@ New-TransportRule -Name "BANNER_${rulePrefix}_${groupId}" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueBannerMarker}", "${bannerImageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${bannerUniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
     -Comments "Banner for ${userName}"
 
 Write-Host "  ✓ BANNER rule 'BANNER_${rulePrefix}_${groupId}' created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
-Write-Host "  ✓ Exception: ${uniqueBannerMarker}, Image IDs: ${bannerImageException}" -ForegroundColor Cyan
+Write-Host "  ✓ Exception: ${bannerUniqueText}" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
@@ -850,14 +831,14 @@ New-TransportRule -Name "SIGNATURE_${rulePrefix}_${groupId}" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueSignatureMarker}", "${signatureImageException}" \`
+    -ExceptIfSubjectOrBodyContainsWords "${signatureUniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
     -Comments "Signature for ${userName}"
 
 Write-Host "  ✓ SIGNATURE rule 'SIGNATURE_${rulePrefix}_${groupId}' created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
-Write-Host "  ✓ Exception: ${uniqueSignatureMarker}, Image IDs: ${signatureImageException}" -ForegroundColor Cyan
+Write-Host "  ✓ Exception: ${signatureUniqueText}" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Result: Banner ABOVE body, Signature BELOW body - NO DUPLICATES" -ForegroundColor Green
 Write-Host ""
