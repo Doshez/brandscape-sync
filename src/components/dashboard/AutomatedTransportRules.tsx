@@ -477,7 +477,12 @@ Disconnect-ExchangeOnline -Confirm:$false
       // Use plain text marker that's visually hidden but Exchange can detect
       const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
       const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${finalBannerHtml}</div>`;
-      const escapedBanner = wrappedBanner.replace(/'/g, "''");
+      // Proper PowerShell escaping: escape backticks, single quotes, and remove line breaks
+      const escapedBanner = wrappedBanner
+        .replace(/`/g, '``')
+        .replace(/'/g, "''")
+        .replace(/\r?\n/g, ' ')
+        .replace(/\s+/g, ' ');
       
       const script = `# Exchange Online Domain-Wide Banner Rule
 # Generated: ${new Date().toISOString()}
@@ -689,7 +694,12 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
           const uniqueSignatureMarker = `signature-${groupId}`;
           const uniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${group.signatureHtml}</div>`;
-          const escapedSignature = wrappedSignature.replace(/'/g, "''");
+          // Proper PowerShell escaping: escape backticks, single quotes, and remove line breaks
+          const escapedSignature = wrappedSignature
+            .replace(/`/g, '``')
+            .replace(/'/g, "''")
+            .replace(/\r?\n/g, ' ')
+            .replace(/\s+/g, ' ');
           
           // Sanitize user name for rule name (remove special characters)
           const userName = group.users[0].name || group.users[0].email.split('@')[0];
@@ -745,7 +755,12 @@ Write-Host ""
           
           // Add plain text marker - visually hidden but Exchange can detect
           const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${finalBannerHtml}</div>`;
-          const escapedBanner = wrappedBanner.replace(/'/g, "''");
+          // Proper PowerShell escaping: escape backticks, single quotes, and remove line breaks
+          const escapedBanner = wrappedBanner
+            .replace(/`/g, '``')
+            .replace(/'/g, "''")
+            .replace(/\r?\n/g, ' ')
+            .replace(/\s+/g, ' ');
           const bannerPriority = Math.min(ruleIndex - 1, 3);
           
           script += `# Banner rule for ${userCount} user(s): ${userName}
@@ -797,10 +812,20 @@ Write-Host ""
             
             // Add plain text markers - visually hidden but Exchange can detect
             const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${bannerUniqueText}</span>${finalBannerHtml}</div>`;
-            const escapedBanner = wrappedBanner.replace(/'/g, "''");
+            // Proper PowerShell escaping: escape backticks, single quotes, and remove line breaks
+            const escapedBanner = wrappedBanner
+              .replace(/`/g, '``')
+              .replace(/'/g, "''")
+              .replace(/\r?\n/g, ' ')
+              .replace(/\s+/g, ' ');
             
             const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${signatureUniqueText}</span>${group.signatureHtml}</div>`;
-            const escapedSignature = wrappedSignature.replace(/'/g, "''");
+            // Proper PowerShell escaping: escape backticks, single quotes, and remove line breaks
+            const escapedSignature = wrappedSignature
+              .replace(/`/g, '``')
+              .replace(/'/g, "''")
+              .replace(/\r?\n/g, ' ')
+              .replace(/\s+/g, ' ');
             
             const bannerPriority = 0; // Highest priority (0-5 valid range) - ensures banner runs first
             const signaturePriority = 5; // Lowest priority (0-5 valid range) - ensures signature runs after
