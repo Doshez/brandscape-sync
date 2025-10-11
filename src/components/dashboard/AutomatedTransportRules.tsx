@@ -677,17 +677,23 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
           const exceptionText = group.users[0].name || group.users[0].email.split('@')[0];
           const exceptionEmail = group.users[0].email;
           
-          script += `# Shared signature rule for ${userCount} user(s)
-New-TransportRule -Name "EmailSignature_${groupId}_Signature" \`
+          // Sanitize user name for rule name (remove special characters)
+          const userName = group.users[0].name || group.users[0].email.split('@')[0];
+          const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
+          const ruleName = userCount > 1 ? `SIGNATURE_${sanitizedUserName}_Group${ruleIndex}` : `SIGNATURE_${sanitizedUserName}`;
+          
+          script += `# Signature rule for ${userCount} user(s)
+New-TransportRule -Name "${ruleName}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ExceptIfSubjectOrBodyContainsWords "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
-    -Enabled $true
+    -Enabled $true \`
+    -Comments "Signature for ${userName}"
 
-Write-Host "  ✓ Signature rule created for ${userCount} user(s) with duplication prevention (text + email)" -ForegroundColor Green
+Write-Host "  ✓ Signature rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
 Write-Host ""
 
 `;
@@ -704,6 +710,11 @@ Write-Host ""
           const bannerText = group.bannerHtml.replace(/<[^>]*>/g, '').trim().substring(0, 50);
           const bannerException = bannerText || "BannerContent";
           const exceptionEmail = group.users[0].email;
+          
+          // Sanitize user name for rule name
+          const userName = group.users[0].name || group.users[0].email.split('@')[0];
+          const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
+          const ruleName = userCount > 1 ? `BANNER_${sanitizedUserName}_Group${ruleIndex}` : `BANNER_${sanitizedUserName}`;
           
             // For banner-only mode with tracking, use DIRECT edge function URL with email for tracking
             if (group.bannerClickUrl && group.bannerId) {
@@ -727,9 +738,9 @@ Write-Host ""
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           const bannerPriority = Math.min(ruleIndex - 1, 3);
           
-          script += `# Shared banner rule for ${userCount} user(s)
+          script += `# Banner rule for ${userCount} user(s): ${userName}
 # Exception markers: Banner text, User email, and Unique ID (${uniqueMarker})
-New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
+New-TransportRule -Name "${ruleName}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
@@ -737,9 +748,10 @@ New-TransportRule -Name "EmailSignature_${groupId}_Banner" \`
     -ExceptIfSubjectOrBodyContainsWords "${uniqueMarker}", "${bannerException}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
-    -Priority ${bannerPriority}
+    -Priority ${bannerPriority} \`
+    -Comments "Banner for ${userName}"
 
-Write-Host "  ✓ Banner rule created for ${userCount} user(s)" -ForegroundColor Green
+Write-Host "  ✓ Banner rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
 Write-Host "  ✓ Duplication prevention: ${uniqueMarker}, text match, and email match" -ForegroundColor Cyan
 Write-Host ""
 
@@ -804,7 +816,7 @@ Write-Host ""
 Write-Host "Creating BANNER rule (Prepend ABOVE body)..." -ForegroundColor Cyan
 
 # RULE 1: BANNER ONLY - Prepends content ABOVE the email body
-New-TransportRule -Name "BANNER_${groupId}_Top" \`
+New-TransportRule -Name "BANNER_${rulePrefix}_${groupId}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
@@ -813,16 +825,16 @@ New-TransportRule -Name "BANNER_${groupId}_Top" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
-    -Comments "Banner for ${userCount} user(s) - Prepend ABOVE body"
+    -Comments "Banner for ${userName}"
 
-Write-Host "  ✓ BANNER rule created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
+Write-Host "  ✓ BANNER rule 'BANNER_${rulePrefix}_${groupId}' created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
 Write-Host "  ✓ Exception: ${uniqueBannerMarker}" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
 
 # RULE 2: SIGNATURE ONLY - Appends content BELOW the email body
-New-TransportRule -Name "${rulePrefix}_SIGNATURE_${groupId}" \`
+New-TransportRule -Name "SIGNATURE_${rulePrefix}_${groupId}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
@@ -831,9 +843,9 @@ New-TransportRule -Name "${rulePrefix}_SIGNATURE_${groupId}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
-    -Comments "Signature for ${userCount} user(s) - Append BELOW body"
+    -Comments "Signature for ${userName}"
 
-Write-Host "  ✓ SIGNATURE rule created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
+Write-Host "  ✓ SIGNATURE rule 'SIGNATURE_${rulePrefix}_${groupId}' created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
 Write-Host "  ✓ Exception: ${uniqueSignatureMarker}" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Result: Banner ABOVE body, Signature BELOW body - NO DUPLICATES" -ForegroundColor Green
