@@ -203,9 +203,6 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
   };
 
   const handleCreateAssignment = async () => {
-    // Validate inputs with detailed logging
-    console.log("Creating assignment with:", { selectedUser, selectedSignature, selectedBanner });
-    
     if (!selectedUser || !selectedSignature) {
       toast({
         title: "Missing Information",
@@ -218,8 +215,6 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
     try {
       // Find the selected user to get their auth user_id
       const selectedUserProfile = users.find(user => user.id === selectedUser);
-      console.log("Selected user profile:", selectedUserProfile);
-      
       if (!selectedUserProfile) {
         toast({
           title: "Error",
@@ -229,87 +224,56 @@ export const UserAssignmentManager = ({ profile }: UserAssignmentManagerProps) =
         return;
       }
 
-      // Validate signature exists
-      const selectedSig = signatures.find(s => s.id === selectedSignature);
-      if (!selectedSig) {
-        toast({
-          title: "Error",
-          description: "Selected signature not found",
-          variant: "destructive",
-        });
-        return;
-      }
-
       // For admin-created users without auth, we'll use their profile id as user_id
       const userIdForAssignment = selectedUserProfile.user_id || selectedUserProfile.id;
-      console.log("Using user_id for assignment:", userIdForAssignment);
 
       // First, deactivate any existing assignment for this user
-      const { error: deactivateError } = await supabase
+      await supabase
         .from("user_email_assignments")
         .update({ is_active: false })
         .eq("user_id", userIdForAssignment);
 
-      if (deactivateError) {
-        console.error("Error deactivating existing assignments:", deactivateError);
-        throw deactivateError;
-      }
-
-      // Create new assignment with explicit values
-      const assignmentData = {
-        user_id: userIdForAssignment,
-        signature_id: selectedSignature,
-        is_active: true
-      };
-      console.log("Inserting assignment:", assignmentData);
-
+      // Create new assignment
       const { data: assignment, error: assignmentError } = await supabase
         .from("user_email_assignments")
-        .insert(assignmentData)
+        .insert({
+          user_id: userIdForAssignment,
+          signature_id: selectedSignature,
+          is_active: true
+        })
         .select()
         .single();
 
-      if (assignmentError) {
-        console.error("Error creating assignment:", assignmentError);
-        throw assignmentError;
-      }
+      if (assignmentError) throw assignmentError;
 
-      console.log("Assignment created:", assignment);
-
-      // Add banner assignment if selected and not "none"
-      if (selectedBanner && selectedBanner !== "none") {
-        const bannerData = {
-          user_assignment_id: assignment.id,
-          banner_id: selectedBanner,
-          display_order: 1
-        };
-        console.log("Inserting banner assignment:", bannerData);
-
+      // Add banner assignment if selected
+      if (selectedBanner) {
         const { error: bannerError } = await supabase
           .from("user_banner_assignments")
-          .insert(bannerData);
+          .insert({
+            user_assignment_id: assignment.id,
+            banner_id: selectedBanner,
+            display_order: 1
+          });
 
-        if (bannerError) {
-          console.error("Error adding banner:", bannerError);
-          throw bannerError;
-        }
+        if (bannerError) throw bannerError;
       }
 
       toast({
         title: "Success",
-        description: `Assignment created for ${selectedUserProfile.first_name} ${selectedUserProfile.last_name}`,
+        description: "User assignment created successfully",
       });
 
       // Reset form and refresh data
       setSelectedUser("");
       setSelectedSignature("");
       setSelectedBanner("");
-      await fetchAssignments();
-    } catch (error: any) {
+      fetchAssignments();
+    } catch (error) {
       console.error("Error creating assignment:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create user assignment",
+        description: "Failed to create user assignment",
         variant: "destructive",
       });
     }
