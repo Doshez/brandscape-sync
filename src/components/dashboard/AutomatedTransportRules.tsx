@@ -488,6 +488,13 @@ Disconnect-ExchangeOnline -Confirm:$false
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
+Write-Host "=== IMPORTANT: Check for Duplicate Rules ===" -ForegroundColor Red
+Write-Host "If you're seeing duplicate banners, you likely have OLD RULES that need to be removed" -ForegroundColor Yellow
+Write-Host "Run this command to list all banner rules:" -ForegroundColor White
+Write-Host "  Get-TransportRule | Where-Object {$_.Name -like '*BANNER*'} | Format-Table Name,State" -ForegroundColor Cyan
+Write-Host "To remove old rules, use: Remove-TransportRule -Identity 'RuleName'" -ForegroundColor White
+Write-Host ""
+
 Write-Host "=== Creating Domain-Wide Banner Rule ===" -ForegroundColor Cyan
 Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
 Write-Host ""
@@ -502,7 +509,7 @@ New-TransportRule -Name "BANNER_${groupId}_DomainWide_${domainName}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority 0 \`
     -Comments "Domain-wide banner for all users @${domainName}"
@@ -639,6 +646,13 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
+Write-Host "=== IMPORTANT: Check for Duplicate Rules ===" -ForegroundColor Red
+Write-Host "If you're seeing duplicate banners/signatures, you likely have OLD RULES" -ForegroundColor Yellow
+Write-Host "Run this to list all rules:" -ForegroundColor White
+Write-Host "  Get-TransportRule | Format-Table Name,State" -ForegroundColor Cyan
+Write-Host "To remove old rules: Remove-TransportRule -Identity 'RuleName'" -ForegroundColor White
+Write-Host ""
+
 Write-Host "=== Creating New Rules ===" -ForegroundColor Cyan
 Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
 Write-Host ""
@@ -689,7 +703,7 @@ New-TransportRule -Name "${ruleName}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Comments "Signature for ${userName}"
 
@@ -742,7 +756,7 @@ New-TransportRule -Name "${ruleName}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
     -Comments "Banner for ${userName}"
@@ -814,7 +828,7 @@ New-TransportRule -Name "BANNER_${rulePrefix}_${groupId}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
     -ExceptIfSubjectOrBodyContainsWords "${bannerUniqueText}" \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
     -Comments "Banner for ${userName}"
@@ -832,7 +846,7 @@ New-TransportRule -Name "SIGNATURE_${rulePrefix}_${groupId}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
     -ExceptIfSubjectOrBodyContainsWords "${signatureUniqueText}" \`
-    -ApplyHtmlDisclaimerFallbackAction Wrap \`
+    -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
     -Comments "Signature for ${userName}"
