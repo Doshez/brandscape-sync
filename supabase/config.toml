@@ -1,1 +1,37 @@
 project_id = "ddoihmeqpjjiumqndjgk"
+
+[functions.smtp-relay]
+verify_jwt = false
+
+[functions.microsoft-graph-auth]
+verify_jwt = false
+
+[functions.refresh-microsoft-token]
+verify_jwt = true
+
+[functions.deploy-signature-enhanced]
+verify_jwt = false
+
+[functions.deploy-signature-with-banner]
+verify_jwt = false
+
+[functions.deploy-signature]
+verify_jwt = false
+
+[functions.deploy-signature-universal]
+verify_jwt = false
+
+[functions.deploy-signature-admin]
+verify_jwt = false
+
+[functions.track-banner-click]
+verify_jwt = false
+
+[functions.track-banner-view]
+verify_jwt = false
+
+[functions.deploy-signature-with-instructions]
+verify_jwt = false
+
+[functions.setup-exchange-transport-rules]
+verify_jwt = false
