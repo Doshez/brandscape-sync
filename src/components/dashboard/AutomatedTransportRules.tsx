@@ -474,9 +474,9 @@ Disconnect-ExchangeOnline -Confirm:$false
         }
       }
       
-      // Use a hidden span with unique text that Exchange can detect (not HTML comment)
+      // Use plain text marker that's visually hidden but Exchange can detect
       const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
-      const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${uniqueText}</span>${finalBannerHtml}</div>`;
+      const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${finalBannerHtml}</div>`;
       const escapedBanner = wrappedBanner.replace(/'/g, "''");
       
       const script = `# Exchange Online Domain-Wide Banner Rule
@@ -685,10 +685,10 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
         
         // SIGNATURE ONLY MODE
         if (scriptType === "signature") {
-          // Create unique signature marker with hidden detectable text
+          // Create unique signature marker - plain text, visually hidden but Exchange can detect
           const uniqueSignatureMarker = `signature-${groupId}`;
           const uniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${uniqueText}</span>${group.signatureHtml}</div>`;
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${group.signatureHtml}</div>`;
           const escapedSignature = wrappedSignature.replace(/'/g, "''");
           
           // Sanitize user name for rule name (remove special characters)
@@ -743,8 +743,8 @@ Write-Host ""
               }
           }
           
-          // Add unique marker as hidden span to detect duplicates
-          const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${uniqueText}</span>${finalBannerHtml}</div>`;
+          // Add plain text marker - visually hidden but Exchange can detect
+          const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${finalBannerHtml}</div>`;
           const escapedBanner = wrappedBanner.replace(/'/g, "''");
           const bannerPriority = Math.min(ruleIndex - 1, 3);
           
@@ -795,11 +795,11 @@ Write-Host ""
               }
             }
             
-            // Add unique markers to detect duplicates (hidden spans, not comments)
-            const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${bannerUniqueText}</span>${finalBannerHtml}</div>`;
+            // Add plain text markers - visually hidden but Exchange can detect
+            const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${bannerUniqueText}</span>${finalBannerHtml}</div>`;
             const escapedBanner = wrappedBanner.replace(/'/g, "''");
             
-            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="display:none;font-size:0;height:0;width:0;line-height:0;overflow:hidden;">${signatureUniqueText}</span>${group.signatureHtml}</div>`;
+            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${signatureUniqueText}</span>${group.signatureHtml}</div>`;
             const escapedSignature = wrappedSignature.replace(/'/g, "''");
             
             const bannerPriority = 0; // Highest priority (0-5 valid range) - ensures banner runs first
