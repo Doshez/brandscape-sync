@@ -488,29 +488,8 @@ Disconnect-ExchangeOnline -Confirm:$false
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
-Write-Host "=== AUTOMATIC CLEANUP: Removing Old Domain-Wide Rules ===" -ForegroundColor Cyan
-Write-Host ""
-
-# Remove any existing domain-wide banner rules
-$oldRules = Get-TransportRule | Where-Object { 
-    $_.Name -like "*DomainWide*" -and $_.ApplyHtmlDisclaimerText -ne $null
-}
-
-if ($oldRules) {
-    Write-Host "Found $($oldRules.Count) old domain-wide rule(s) - removing..." -ForegroundColor Yellow
-    $oldRules | ForEach-Object { 
-        Write-Host "  ❌ Removing: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    Write-Host "Waiting 10 seconds for Exchange to sync..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 10
-    Write-Host "✓ Cleanup complete" -ForegroundColor Green
-} else {
-    Write-Host "✓ No old domain-wide rules found" -ForegroundColor Green
-}
-
-Write-Host ""
 Write-Host "=== Creating Domain-Wide Banner Rule ===" -ForegroundColor Cyan
+Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
 Write-Host ""
 
 # Create domain-wide banner rule
@@ -637,88 +616,30 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 
       const scriptTypeLabel = scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only";
       
-      // ALWAYS remove ALL old disclaimer/signature/banner rules to prevent duplicates
-      
       let script = `# Exchange Online Transport Rules - Auto-generated (${scriptTypeLabel})
 # Generated: ${new Date().toISOString()}
 # Selected Users: ${selectedAssignments.length}
 # Unique Rule Groups: ${groupedRules.size}
 # Total Rules: ${totalRules}
+#
+# IMPORTANT: This script will NOT delete existing rules
+# New rules will be created alongside your existing transport rules
+# To remove old rules, use the Cleanup tab or manually delete them via Exchange Admin Center
+#
+# SIGNATURE BEHAVIOR IN EMAIL REPLIES:
+# - Signatures are added to each NEW outbound message you send
+# - In reply threads, the signature appears after YOUR NEW MESSAGE CONTENT
+# - Previous messages in the thread will NOT have signatures added to them
+# - If you want signatures to appear immediately after your reply text:
+#   1. Configure your email client to "reply inline" or "reply above" mode
+#   2. This ensures your new message (with signature) appears at the top
+#   3. The transport rule will append the signature right after your text
 
 # Connect to Exchange Online
 Connect-ExchangeOnline
 
-Write-Host "=== AUTOMATIC CLEANUP: Removing ALL Old Rules ===" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Scanning for ANY rules that modify email content..." -ForegroundColor Yellow
-
-# SUPER AGGRESSIVE: Find ANY rule with ApplyHtmlDisclaimerText (catches everything)
-$allRules = Get-TransportRule | Where-Object { 
-    $_.ApplyHtmlDisclaimerText -ne $null
-}
-
-if ($allRules) {
-    Write-Host ""
-    Write-Host "Found $($allRules.Count) existing rule(s) - removing automatically..." -ForegroundColor Yellow
-    Write-Host ""
-    $allRules | Format-Table Name, State, Priority, ApplyHtmlDisclaimerLocation -AutoSize
-    Write-Host ""
-    
-    $allRules | ForEach-Object { 
-        Write-Host "  ❌ Removing: $($_.Name)" -ForegroundColor Red
-        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-    }
-    
-    Write-Host ""
-    Write-Host "⏱️  Waiting 30 seconds for Exchange to fully sync..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 30
-    Write-Host ""
-    
-    # VERIFY cleanup was successful
-    Write-Host "Verifying cleanup..." -ForegroundColor Yellow
-    $remainingRules = Get-TransportRule | Where-Object { 
-        $_.ApplyHtmlDisclaimerText -ne $null
-    }
-    
-    if ($remainingRules) {
-        Write-Host ""
-        Write-Host "⚠️  WARNING: $($remainingRules.Count) rule(s) still exist after cleanup" -ForegroundColor Yellow
-        Write-Host ""
-        $remainingRules | Format-Table Name, State -AutoSize
-        Write-Host ""
-        Write-Host "Attempting second cleanup pass..." -ForegroundColor Yellow
-        
-        $remainingRules | ForEach-Object { 
-            Write-Host "  ❌ Force removing: $($_.Name)" -ForegroundColor Red
-            Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
-        }
-        
-        Write-Host "Waiting 20 more seconds..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 20
-        
-        $finalCheck = Get-TransportRule | Where-Object { 
-            $_.ApplyHtmlDisclaimerText -ne $null
-        }
-        
-        if ($finalCheck) {
-            Write-Host ""
-            Write-Host "⚠️  $($finalCheck.Count) rule(s) could not be removed automatically" -ForegroundColor Yellow
-            Write-Host "Proceeding anyway - new rules will be created with unique names" -ForegroundColor Yellow
-            Write-Host ""
-        } else {
-            Write-Host "✓ Second pass successful - all old rules removed!" -ForegroundColor Green
-            Write-Host ""
-        }
-    } else {
-        Write-Host "✓ All old rules successfully removed!" -ForegroundColor Green
-        Write-Host ""
-    }
-} else {
-    Write-Host "✓ No existing disclaimer rules found - ready to proceed" -ForegroundColor Green
-    Write-Host ""
-}
-
 Write-Host "=== Creating New Rules ===" -ForegroundColor Cyan
+Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
 Write-Host ""
 
 `;
