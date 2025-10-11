@@ -476,8 +476,11 @@ Disconnect-ExchangeOnline -Confirm:$false
       
       const wrappedBanner = `<!-- ${uniqueMarker} --><div style="margin-bottom: 20px;">${finalBannerHtml}</div>`;
       const escapedBanner = wrappedBanner.replace(/'/g, "''");
-      const bannerText = banner.html_content.replace(/<[^>]*>/g, '').trim().substring(0, 50);
-      const bannerException = bannerText || "BannerContent";
+      
+      // Extract image IDs from banner HTML for exception check (prevents duplicates)
+      const imageIdMatches = banner.html_content.match(/id="([^"]+)"/g) || [];
+      const imageIds = imageIdMatches.map(m => m.replace(/id="|"/g, '')).join('", "');
+      const bannerException = imageIds || uniqueMarker;
       
       const script = `# Exchange Online Domain-Wide Banner Rule
 # Generated: ${new Date().toISOString()}
@@ -492,8 +495,9 @@ Write-Host "=== Creating Domain-Wide Banner Rule ===" -ForegroundColor Cyan
 Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
 Write-Host ""
 
-# Create domain-wide banner rule
+# Create domain-wide banner rule  
 # Applies to ALL users sending from @${domainName}
+# Exception check: Banner ID (${uniqueMarker}) and Image IDs to prevent duplicates
 New-TransportRule -Name "BANNER_${groupId}_DomainWide_${domainName}" \`
     -FromScope InOrganization \`
     -SenderAddressLocation HeaderOrEnvelope \`
@@ -512,7 +516,7 @@ Write-Host "Rule Details:" -ForegroundColor Cyan
 Write-Host "  - Applies to: ALL users @${domainName}" -ForegroundColor White
 Write-Host "  - Banner: ${banner.name}" -ForegroundColor White
 Write-Host "  - Location: Above email body (Prepend)" -ForegroundColor White
-Write-Host "  - Duplication prevention: ${uniqueMarker}" -ForegroundColor White
+Write-Host "  - Duplication prevention: Banner ID (${uniqueMarker}) + Image IDs" -ForegroundColor White
 Write-Host ""
 
 Write-Host "=== Verifying Rule ===" -ForegroundColor Cyan
