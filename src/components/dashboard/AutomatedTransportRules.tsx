@@ -455,7 +455,13 @@ Disconnect-ExchangeOnline -Confirm:$false
 
       const uniqueTimestamp = Date.now().toString().slice(-8);
       const dateStamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const groupId = `${dateStamp}_${uniqueTimestamp}_DomainWide`;
+      
+      // Get and increment persistent counter from localStorage
+      const COUNTER_KEY = 'transport_rule_counter';
+      let persistentCounter = parseInt(localStorage.getItem(COUNTER_KEY) || '0', 10);
+      persistentCounter++;
+      
+      const groupId = `${dateStamp}_${uniqueTimestamp}_DW${persistentCounter}`;
       
       const bannerId = banner.id;
       
@@ -536,6 +542,9 @@ Write-Host ""
 Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 `;
 
+      // Save the updated counter to localStorage for next generation
+      localStorage.setItem(COUNTER_KEY, persistentCounter.toString());
+
       setPowershellScript(script);
       
       toast({
@@ -578,6 +587,10 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
       // Generate unique timestamp for this batch of rules
       const uniqueTimestamp = Date.now().toString().slice(-8);
       const dateStamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+
+      // Get persistent counter from localStorage
+      const COUNTER_KEY = 'transport_rule_counter';
+      let persistentCounter = parseInt(localStorage.getItem(COUNTER_KEY) || '0', 10);
 
       // Create individual rules per user to enable email tracking
       const groupedRules = new Map<string, {
@@ -669,7 +682,8 @@ Write-Host ""
         }
 
         ruleIndex++;
-        const groupId = `${dateStamp}_${uniqueTimestamp}_G${ruleIndex}`;
+        persistentCounter++; // Increment persistent counter
+        const groupId = `${dateStamp}_${uniqueTimestamp}_G${persistentCounter}`;
         const userEmails = group.users.map(u => u.email).join('", "');
         const userCount = group.users.length;
         
@@ -943,6 +957,9 @@ Write-Host "  Remove-TransportRule -Identity '<RuleName>' -Confirm:\$false" -For
 Write-Host ""
 Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 `;
+
+      // Save the updated counter to localStorage for next generation
+      localStorage.setItem(COUNTER_KEY, persistentCounter.toString());
 
       setPowershellScript(script);
       
