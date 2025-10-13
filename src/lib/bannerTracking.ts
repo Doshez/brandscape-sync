@@ -11,7 +11,8 @@ const SUPABASE_URL = "https://ddoihmeqpjjiumqndjgk.supabase.co";
 export function wrapBannerWithTracking(
   bannerHtml: string,
   bannerId: string,
-  userEmail?: string
+  userEmail?: string,
+  includeViewPixel: boolean = true
 ): string {
   // Only add email param if email is provided and not empty
   const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
@@ -21,7 +22,9 @@ export function wrapBannerWithTracking(
   // Add tracking pixel for view tracking (1x1 transparent image) - calls edge function directly
   // Fixed URL format: banner_id as query param, not path param
   // Use HTML comment to hide the pixel completely from email previews
-  const viewTrackingPixel = `<!-- banner-view-pixel --><img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
+  const viewTrackingPixel = includeViewPixel 
+    ? `<!-- banner-view-pixel --><img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`
+    : '';
   
   // Wrap any clickable elements (a tags and images) with tracking
   let wrappedHtml = bannerHtml;
@@ -50,8 +53,10 @@ export function wrapBannerWithTracking(
     `<a $1 data-original-href="$1" href="${trackingUrl}">`
   );
   
-  // Add view tracking pixel at the end
-  wrappedHtml = `${wrappedHtml}${viewTrackingPixel}`;
+  // Add view tracking pixel at the end (only if includeViewPixel is true)
+  if (viewTrackingPixel) {
+    wrappedHtml = `${wrappedHtml}${viewTrackingPixel}`;
+  }
   
   return wrappedHtml;
 }
