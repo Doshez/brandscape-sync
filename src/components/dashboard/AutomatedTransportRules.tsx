@@ -474,9 +474,9 @@ Disconnect-ExchangeOnline -Confirm:$false
         }
       }
       
-      // Use plain text marker that's visually hidden but Exchange can detect
+      // Use HTML comment as marker - won't show in email previews
       const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
-      const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${finalBannerHtml}</div>`;
+      const wrappedBanner = `<div style="margin-bottom: 20px;"><!-- ${uniqueText} -->${finalBannerHtml}</div>`;
       // Proper PowerShell escaping: escape special characters and remove line breaks
       const escapedBanner = wrappedBanner
         .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -692,10 +692,10 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
         
         // SIGNATURE ONLY MODE
         if (scriptType === "signature") {
-          // Create unique signature marker - plain text, visually hidden but Exchange can detect
+          // Create unique signature marker - use HTML comment
           const uniqueSignatureMarker = `signature-${groupId}`;
           const uniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${group.signatureHtml}</div>`;
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><!-- ${uniqueText} -->${group.signatureHtml}</div>`;
           // Proper PowerShell escaping: escape special characters and remove line breaks
           const escapedSignature = wrappedSignature
             .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -757,8 +757,8 @@ Write-Host ""
               }
           }
           
-          // Add plain text marker - visually hidden but Exchange can detect
-          const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${uniqueText}</span>${finalBannerHtml}</div>`;
+          // Add HTML comment marker - won't show in email previews
+          const wrappedBanner = `<div style="margin-bottom: 20px;"><!-- ${uniqueText} -->${finalBannerHtml}</div>`;
           // Proper PowerShell escaping: escape special characters and remove line breaks
           const escapedBanner = wrappedBanner
             .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -816,8 +816,8 @@ Write-Host ""
               }
             }
             
-            // Add plain text markers - visually hidden but Exchange can detect
-            const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${bannerUniqueText}</span>${finalBannerHtml}</div>`;
+            // Add HTML comment markers - won't show in email previews
+            const wrappedBanner = `<div style="margin-bottom: 20px;"><!-- ${bannerUniqueText} -->${finalBannerHtml}</div>`;
             // Proper PowerShell escaping: escape special characters and remove line breaks
             const escapedBanner = wrappedBanner
               .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -827,7 +827,7 @@ Write-Host ""
               .replace(/\s+/g, ' ')        // Collapse spaces
               .trim();
             
-            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;font-size:1px;color:transparent;">${signatureUniqueText}</span>${group.signatureHtml}</div>`;
+            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><!-- ${signatureUniqueText} -->${group.signatureHtml}</div>`;
             // Proper PowerShell escaping: escape special characters and remove line breaks
             const escapedSignature = wrappedSignature
               .replace(/\$/g, '$$$$')      // Escape $ (must be first)
