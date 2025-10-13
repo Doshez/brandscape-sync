@@ -190,14 +190,32 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
   // Inject signature and banners into email body
   let modifiedHtmlBody = emailData.htmlBody;
 
-  // Add banners at the top
+  // Add banners at the top ONLY if not already present (prevent duplicates)
   if (bannersHtml) {
-    modifiedHtmlBody = bannersHtml + '<br>' + modifiedHtmlBody;
+    // Check for banner marker to prevent duplicates
+    const hasBannerMarker = modifiedHtmlBody.includes('<!-- tracking-applied -->') || 
+                           modifiedHtmlBody.includes('data-tracking-applied="true"') ||
+                           modifiedHtmlBody.includes('banner-view-pixel');
+    
+    if (!hasBannerMarker) {
+      console.log('Adding banner to email (no existing banner detected)');
+      modifiedHtmlBody = bannersHtml + '<br>' + modifiedHtmlBody;
+    } else {
+      console.log('Banner already exists in email - skipping duplicate banner');
+    }
   }
 
-  // Add signature at the bottom
+  // Add signature at the bottom ONLY if not already present (prevent duplicates)
   if (signatureHtml) {
-    modifiedHtmlBody = modifiedHtmlBody + '<br><br>' + signatureHtml;
+    // Simple check: if signature content is already in the body, don't add it again
+    const hasSignature = modifiedHtmlBody.includes(signatureHtml.substring(0, 50));
+    
+    if (!hasSignature) {
+      console.log('Adding signature to email (no existing signature detected)');
+      modifiedHtmlBody = modifiedHtmlBody + '<br><br>' + signatureHtml;
+    } else {
+      console.log('Signature already exists in email - skipping duplicate signature');
+    }
   }
 
   console.log('Email processed with signature and banners added');
