@@ -239,8 +239,9 @@ function wrapBannerWithTracking(
   // Wrap images that aren't already in links
   wrappedHtml = wrappedHtml.replace(
     /<img(?![^>]*data-tracked)([^>]*)>/gi,
-    (match) => {
-      const beforeImg = bannerHtml.substring(0, bannerHtml.indexOf(match));
+    (match, p1, offset) => {
+      // Check if this img is already inside an <a> tag by looking at content BEFORE this position
+      const beforeImg = wrappedHtml.substring(0, offset);
       const openATagsCount = (beforeImg.match(/<a[^>]*>/gi) || []).length;
       const closeATagsCount = (beforeImg.match(/<\/a>/gi) || []).length;
       
