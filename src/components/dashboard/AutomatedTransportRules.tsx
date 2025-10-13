@@ -701,10 +701,11 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
         
         // SIGNATURE ONLY MODE
         if (scriptType === "signature") {
-          // Create unique signature marker - visible but hidden
+          // Create unique signature marker that matches the exception check
           const uniqueSignatureMarker = `signature-${groupId}`;
           const uniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="display:none;font-size:0;color:transparent;line-height:0;max-height:0;max-width:0;opacity:0;overflow:hidden;">${uniqueText}</span>${group.signatureHtml}</div>`;
+          // Place marker at the beginning so it's guaranteed to be in body/subject for exception check
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;max-width:0;max-height:0;">${uniqueText}</span>${group.signatureHtml}</div>`;
           // Proper PowerShell escaping: escape special characters and remove line breaks
           const escapedSignature = wrappedSignature
             .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -720,6 +721,7 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
           const ruleName = userCount > 1 ? `SIGNATURE_${sanitizedUserName}_Group${ruleIndex}` : `SIGNATURE_${sanitizedUserName}`;
           
           script += `# Signature rule for ${userCount} user(s)
+# Exception marker (prevents duplicates): ${uniqueText}
 New-TransportRule -Name "${ruleName}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
@@ -728,7 +730,7 @@ New-TransportRule -Name "${ruleName}" \`
     -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
-    -Comments "Signature for ${userName}"
+    -Comments "Signature for ${userName} - Exception: ${uniqueText}"
 
 Write-Host "  ✓ Signature rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
 Write-Host ""
@@ -791,7 +793,7 @@ New-TransportRule -Name "${ruleName}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
-    -Comments "Banner for ${userName}"
+    -Comments "Banner for ${userName} - Exception: ${uniqueText}"
 
 Write-Host "  ✓ Banner rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
 Write-Host "  ✓ Duplication prevention: ${uniqueText}" -ForegroundColor Cyan
@@ -880,7 +882,7 @@ New-TransportRule -Name "BANNER_${rulePrefix}_${groupId}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
-    -Comments "Banner for ${userName}"
+    -Comments "Banner for ${userName} - Exception: ${bannerUniqueText}"
 
 Write-Host "  ✓ BANNER rule 'BANNER_${rulePrefix}_${groupId}' created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
 Write-Host "  ✓ Exception: ${bannerUniqueText}" -ForegroundColor Cyan
@@ -898,7 +900,7 @@ New-TransportRule -Name "SIGNATURE_${rulePrefix}_${groupId}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
-    -Comments "Signature for ${userName}"
+    -Comments "Signature for ${userName} - Exception: ${signatureUniqueText}"
 
 Write-Host "  ✓ SIGNATURE rule 'SIGNATURE_${rulePrefix}_${groupId}' created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
 Write-Host "  ✓ Exception: ${signatureUniqueText}" -ForegroundColor Cyan
