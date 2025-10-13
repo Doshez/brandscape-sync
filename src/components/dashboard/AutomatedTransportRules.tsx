@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmailRoutingPanel } from "./EmailRoutingPanel";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { wrapBannerWithTracking } from "@/lib/bannerTracking";
+
 
 interface UserAssignment {
   userId: string;
@@ -456,18 +456,25 @@ Disconnect-ExchangeOnline -Confirm:$false
       const dateStamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
       const groupId = `${dateStamp}_${uniqueTimestamp}_DomainWide`;
       
+      let finalBannerHtml = banner.html_content;
       const bannerId = banner.id;
       const uniqueMarker = `banner-id-${bannerId}`;
       
-      // Use wrapBannerWithTracking WITHOUT view pixel (to avoid duplicates in domain-wide deployment)
-      const finalBannerHtml = wrapBannerWithTracking(
-        banner.html_content,
-        bannerId,
-        'domain-wide', // email identifier for domain-wide deployment
-        false // Don't include view tracking pixel - this prevents duplicates
-      );
+      // Add tracking URL if click_url exists
+      if (banner.click_url && bannerId) {
+        const trackingUrl = `https://ddoihmeqpjjiumqndjgk.supabase.co/functions/v1/track-banner-click?banner_id=${bannerId}&email=domain-wide`;
+        
+        if (finalBannerHtml.includes('<a ') || finalBannerHtml.includes('<a>')) {
+          finalBannerHtml = finalBannerHtml.replace(/href="[^"]*"/gi, `href="${trackingUrl}"`);
+          finalBannerHtml = finalBannerHtml.replace(/href='[^']*'/gi, `href="${trackingUrl}"`);
+          if (!finalBannerHtml.includes('target=')) {
+            finalBannerHtml = finalBannerHtml.replace(/<a /gi, '<a target="_blank" ');
+          }
+        } else {
+          finalBannerHtml = `<a href="${trackingUrl}" target="_blank" style="display: block; text-decoration: none;">${banner.html_content}</a>`;
+        }
+      }
       
-      // Use HTML comment as marker - won't show in email previews
       const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
       const wrappedBanner = `<div style="margin-bottom: 20px;"><!-- ${uniqueText} -->${finalBannerHtml}</div>`;
       // Proper PowerShell escaping: escape special characters and remove line breaks
