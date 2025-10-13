@@ -11,14 +11,8 @@ const SUPABASE_URL = "https://ddoihmeqpjjiumqndjgk.supabase.co";
 export function wrapBannerWithTracking(
   bannerHtml: string,
   bannerId: string,
-  userEmail?: string,
-  includeViewPixel: boolean = true
+  userEmail?: string
 ): string {
-  // Check if banner is already wrapped with tracking to prevent duplicates
-  if (bannerHtml.includes('data-tracking-applied="true"') || bannerHtml.includes('<!-- tracking-applied -->')) {
-    return bannerHtml;
-  }
-  
   // Only add email param if email is provided and not empty
   const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
   // Call edge function directly - no auth required  
@@ -26,10 +20,7 @@ export function wrapBannerWithTracking(
   
   // Add tracking pixel for view tracking (1x1 transparent image) - calls edge function directly
   // Fixed URL format: banner_id as query param, not path param
-  // Use HTML comment to hide the pixel completely from email previews
-  const viewTrackingPixel = includeViewPixel 
-    ? `<!-- banner-view-pixel --><img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`
-    : '';
+  const viewTrackingPixel = `<img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`;
   
   // Wrap any clickable elements (a tags and images) with tracking
   let wrappedHtml = bannerHtml;
@@ -37,9 +28,9 @@ export function wrapBannerWithTracking(
   // Wrap images that aren't already in links
   wrappedHtml = wrappedHtml.replace(
     /<img(?![^>]*data-tracked)([^>]*)>/gi,
-    (match, p1, offset) => {
-      // Check if this img is already inside an <a> tag by looking at content BEFORE this position
-      const beforeImg = wrappedHtml.substring(0, offset);
+    (match) => {
+      // Check if this img is already inside an <a> tag
+      const beforeImg = bannerHtml.substring(0, bannerHtml.indexOf(match));
       const openATagsCount = (beforeImg.match(/<a[^>]*>/gi) || []).length;
       const closeATagsCount = (beforeImg.match(/<\/a>/gi) || []).length;
       
@@ -58,13 +49,8 @@ export function wrapBannerWithTracking(
     `<a $1 data-original-href="$1" href="${trackingUrl}">`
   );
   
-  // Add view tracking pixel at the end (only if includeViewPixel is true)
-  if (viewTrackingPixel) {
-    wrappedHtml = `${wrappedHtml}${viewTrackingPixel}`;
-  }
-  
-  // Add marker to indicate tracking has been applied (prevents double-wrapping)
-  wrappedHtml = `<!-- tracking-applied -->${wrappedHtml}`;
+  // Add view tracking pixel at the end
+  wrappedHtml = `${wrappedHtml}${viewTrackingPixel}`;
   
   return wrappedHtml;
 }
