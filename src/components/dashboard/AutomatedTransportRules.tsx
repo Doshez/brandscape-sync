@@ -471,7 +471,7 @@ Disconnect-ExchangeOnline -Confirm:$false
       const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
       // Use opacity:0 with positioning - Exchange can detect this but users won't see it
       // Exchange CANNOT detect display:none or visibility:hidden
-      const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0.001px;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;">${uniqueText}</span>${finalBannerHtml}</div>`;
+      const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;max-width:0;max-height:0;">${uniqueText}</span></div>`;
       // Proper PowerShell escaping: escape special characters and remove line breaks
       const escapedBanner = wrappedBanner
         .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -730,7 +730,7 @@ Write-Host ""
           const uniqueMarker = `banner-id-${bannerId}`;
           const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
           // Hidden marker - opacity:0 so Exchange can detect it, fully invisible to users
-          const hiddenMarker = `<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0.001px;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;">${uniqueText}</span>`;
+          const hiddenMarker = `<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;max-width:0;max-height:0;">${uniqueText}</span>`;
           
           // Sanitize user name for rule name
           const userName = group.users[0].name || group.users[0].email.split('@')[0];
@@ -795,8 +795,8 @@ Write-Host ""
             const bannerUniqueText = `BANNER_MARKER_${uniqueBannerMarker.replace('banner-id-', '')}`;
             const signatureUniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
             // Hidden markers using opacity:0 so Exchange can detect them, fully invisible to users
-            const hiddenBannerMarker = `<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0.001px;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;">${bannerUniqueText}</span>`;
-            const hiddenSignatureMarker = `<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0.001px;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;">${signatureUniqueText}</span>`;
+            const hiddenBannerMarker = `<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;max-width:0;max-height:0;">${bannerUniqueText}</span>`;
+            const hiddenSignatureMarker = `<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;max-width:0;max-height:0;">${signatureUniqueText}</span>`;
             
             // Process banner with tracking - use DIRECT edge function URL with email for tracking
             let finalBannerHtml = group.bannerHtml;
