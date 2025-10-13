@@ -14,6 +14,11 @@ export function wrapBannerWithTracking(
   userEmail?: string,
   includeViewPixel: boolean = true
 ): string {
+  // Check if banner is already wrapped with tracking to prevent duplicates
+  if (bannerHtml.includes('data-tracking-applied="true"') || bannerHtml.includes('<!-- tracking-applied -->')) {
+    return bannerHtml;
+  }
+  
   // Only add email param if email is provided and not empty
   const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
   // Call edge function directly - no auth required  
@@ -57,6 +62,9 @@ export function wrapBannerWithTracking(
   if (viewTrackingPixel) {
     wrappedHtml = `${wrappedHtml}${viewTrackingPixel}`;
   }
+  
+  // Add marker to indicate tracking has been applied (prevents double-wrapping)
+  wrappedHtml = `<!-- tracking-applied -->${wrappedHtml}`;
   
   return wrappedHtml;
 }

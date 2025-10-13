@@ -221,6 +221,11 @@ function wrapBannerWithTracking(
   appUrl: string,
   clickUrl: string
 ): string {
+  // Check if banner is already wrapped with tracking to prevent duplicates
+  if (bannerHtml.includes('data-tracking-applied="true"') || bannerHtml.includes('<!-- tracking-applied -->')) {
+    return bannerHtml;
+  }
+  
   const emailParam = userEmail ? `&email=${encodeURIComponent(userEmail)}` : '';
   // Direct edge function URL for instant redirect (no intermediate page)
   const trackingUrl = `${appUrl}/functions/v1/track-banner-click?banner_id=${bannerId}${emailParam}`;
@@ -255,6 +260,9 @@ function wrapBannerWithTracking(
   
   // Add view tracking pixel at the end
   wrappedHtml = `${wrappedHtml}${viewTrackingPixel}`;
+  
+  // Add marker to indicate tracking has been applied (prevents double-wrapping)
+  wrappedHtml = `<!-- tracking-applied -->${wrappedHtml}`;
   
   return wrappedHtml;
 }
