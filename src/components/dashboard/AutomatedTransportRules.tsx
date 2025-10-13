@@ -469,8 +469,9 @@ Disconnect-ExchangeOnline -Confirm:$false
       
       const uniqueMarker = `banner-id-${bannerId}`;
       const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
-      // Add hidden text marker that Exchange can see (not in HTML comment)
-      const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;color:transparent;line-height:0;max-height:0;max-width:0;opacity:0;overflow:hidden;">${uniqueText}</span>${finalBannerHtml}</div>`;
+      // Use position:absolute with negative offset - Exchange can detect this but users won't see it
+      // Exchange CANNOT detect display:none or font-size:0 text
+      const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="position:absolute;left:-9999px;color:transparent;">${uniqueText}</span>${finalBannerHtml}</div>`;
       // Proper PowerShell escaping: escape special characters and remove line breaks
       const escapedBanner = wrappedBanner
         .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -728,6 +729,8 @@ Write-Host ""
           const bannerId = group.bannerId || `banner_${groupId}`;
           const uniqueMarker = `banner-id-${bannerId}`;
           const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
+          // Hidden marker - position:absolute so Exchange can detect it
+          const hiddenMarker = `<span style="position:absolute;left:-9999px;color:transparent;">${uniqueText}</span>`;
           
           // Sanitize user name for rule name
           const userName = group.users[0].name || group.users[0].email.split('@')[0];
@@ -751,8 +754,8 @@ Write-Host ""
               }
           }
           
-          // Add hidden text marker that Exchange can see (not in HTML comment)
-          const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;color:transparent;line-height:0;max-height:0;max-width:0;opacity:0;overflow:hidden;">${uniqueText}</span>${finalBannerHtml}</div>`;
+          // Add hidden marker - position:absolute so Exchange can detect it (not display:none)
+          const wrappedBanner = `<div style="margin-bottom: 20px;">${hiddenMarker}${finalBannerHtml}</div>`;
           // Proper PowerShell escaping: escape special characters and remove line breaks
           const escapedBanner = wrappedBanner
             .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -791,6 +794,9 @@ Write-Host ""
             const uniqueSignatureMarker = `signature-${groupId}`;
             const bannerUniqueText = `BANNER_MARKER_${uniqueBannerMarker.replace('banner-id-', '')}`;
             const signatureUniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
+            // Hidden markers using position:absolute so Exchange can detect them
+            const hiddenBannerMarker = `<span style="position:absolute;left:-9999px;color:transparent;">${bannerUniqueText}</span>`;
+            const hiddenSignatureMarker = `<span style="position:absolute;left:-9999px;color:transparent;">${signatureUniqueText}</span>`;
             
             // Process banner with tracking - use DIRECT edge function URL with email for tracking
             let finalBannerHtml = group.bannerHtml;
@@ -810,8 +816,8 @@ Write-Host ""
               }
             }
             
-            // Add hidden text markers that Exchange can see (not in HTML comments)
-            const wrappedBanner = `<div style="margin-bottom: 20px;"><span style="display:none;font-size:0;color:transparent;line-height:0;max-height:0;max-width:0;opacity:0;overflow:hidden;">${bannerUniqueText}</span>${finalBannerHtml}</div>`;
+            // Add hidden markers - position:absolute so Exchange can detect them
+            const wrappedBanner = `<div style="margin-bottom: 20px;">${hiddenBannerMarker}${finalBannerHtml}</div>`;
             // Proper PowerShell escaping: escape special characters and remove line breaks
             const escapedBanner = wrappedBanner
               .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -821,7 +827,7 @@ Write-Host ""
               .replace(/\s+/g, ' ')        // Collapse spaces
               .trim();
             
-            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="display:none;font-size:0;color:transparent;line-height:0;max-height:0;max-width:0;opacity:0;overflow:hidden;">${signatureUniqueText}</span>${group.signatureHtml}</div>`;
+            const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;">${hiddenSignatureMarker}${group.signatureHtml}</div>`;
             // Proper PowerShell escaping: escape special characters and remove line breaks
             const escapedSignature = wrappedSignature
               .replace(/\$/g, '$$$$')      // Escape $ (must be first)
