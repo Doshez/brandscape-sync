@@ -683,6 +683,7 @@ Write-Host ""
 
         ruleIndex++;
         persistentCounter++; // Increment persistent counter
+        localStorage.setItem(COUNTER_KEY, persistentCounter.toString()); // Save after each increment
         const groupId = `${dateStamp}_${uniqueTimestamp}_G${persistentCounter}`;
         const userEmails = group.users.map(u => u.email).join('", "');
         const userCount = group.users.length;
@@ -959,9 +960,6 @@ Write-Host "  Remove-TransportRule -Identity '<RuleName>' -Confirm:\$false" -For
 Write-Host ""
 Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 `;
-
-      // Save the updated counter to localStorage for next generation
-      localStorage.setItem(COUNTER_KEY, persistentCounter.toString());
 
       setPowershellScript(script);
       
