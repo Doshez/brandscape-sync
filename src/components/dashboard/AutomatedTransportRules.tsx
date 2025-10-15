@@ -48,6 +48,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [selectedSignature, setSelectedSignature] = useState("");
   const [selectedBanner, setSelectedBanner] = useState("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [counterValue, setCounterValue] = useState<string>("30"); // Default to 30 so next will be G31
   
   // Domain-wide assignment states
   const [domainWideMode, setDomainWideMode] = useState(false);
@@ -1417,6 +1418,40 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                     </Label>
                   </div>
                 </RadioGroup>
+              </div>
+
+              {/* Counter Control */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <Label className="text-sm font-medium">Script Counter Control</Label>
+                <p className="text-xs text-muted-foreground">
+                  Set the starting counter value. Next script will use G{parseInt(counterValue || "0") + 1}
+                </p>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    type="number"
+                    value={counterValue}
+                    onChange={(e) => setCounterValue(e.target.value)}
+                    placeholder="30"
+                    className="w-24"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const COUNTER_KEY = 'transport_rule_counter';
+                      localStorage.setItem(COUNTER_KEY, counterValue);
+                      toast({
+                        title: "Counter Updated",
+                        description: `Next script will start at G${parseInt(counterValue) + 1}`,
+                      });
+                    }}
+                  >
+                    Set Counter
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Current: G{parseInt(localStorage.getItem('transport_rule_counter') || '0') + 1}
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-2">
