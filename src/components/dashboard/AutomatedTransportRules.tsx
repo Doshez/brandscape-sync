@@ -709,8 +709,8 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
           // Create unique signature marker that matches the exception check
           const uniqueSignatureMarker = `signature-${groupId}`;
           const uniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
-          // Place marker at the beginning with simplified off-screen positioning
-          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;">${uniqueText}</span>${group.signatureHtml}</div>`;
+          // Place marker at the beginning - completely invisible with zero dimensions
+          const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;font-size:0;line-height:0;opacity:0;overflow:hidden;display:inline-block;">${uniqueText}</span>${group.signatureHtml}</div>`;
           // Proper PowerShell escaping: escape special characters and remove line breaks
           const escapedSignature = wrappedSignature
             .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -815,9 +815,9 @@ Write-Host ""
             const uniqueSignatureMarker = `signature-${groupId}`;
             const bannerUniqueText = `BANNER_MARKER_${uniqueBannerMarker.replace('banner-id-', '')}`;
             const signatureUniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
-            // Hidden markers using simplified off-screen positioning
-            const hiddenBannerMarker = `<span style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;">${bannerUniqueText}</span>`;
-            const hiddenSignatureMarker = `<span style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;">${signatureUniqueText}</span>`;
+            // Hidden markers - completely invisible with off-screen positioning and zero dimensions
+            const hiddenBannerMarker = `<span style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;font-size:0;line-height:0;opacity:0;overflow:hidden;display:inline-block;">${bannerUniqueText}</span>`;
+            const hiddenSignatureMarker = `<span style="position:absolute;left:-9999px;top:-9999px;width:0;height:0;font-size:0;line-height:0;opacity:0;overflow:hidden;display:inline-block;">${signatureUniqueText}</span>`;
             
             // Process banner with tracking - use DIRECT edge function URL with email for tracking
             let finalBannerHtml = group.bannerHtml;
