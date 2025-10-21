@@ -28,7 +28,7 @@ export function wrapBannerWithTracking(
   // Fixed URL format: banner_id as query param, not path param
   // Use HTML comment to hide the pixel completely from email previews
   const viewTrackingPixel = includeViewPixel 
-    ? `<!-- banner-view-pixel --><img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;" alt="" />`
+    ? `<!-- banner-view-pixel --><img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;visibility:hidden;opacity:0;max-height:0;max-width:0;overflow:hidden;" alt="" aria-hidden="true" role="presentation" />`
     : '';
   
   // Wrap any clickable elements (a tags and images) with tracking
@@ -55,7 +55,10 @@ export function wrapBannerWithTracking(
   // Update existing links to go through tracking
   wrappedHtml = wrappedHtml.replace(
     /<a\s+([^>]*href=["'][^"']*["'][^>]*)>/gi,
-    `<a $1 data-original-href="$1" href="${trackingUrl}">`
+    (match, attrs) => {
+      // Preserve link text and styling to avoid showing tracking URL
+      return `<a ${attrs} data-original-href="${attrs}" href="${trackingUrl}" style="color:inherit;text-decoration:inherit;">`;
+    }
   );
   
   // Add view tracking pixel at the end (only if includeViewPixel is true)
