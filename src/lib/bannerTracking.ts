@@ -26,9 +26,9 @@ export function wrapBannerWithTracking(
   
   // Add tracking pixel for view tracking (1x1 transparent image) - calls edge function directly
   // Fixed URL format: banner_id as query param, not path param
-  // Use HTML comment to hide the pixel completely from email previews
+  // Use positioning to move pixel off-screen instead of hiding
   const viewTrackingPixel = includeViewPixel 
-    ? `<!-- banner-view-pixel --><img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="display:none;visibility:hidden;opacity:0;max-height:0;max-width:0;overflow:hidden;" alt="" aria-hidden="true" role="presentation" />`
+    ? `<!-- banner-view-pixel --><img src="${SUPABASE_URL}/functions/v1/track-banner-view?banner_id=${bannerId}${emailParam}" width="1" height="1" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;" alt="" aria-hidden="true" role="presentation" />`
     : '';
   
   // Wrap any clickable elements (a tags and images) with tracking
