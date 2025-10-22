@@ -827,16 +827,14 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
           const ruleName = userCount > 1 ? `SIGNATURE_${sanitizedUserName}_Group${ruleIndex}` : `SIGNATURE_${sanitizedUserName}`;
           
           script += `# Signature rule for ${userCount} user(s)
-# Exception marker (prevents duplicates): ${uniqueText}
 New-TransportRule -Name "${ruleName}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
-    -Comments "Signature for ${userName} - Exception: ${uniqueText}"
+    -Comments "Signature for ${userName}"
 
 Write-Host "  ✓ Signature rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
 Write-Host ""
@@ -889,20 +887,17 @@ Write-Host ""
           const bannerPriority = Math.min(ruleIndex - 1, 3);
           
           script += `# Banner rule for ${userCount} user(s): ${userName}
-# Exception marker: ${uniqueText} (prevents duplicates)
 New-TransportRule -Name "${ruleName}" \`
     -FromScope InOrganization \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
-    -Comments "Banner for ${userName} - Exception: ${uniqueText}"
+    -Comments "Banner for ${userName}"
 
 Write-Host "  ✓ Banner rule '${ruleName}' created for ${userCount} user(s)" -ForegroundColor Green
-Write-Host "  ✓ Duplication prevention: ${uniqueText}" -ForegroundColor Cyan
 Write-Host ""
 
 `;
@@ -973,7 +968,6 @@ Write-Host ""
 # Rule 1: BANNER ONLY (Prepend - appears ABOVE email body)
 # Rule 2: SIGNATURE ONLY (Append - appears BELOW email body)
 # Different names, priorities, locations = NO DUPLICATES
-# Exception markers prevent duplication: ${bannerUniqueText}, ${signatureUniqueText}
 # ========================================
 
 Write-Host "Creating BANNER rule (Prepend ABOVE body)..." -ForegroundColor Cyan
@@ -984,14 +978,12 @@ New-TransportRule -Name "BANNER_${rulePrefix}_${groupId}" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${bannerUniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${bannerPriority} \`
-    -Comments "Banner for ${userName} - Exception: ${bannerUniqueText}"
+    -Comments "Banner for ${userName}"
 
 Write-Host "  ✓ BANNER rule 'BANNER_${rulePrefix}_${groupId}' created - Priority ${bannerPriority} (ABOVE body)" -ForegroundColor Green
-Write-Host "  ✓ Exception: ${bannerUniqueText}" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Creating SIGNATURE rule (Append BELOW body)..." -ForegroundColor Cyan
@@ -1002,14 +994,12 @@ New-TransportRule -Name "SIGNATURE_${rulePrefix}_${groupId}" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${signatureUniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority ${signaturePriority} \`
-    -Comments "Signature for ${userName} - Exception: ${signatureUniqueText}"
+    -Comments "Signature for ${userName}"
 
 Write-Host "  ✓ SIGNATURE rule 'SIGNATURE_${rulePrefix}_${groupId}' created - Priority ${signaturePriority} (BELOW body)" -ForegroundColor Green
-Write-Host "  ✓ Exception: ${signatureUniqueText}" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Result: Banner ABOVE body, Signature BELOW body - NO DUPLICATES" -ForegroundColor Green
 Write-Host ""
@@ -1034,13 +1024,12 @@ New-TransportRule -Name "${rulePrefix}_SIGNATURE_${groupId}" \`
     -From "${userEmails}" \`
     -ApplyHtmlDisclaimerLocation Append \`
     -ApplyHtmlDisclaimerText '${escapedSignature}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${exceptionText}", "${exceptionEmail}" \`
     -ApplyHtmlDisclaimerFallbackAction Wrap \`
     -Enabled $true \`
     -Priority 5 \`
     -Comments "Signature for ${userCount} user(s) - Append BELOW body"
 
-Write-Host "  ✓ SIGNATURE rule created with duplication prevention (text + email, BELOW body)" -ForegroundColor Green
+Write-Host "  ✓ SIGNATURE rule created (BELOW body)" -ForegroundColor Green
 Write-Host ""
 
 `;
