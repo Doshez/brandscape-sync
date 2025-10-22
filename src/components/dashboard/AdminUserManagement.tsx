@@ -242,70 +242,26 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       }
 
       const temporaryPassword = generateTemporaryPassword();
-      let authUserId = selectedUser.user_id;
+      const createAuthAccount = !selectedUser.user_id;
 
-      // If user doesn't have an auth account, create one
-      if (!authUserId) {
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email: selectedUser.email,
-          password: temporaryPassword,
-          email_confirm: true,
-          user_metadata: {
+      // Call edge function to promote user (requires service role)
+      const { data: promoteData, error: promoteError } = await supabase.functions.invoke("promote-user-to-admin", {
+        body: {
+          userId: createAuthAccount ? selectedUser.id : selectedUser.user_id,
+          temporaryPassword: temporaryPassword,
+          createAuthAccount: createAuthAccount,
+          userEmail: selectedUser.email,
+          userMetadata: {
             first_name: selectedUser.first_name,
             last_name: selectedUser.last_name,
             department: selectedUser.department || "",
             job_title: selectedUser.job_title || "",
-            requires_password_change: true,
           },
-        });
+          adminUserId: profile.user_id,
+        },
+      });
 
-        if (authError) throw authError;
-        if (!authData.user) throw new Error("Failed to create auth account");
-        
-        authUserId = authData.user.id;
-
-        // Update profile with new user_id
-        const { error: linkError } = await supabase
-          .from("profiles")
-          .update({ user_id: authUserId })
-          .eq("id", selectedUser.id);
-
-        if (linkError) throw linkError;
-      } else {
-        // Update existing user's password
-        const { error: updateError } = await supabase.auth.admin.updateUserById(
-          authUserId,
-          { 
-            password: temporaryPassword,
-            user_metadata: {
-              requires_password_change: true
-            }
-          }
-        );
-
-        if (updateError) throw updateError;
-      }
-
-      // Update profile to admin
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ is_admin: true })
-        .eq("id", selectedUser.id);
-
-      if (profileError) throw profileError;
-
-      // Add admin role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({
-          user_id: authUserId,
-          role: "admin",
-          created_by: profile.user_id,
-        });
-
-      if (roleError && roleError.code !== '23505') {
-        console.error("Error adding admin role:", roleError);
-      }
+      if (promoteError) throw promoteError;
 
       // Send welcome email
       const loginUrl = "https://emailsigdash.cioafrica.co/";
@@ -320,12 +276,19 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
         },
       });
 
-      if (emailError) throw emailError;
-
-      toast({
-        title: "User Promoted to Administrator",
-        description: `${selectedUser.email} has been promoted and notified`,
-      });
+      if (emailError) {
+        console.error("Error sending welcome email:", emailError);
+        toast({
+          title: "Promoted (Email Failed)",
+          description: `User promoted but welcome email failed. Temporary password: ${temporaryPassword}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "User Promoted to Administrator",
+          description: `${selectedUser.email} has been promoted and notified`,
+        });
+      }
 
       setIsPromoteDialogOpen(false);
       setSelectedUserToPromote("");
