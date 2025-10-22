@@ -59,7 +59,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [domainWideMode, setDomainWideMode] = useState(false);
   const [domainName, setDomainName] = useState("cioaafrica.co");
   const [domainWideBanner, setDomainWideBanner] = useState("");
-  const [deploymentMethod, setDeploymentMethod] = useState<"transport-rules" | "email-routing">("transport-rules");
+  
   
   const { toast } = useToast();
 
@@ -1275,22 +1275,50 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
       <Alert>
         <CheckCircle className="h-4 w-4" />
         <AlertDescription>
-          <strong>How it works:</strong> This is the <strong>unified deployment system</strong> for all email signatures and banners. 
-          It generates PowerShell scripts that create Exchange transport rules for each user assignment. 
-          When users send emails, Exchange automatically adds their assigned signature and banner.
-          <br /><br />
-          <strong>Important:</strong> This is the ONLY way to deploy to Exchange - all other deployment methods have been removed to prevent duplicate rules.
+          <strong>Choose your deployment method:</strong> Use <strong>Server-Side Transport Rules</strong> for Exchange/Microsoft 365 
+          environments with admin access, or <strong>Email Routing</strong> for guaranteed signature/banner attachment with any email provider.
         </AlertDescription>
       </Alert>
 
-      <DeploymentMethodSelector
-        selectedMethod={deploymentMethod}
-        onMethodChange={setDeploymentMethod}
-      />
+      <Tabs defaultValue="transport-rules" className="w-full mt-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="transport-rules" className="flex items-center gap-2">
+            <Terminal className="h-4 w-4" />
+            Server-Side Transport Rules
+          </TabsTrigger>
+          <TabsTrigger value="email-routing" className="flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Email Routing (SMTP Relay)
+          </TabsTrigger>
+        </TabsList>
 
-      {deploymentMethod === "transport-rules" && (
-      <>
-      <Tabs defaultValue="assignments" className="w-full">
+        <TabsContent value="transport-rules" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Server-Side Transport Rules</CardTitle>
+              <CardDescription>
+                Deploy signatures and banners using Exchange transport rules (requires Exchange Admin access)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Centrally managed - no user intervention needed</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Works across all email clients</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Guaranteed signature consistency</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="assignments" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="assignments">User Assignments</TabsTrigger>
           <TabsTrigger value="deployment">Deployment Scripts</TabsTrigger>
@@ -1800,118 +1828,128 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         </TabsContent>
       </Tabs>
 
-      <EmailRoutingPanel 
-        isOpen={isEmailPanelOpen}
-        onClose={() => setIsEmailPanelOpen(false)}
-        profile={profile}
-      />
-      </>
-      )}
+          <EmailRoutingPanel 
+            isOpen={isEmailPanelOpen}
+            onClose={() => setIsEmailPanelOpen(false)}
+            profile={profile}
+          />
+        </TabsContent>
 
-      {deploymentMethod === "email-routing" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Email Routing Configuration</CardTitle>
-            <CardDescription>
-              Route emails through our service to automatically attach signatures and banners
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                Email routing intercepts outbound emails, attaches signatures and banners based on user assignments, 
-                and delivers them to recipients. This guarantees 100% signature and banner attachment without requiring 
-                Exchange Admin permissions.
-              </AlertDescription>
-            </Alert>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <h4 className="font-semibold">How It Works</h4>
-                <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground ml-4">
-                  <li>Configure your email client or server to route outbound emails through our SMTP relay</li>
-                  <li>Our service identifies the sender from their email address</li>
-                  <li>We look up their assigned signature and banners from your dashboard</li>
-                  <li>Banners are placed at the top, signature at the bottom of the email</li>
-                  <li>The email is delivered to the recipient with all content attached</li>
-                  <li>Banner views and clicks are tracked automatically</li>
-                </ol>
+        <TabsContent value="email-routing" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Routing (SMTP Relay)</CardTitle>
+              <CardDescription>
+                Route emails through our service to automatically attach signatures and banners
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm mb-4">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Works with any email provider (Microsoft 365, Gmail, custom SMTP)</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>No Exchange Admin or PowerShell access required</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Guaranteed signature and banner attachment on every email</span>
+                </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <h4 className="font-semibold">Setup Steps</h4>
-                <div className="space-y-3">
-                  <div className="border rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                        1
-                      </div>
-                      <div className="flex-1">
-                        <h5 className="font-medium mb-1">Configure DNS & SMTP Settings</h5>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Set up the necessary DNS records and SMTP relay configuration
-                        </p>
-                        <Button
-                          onClick={() => setIsEmailPanelOpen(true)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Mail className="h-4 w-4 mr-2" />
-                          Open Email Routing Setup
-                        </Button>
-                      </div>
-                    </div>
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Email routing intercepts outbound emails, attaches signatures and banners based on user assignments, 
+              and delivers them to recipients. This guarantees 100% signature and banner attachment without requiring 
+              Exchange Admin permissions.
+            </AlertDescription>
+          </Alert>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>How It Works</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground ml-4">
+                <li>Configure your email client or server to route outbound emails through our SMTP relay</li>
+                <li>Our service identifies the sender from their email address</li>
+                <li>We look up their assigned signature and banners from your dashboard</li>
+                <li>Banners are placed at the top, signature at the bottom of the email</li>
+                <li>The email is delivered to the recipient with all content attached</li>
+                <li>Banner views and clicks are tracked automatically</li>
+              </ol>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Setup Steps</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="border rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                    1
                   </div>
-
-                  <div className="border rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                        2
-                      </div>
-                      <div className="flex-1">
-                        <h5 className="font-medium mb-1">Assign Signatures & Banners</h5>
-                        <p className="text-sm text-muted-foreground">
-                          Use the dashboard to assign signatures and banners to users. The routing service will 
-                          automatically apply them based on the sender's email address.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                        3
-                      </div>
-                      <div className="flex-1">
-                        <h5 className="font-medium mb-1">Test Your Configuration</h5>
-                        <p className="text-sm text-muted-foreground">
-                          Send a test email to verify signatures and banners are being attached correctly
-                        </p>
-                      </div>
-                    </div>
+                  <div className="flex-1">
+                    <h5 className="font-medium mb-1">Configure DNS & SMTP Settings</h5>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Set up the necessary DNS records and SMTP relay configuration
+                    </p>
+                    <Button
+                      onClick={() => setIsEmailPanelOpen(true)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Open Email Routing Setup
+                    </Button>
                   </div>
                 </div>
               </div>
 
-              <Alert>
-                <CheckCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Key Benefits:</strong>
-                  <ul className="list-disc list-inside mt-2 space-y-1">
-                    <li>Works with any email provider (Microsoft 365, Gmail, custom SMTP)</li>
-                    <li>No Exchange Admin or PowerShell access required</li>
-                    <li>Full banner tracking and analytics</li>
-                    <li>Guaranteed signature and banner attachment on every email</li>
-                    <li>Easy to manage through web dashboard</li>
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              <div className="border rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                    2
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="font-medium mb-1">Assign Signatures & Banners</h5>
+                    <p className="text-sm text-muted-foreground">
+                      Use the dashboard to assign signatures and banners to users. The routing service will 
+                      automatically apply them based on the sender's email address.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                    3
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="font-medium mb-1">Test Your Configuration</h5>
+                    <p className="text-sm text-muted-foreground">
+                      Send a test email to verify signatures and banners are being attached correctly
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <DeploymentMethodSelector
+            selectedMethod="email-routing"
+            onMethodChange={() => {}}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
