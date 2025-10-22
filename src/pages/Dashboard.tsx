@@ -15,7 +15,7 @@ import { UserManager } from "@/components/dashboard/UserManager";
 import { UserAssignmentManager } from "@/components/dashboard/UserAssignmentManager";
 import { AdminUserManagement } from "@/components/dashboard/AdminUserManagement";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "settings" | "users" | "assignments" | "auto-transport-rules";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "settings" | "users" | "admin-users" | "assignments" | "auto-transport-rules";
 
 const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -146,6 +146,8 @@ const Dashboard = () => {
       case "settings":
         return <CompanySettings profile={profile} />;
       case "users":
+        return <UserManager profile={profile} />;
+      case "admin-users":
         return <AdminUserManagement profile={profile} />;
       case "assignments":
         return <UserAssignmentManager profile={profile} />;

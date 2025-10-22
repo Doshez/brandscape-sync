@@ -9,10 +9,11 @@ import {
   Users,
   Mail,
   UserCheck,
-  Zap
+  Zap,
+  ShieldCheck
 } from "lucide-react";
 
-type DashboardView = "home" | "signatures" | "banners" | "analytics" | "settings" | "users" | "assignments" | "auto-transport-rules";
+type DashboardView = "home" | "signatures" | "banners" | "analytics" | "settings" | "users" | "admin-users" | "assignments" | "auto-transport-rules";
 
 interface SidebarProps {
   activeView: DashboardView;
@@ -28,6 +29,7 @@ const menuItems = [
   { id: "auto-transport-rules", label: "Deploy to Exchange", icon: Zap, adminOnly: true },
   { id: "analytics", label: "Analytics", icon: BarChart3, adminOnly: true },
   { id: "users", label: "User Management", icon: Users, adminOnly: true },
+  { id: "admin-users", label: "Admin Management", icon: ShieldCheck, adminOnly: true },
   { id: "settings", label: "Company Settings", icon: Settings, adminOnly: true },
 ];
 
