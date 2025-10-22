@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Trash2, Mail, Shield, User, Eye, EyeOff } from "lucide-react";
+import { UserPlus, Trash2, Mail, Shield, User, Eye, EyeOff, UserMinus } from "lucide-react";
 import { z } from "zod";
 
 interface UserProfile {
@@ -314,7 +314,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
   };
 
   const handleDeleteUser = async (userId: string, email: string) => {
-    if (!confirm(`Are you sure you want to delete user ${email}?`)) {
+    if (!confirm(`Are you sure you want to delete administrator ${email}?`)) {
       return;
     }
 
@@ -337,6 +337,59 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       toast({
         title: "Error",
         description: "Failed to delete user",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDemoteAdmin = async (user: UserProfile) => {
+    if (!confirm(`Are you sure you want to demote ${user.email} to a regular user? They will lose login access.`)) {
+      return;
+    }
+
+    try {
+      if (!user.user_id) {
+        throw new Error("User has no auth account");
+      }
+
+      // Remove admin role from user_roles
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", user.user_id)
+        .eq("role", "admin");
+
+      if (roleError) {
+        console.error("Error removing admin role:", roleError);
+      }
+
+      // Update profile to set is_admin to false
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ is_admin: false })
+        .eq("id", user.id);
+
+      if (profileError) throw profileError;
+
+      // Delete auth account to remove login access
+      const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(user.user_id);
+
+      if (deleteAuthError) {
+        console.error("Error deleting auth account:", deleteAuthError);
+        // Continue even if auth deletion fails - user is demoted
+      }
+
+      toast({
+        title: "Administrator Demoted",
+        description: `${user.email} has been demoted to regular user and login access removed`,
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Error demoting admin:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to demote administrator",
         variant: "destructive",
       });
     }
@@ -614,6 +667,17 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {user.user_id && user.user_id !== profile.user_id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDemoteAdmin(user)}
+                            title="Demote to regular user (removes login access)"
+                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </Button>
+                        )}
                         {user.user_id && (
                           <Button
                             variant="ghost"
@@ -630,6 +694,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
                             size="sm"
                             onClick={() => handleDeleteUser(user.user_id!, user.email)}
                             className="text-destructive hover:text-destructive"
+                            title="Delete administrator permanently"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
