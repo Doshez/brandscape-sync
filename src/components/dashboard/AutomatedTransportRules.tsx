@@ -479,9 +479,8 @@ Disconnect-ExchangeOnline -Confirm:$false
       
       const uniqueMarker = `banner-id-${bannerId}`;
       const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
-      // Use opacity:0 with positioning - Exchange can detect this but users won't see it
-      // Exchange CANNOT detect display:none or visibility:hidden
-      const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;max-width:0;max-height:0;">${uniqueText}</span></div>`;
+      // Use CSS clip for complete invisibility while keeping in DOM
+      const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}<span style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;border:0;">${uniqueText}</span></div>`;
       // Proper PowerShell escaping: escape special characters and remove line breaks
       const escapedBanner = wrappedBanner
         .replace(/\$/g, '$$$$')      // Escape $ (must be first)
