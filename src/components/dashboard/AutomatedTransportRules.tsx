@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle, Plus, Trash2, Mail, Image, FileText, Shield, Settings } from "lucide-react";
+import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle, Plus, Trash2, Mail, Image, FileText, Shield, Settings, Edit } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -48,6 +48,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [selectedSignature, setSelectedSignature] = useState("");
   const [selectedBanner, setSelectedBanner] = useState("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
   const COUNTER_KEY = 'transport_rule_counter';
   const [counterValue, setCounterValue] = useState<string>(() => {
     return localStorage.getItem(COUNTER_KEY) || '0';
@@ -65,6 +66,108 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
       fetchAllData();
     }
   }, [profile]);
+
+  const handleEditAssignment = async (assignment: UserAssignment) => {
+    try {
+      // Find the assignment in the database
+      const { data: dbAssignment, error: fetchError } = await supabase
+        .from("user_email_assignments")
+        .select("id, signature_id, user_banner_assignments(banner_id)")
+        .eq("user_id", assignment.userId)
+        .eq("is_active", true)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      setEditingAssignmentId(dbAssignment.id);
+      setSelectedUser(assignment.userId);
+      setSelectedSignature(dbAssignment.signature_id);
+      
+      // Get banner if exists
+      const bannerAssignments = dbAssignment.user_banner_assignments as any[];
+      if (bannerAssignments && bannerAssignments.length > 0) {
+        setSelectedBanner(bannerAssignments[0].banner_id);
+      } else {
+        setSelectedBanner("none");
+      }
+
+      toast({
+        title: "Edit Mode",
+        description: "Modify the assignment and click 'Update Assignment' to save",
+      });
+    } catch (error: any) {
+      console.error("Error loading assignment for edit:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load assignment for editing",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateAssignment = async () => {
+    if (!editingAssignmentId || !selectedSignature) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a signature",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Update signature
+      const { error: updateError } = await supabase
+        .from("user_email_assignments")
+        .update({ signature_id: selectedSignature })
+        .eq("id", editingAssignmentId);
+
+      if (updateError) throw updateError;
+
+      // Delete existing banner assignments
+      await supabase
+        .from("user_banner_assignments")
+        .delete()
+        .eq("user_assignment_id", editingAssignmentId);
+
+      // Add new banner if selected
+      if (selectedBanner && selectedBanner !== "none") {
+        const { error: bannerError } = await supabase
+          .from("user_banner_assignments")
+          .insert({
+            user_assignment_id: editingAssignmentId,
+            banner_id: selectedBanner,
+            display_order: 1
+          });
+
+        if (bannerError) throw bannerError;
+      }
+
+      toast({
+        title: "Success",
+        description: "Assignment updated successfully. Click refresh to see changes.",
+      });
+
+      setSelectedUser("");
+      setSelectedSignature("");
+      setSelectedBanner("");
+      setEditingAssignmentId(null);
+    } catch (error: any) {
+      console.error("Error updating assignment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update assignment",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAssignmentId(null);
+    setSelectedUser("");
+    setSelectedSignature("");
+    setSelectedBanner("");
+  };
 
   const fetchAllData = async () => {
     await Promise.all([
@@ -182,13 +285,13 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
       toast({
         title: "Success",
-        description: "User assignment created successfully",
+        description: "User assignment created successfully. Click refresh to see changes.",
       });
 
       setSelectedUser("");
       setSelectedSignature("");
       setSelectedBanner("");
-      fetchAllData();
+      setEditingAssignmentId(null);
     } catch (error: any) {
       console.error("Error creating assignment:", error);
       toast({
@@ -210,10 +313,8 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
       toast({
         title: "Success",
-        description: "User assignment removed successfully",
+        description: "User assignment removed successfully. Click refresh to see changes.",
       });
-
-      fetchAllData();
     } catch (error: any) {
       console.error("Error removing assignment:", error);
       toast({
@@ -1093,18 +1194,26 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Assign Banner & Signature to User
+                {editingAssignmentId ? <Edit className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                {editingAssignmentId ? "Edit User Assignment" : "Assign Banner & Signature to User"}
               </CardTitle>
               <CardDescription>
-                Select a user and assign them an email signature and optional banner
+                {editingAssignmentId ? "Update the signature and banner for this user" : "Select a user and assign them an email signature and optional banner"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {editingAssignmentId && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Editing assignment. Modify the fields below and click "Update Assignment" to save changes.
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Select User</Label>
-                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                  <Select value={selectedUser} onValueChange={setSelectedUser} disabled={!!editingAssignmentId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Choose a user" />
                     </SelectTrigger>
@@ -1152,20 +1261,42 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                 </div>
               </div>
 
-              <Button onClick={handleCreateAssignment} className="w-full">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Assignment
-              </Button>
+              <div className="flex gap-2">
+                {editingAssignmentId ? (
+                  <>
+                    <Button onClick={handleUpdateAssignment} className="flex-1">
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Update Assignment
+                    </Button>
+                    <Button onClick={handleCancelEdit} variant="outline" className="flex-1">
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={handleCreateAssignment} className="w-full">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Assignment
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           {/* Current Assignments List */}
           <Card>
             <CardHeader>
-              <CardTitle>Current Assignments</CardTitle>
-              <CardDescription>
-                Users with assigned signatures and banners (ready for deployment)
-              </CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Current Assignments</CardTitle>
+                  <CardDescription>
+                    Users with assigned signatures and banners (ready for deployment)
+                  </CardDescription>
+                </div>
+                <Button onClick={fetchAllData} variant="outline" size="sm" disabled={loading}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -1203,23 +1334,32 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                             )}
                           </div>
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={async () => {
-                              const { data } = await supabase
-                                .from("user_email_assignments")
-                                .select("id")
-                                .eq("user_id", assignment.userId)
-                                .eq("is_active", true)
-                                .single();
-                              if (data) {
-                                handleRemoveAssignment(data.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditAssignment(assignment)}
+                            >
+                              <Edit className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const { data } = await supabase
+                                  .from("user_email_assignments")
+                                  .select("id")
+                                  .eq("user_id", assignment.userId)
+                                  .eq("is_active", true)
+                                  .single();
+                                if (data) {
+                                  handleRemoveAssignment(data.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))}
