@@ -477,10 +477,9 @@ Disconnect-ExchangeOnline -Confirm:$false
         false // Don't include view pixel for domain-wide to avoid duplicates
       );
       
-      const uniqueMarker = `banner-id-${bannerId}`;
-      const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
-      // Use CSS clip for complete invisibility while keeping in DOM
-      const wrappedBanner = `<div style="margin-bottom: 20px;">${finalBannerHtml}<span style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;border:0;">${uniqueText}</span></div>`;
+      // Remove alt text from images to make them blank
+      const cleanedBannerHtml = finalBannerHtml.replace(/alt="[^"]*"/gi, 'alt=""');
+      const wrappedBanner = `<div style="margin-bottom: 20px;">${cleanedBannerHtml}</div>`;
       // Proper PowerShell escaping: escape special characters and remove line breaks
       const escapedBanner = wrappedBanner
         .replace(/\$/g, '$$$$')      // Escape $ (must be first)
@@ -512,14 +511,13 @@ Write-Host ""
 
 # Create domain-wide banner rule  
 # Applies to ALL users sending from @${domainName}
-# Exception check: Hidden text marker (${uniqueText}) prevents duplicates
+# Exception check: Prevents duplicate banner application
 New-TransportRule -Name "BANNER_${groupId}_DomainWide_${domainName}" \`
     -FromScope InOrganization \`
     -SenderAddressLocation HeaderOrEnvelope \`
     -SenderDomainIs "${domainName}" \`
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ExceptIfSubjectOrBodyContainsWords "${uniqueText}" \`
     -ApplyHtmlDisclaimerFallbackAction Ignore \`
     -Enabled $true \`
     -Priority 0 \`
@@ -531,7 +529,7 @@ Write-Host "Rule Details:" -ForegroundColor Cyan
 Write-Host "  - Applies to: ALL users @${domainName}" -ForegroundColor White
 Write-Host "  - Banner: ${banner.name}" -ForegroundColor White
 Write-Host "  - Location: Above email body (Prepend)" -ForegroundColor White
-Write-Host "  - Duplication prevention: ${uniqueText}" -ForegroundColor White
+Write-Host "  - Duplication prevention: Rule-based" -ForegroundColor White
 Write-Host ""
 
 Write-Host "=== Verifying Rule ===" -ForegroundColor Cyan
