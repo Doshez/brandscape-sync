@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmailRoutingPanel } from "./EmailRoutingPanel";
+import { EmailRouting } from "./EmailRouting";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { wrapBannerWithTracking } from "@/lib/bannerTracking";
 
@@ -1836,118 +1837,200 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         </TabsContent>
 
         <TabsContent value="email-routing" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Routing (SMTP Relay)</CardTitle>
-              <CardDescription>
-                Route emails through our service to automatically attach signatures and banners
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm mb-4">
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Works with any email provider (Microsoft 365, Gmail, custom SMTP)</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>No Exchange Admin or PowerShell access required</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Guaranteed signature and banner attachment on every email</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Email routing intercepts outbound emails, attaches signatures and banners based on user assignments, 
-              and delivers them to recipients. This guarantees 100% signature and banner attachment without requiring 
-              Exchange Admin permissions.
+              <strong>Email Routing System:</strong> This feature uses our edge function to automatically attach signatures 
+              and banners to outbound emails. You can use a third-party SMTP service (recommended) or build your own email relay infrastructure.
             </AlertDescription>
           </Alert>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>How It Works</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground ml-4">
-                <li>Configure your email client or server to route outbound emails through our SMTP relay</li>
-                <li>Our service identifies the sender from their email address</li>
-                <li>We look up their assigned signature and banners from your dashboard</li>
-                <li>Banners are placed at the top, signature at the bottom of the email</li>
-                <li>The email is delivered to the recipient with all content attached</li>
-                <li>Banner views and clicks are tracked automatically</li>
-              </ol>
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="setup" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="setup">SMTP Configuration</TabsTrigger>
+              <TabsTrigger value="assignments">User Assignments</TabsTrigger>
+              <TabsTrigger value="platform">Platform Options</TabsTrigger>
+            </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Setup Steps</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="border rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                    1
-                  </div>
-                  <div className="flex-1">
-                    <h5 className="font-medium mb-1">Configure DNS & SMTP Settings</h5>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Set up the necessary DNS records and SMTP relay configuration
-                    </p>
-                    <Button
-                      onClick={() => setIsEmailPanelOpen(true)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Mail className="h-4 w-4 mr-2" />
-                      Open Email Routing Setup
-                    </Button>
-                  </div>
-                </div>
-              </div>
+            <TabsContent value="setup" className="space-y-6 mt-6">
+              <EmailRouting profile={profile} />
+            </TabsContent>
 
-              <div className="border rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                    2
-                  </div>
-                  <div className="flex-1">
-                    <h5 className="font-medium mb-1">Assign Signatures & Banners</h5>
-                    <p className="text-sm text-muted-foreground">
-                      Use the dashboard to assign signatures and banners to users. The routing service will 
-                      automatically apply them based on the sender's email address.
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <TabsContent value="assignments" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Manage User Assignments</CardTitle>
+                  <CardDescription>
+                    Assign signatures and banners to users. When emails are routed through the SMTP relay, 
+                    these will be automatically attached based on the sender's email address.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Alert className="mb-6">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Use the "User Assignments" tab in the Server-Side Transport Rules section to assign 
+                      signatures and banners. The same assignments work for both deployment methods.
+                    </AlertDescription>
+                  </Alert>
 
-              <div className="border rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                    3
-                  </div>
-                  <div className="flex-1">
-                    <h5 className="font-medium mb-1">Test Your Configuration</h5>
-                    <p className="text-sm text-muted-foreground">
-                      Send a test email to verify signatures and banners are being attached correctly
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold">Current Assignments</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {assignments.length} users have signature/banner assignments
+                        </p>
+                      </div>
+                      <Button variant="outline" onClick={fetchAllData}>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Refresh
+                      </Button>
+                    </div>
 
-          <DeploymentMethodSelector
-            selectedMethod="email-routing"
-            onMethodChange={() => {}}
-          />
+                    {assignments.length > 0 && (
+                      <div className="border rounded-lg">
+                        <ScrollArea className="h-[400px]">
+                          <div className="p-4 space-y-3">
+                            {assignments.map((assignment) => (
+                              <div key={assignment.userId} className="border rounded-lg p-3">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <p className="font-medium">{assignment.userName}</p>
+                                    <p className="text-sm text-muted-foreground">{assignment.userEmail}</p>
+                                    <div className="mt-2 space-y-1">
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <FileText className="h-3 w-3" />
+                                        <span>Signature assigned</span>
+                                      </div>
+                                      {assignment.bannerHtml && (
+                                        <div className="flex items-center gap-2 text-xs">
+                                          <Image className="h-3 w-3" />
+                                          <span>Banner assigned</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="platform" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Email Routing Platform Options</CardTitle>
+                  <CardDescription>
+                    Choose between using a third-party SMTP service or building your own email relay infrastructure
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        Option 1: Third-Party SMTP Service (Recommended)
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Use an established email service provider to handle email delivery and infrastructure.
+                      </p>
+                      <div className="space-y-2 ml-7">
+                        <div className="text-sm">
+                          <strong>Popular Services:</strong>
+                          <ul className="list-disc list-inside mt-1 ml-2 space-y-1 text-muted-foreground">
+                            <li><strong>SendGrid</strong> - Up to 100 emails/day free, then pay-as-you-go</li>
+                            <li><strong>Mailgun</strong> - 5,000 emails/month free trial</li>
+                            <li><strong>Amazon SES</strong> - $0.10 per 1,000 emails</li>
+                            <li><strong>Resend</strong> - Modern API, 3,000 emails/month free</li>
+                          </ul>
+                        </div>
+                        <div className="text-sm mt-3">
+                          <strong>Benefits:</strong>
+                          <ul className="list-disc list-inside mt-1 ml-2 space-y-1 text-muted-foreground">
+                            <li>Managed deliverability and reputation</li>
+                            <li>Built-in analytics and tracking</li>
+                            <li>Compliance with email standards (SPF, DKIM, DMARC)</li>
+                            <li>24/7 support and uptime guarantees</li>
+                            <li>No infrastructure management required</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border rounded-lg p-4">
+                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                        <Settings className="h-5 w-5 text-blue-600" />
+                        Option 2: Self-Hosted Email Relay (Advanced)
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Build your own SMTP server infrastructure for complete control.
+                      </p>
+                      <div className="space-y-2 ml-7">
+                        <div className="text-sm">
+                          <strong>What You Need:</strong>
+                          <ul className="list-disc list-inside mt-1 ml-2 space-y-1 text-muted-foreground">
+                            <li>SMTP server (Postfix, Sendmail, or mail server software)</li>
+                            <li>Dedicated server or VPS with static IP address</li>
+                            <li>Proper DNS configuration (MX, SPF, DKIM, DMARC records)</li>
+                            <li>IP reputation management and monitoring</li>
+                            <li>Bounce handling and retry logic</li>
+                            <li>Email queue management system</li>
+                          </ul>
+                        </div>
+                        <div className="text-sm mt-3">
+                          <strong>Challenges:</strong>
+                          <ul className="list-disc list-inside mt-1 ml-2 space-y-1 text-muted-foreground">
+                            <li>Complex setup and ongoing maintenance</li>
+                            <li>Building sender reputation takes time (months)</li>
+                            <li>Risk of being blacklisted if not managed properly</li>
+                            <li>No built-in deliverability guarantees</li>
+                            <li>Requires DevOps expertise for scaling</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Our Recommendation:</strong> Start with a third-party SMTP service like SendGrid or Mailgun. 
+                        The <code className="text-xs bg-muted px-1 py-0.5 rounded">process-outbound-email</code> edge function 
+                        already handles signature/banner attachment. You just need to configure the SMTP relay to send emails through 
+                        your chosen provider. Building your own email infrastructure is only worthwhile if you send millions of emails 
+                        per month and have dedicated DevOps resources.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+
+                  <Card className="bg-muted/50">
+                    <CardHeader>
+                      <CardTitle className="text-base">Current System Architecture</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ol className="list-decimal list-inside space-y-2 text-sm">
+                        <li>User's email client sends email to your SMTP relay</li>
+                        <li>SMTP relay forwards to <code className="text-xs bg-background px-1 py-0.5 rounded">process-outbound-email</code> edge function</li>
+                        <li>Edge function identifies sender and attaches signature/banner</li>
+                        <li>Edge function sends final email via configured SMTP provider (SendGrid/Mailgun/etc.)</li>
+                        <li>Recipient receives email with signature and banner attached</li>
+                      </ol>
+                      <p className="text-xs text-muted-foreground mt-4">
+                        This architecture works with any SMTP provider. The signature/banner attachment logic is already built 
+                        into your <code>process-outbound-email</code> edge function.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>
