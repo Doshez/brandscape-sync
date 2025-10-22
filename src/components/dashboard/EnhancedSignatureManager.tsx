@@ -340,6 +340,46 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
     }
   };
 
+  const cleanupSocialMediaAltText = async () => {
+    if (!confirm("This will remove alt text from social media icons in all signatures. Continue?")) return;
+
+    try {
+      const updates = signatures.map(async (signature) => {
+        let cleanedHtml = signature.html_content;
+        
+        // Remove alt text from social media icons
+        cleanedHtml = cleanedHtml
+          .replace(/alt="Facebook"/gi, 'alt=""')
+          .replace(/alt="Twitter"/gi, 'alt=""')
+          .replace(/alt="LinkedIn"/gi, 'alt=""')
+          .replace(/alt="YouTube"/gi, 'alt=""')
+          .replace(/alt="Instagram"/gi, 'alt=""');
+
+        if (cleanedHtml !== signature.html_content) {
+          return supabase
+            .from("email_signatures")
+            .update({ html_content: cleanedHtml })
+            .eq("id", signature.id);
+        }
+      });
+
+      await Promise.all(updates.filter(Boolean));
+
+      toast({
+        title: "Success",
+        description: "Social media alt text removed from all signatures",
+      });
+
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const deployToExchange = async (signature: EmailSignature) => {
     setIsDeploying(signature.id);
     
@@ -436,13 +476,18 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
 
         <div className="flex space-x-2">
           {profile?.is_admin && (
-            <Dialog open={showBulkAssignDialog} onOpenChange={setShowBulkAssignDialog}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Users className="h-4 w-4 mr-2" />
-                  Bulk Assign
-                </Button>
-              </DialogTrigger>
+            <>
+              <Button variant="outline" onClick={cleanupSocialMediaAltText}>
+                <Settings className="h-4 w-4 mr-2" />
+                Clean Alt Text
+              </Button>
+              <Dialog open={showBulkAssignDialog} onOpenChange={setShowBulkAssignDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Users className="h-4 w-4 mr-2" />
+                    Bulk Assign
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Bulk Assign Signatures</DialogTitle>
@@ -511,6 +556,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
                 </div>
               </DialogContent>
             </Dialog>
+            </>
           )}
 
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
