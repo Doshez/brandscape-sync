@@ -237,8 +237,53 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       setSubmitting(true);
       const selectedUser = allUsers.find(u => u.id === selectedUserToPromote);
       
-      if (!selectedUser || !selectedUser.user_id) {
+      if (!selectedUser) {
         throw new Error("Invalid user selection");
+      }
+
+      const temporaryPassword = generateTemporaryPassword();
+      let authUserId = selectedUser.user_id;
+
+      // If user doesn't have an auth account, create one
+      if (!authUserId) {
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: selectedUser.email,
+          password: temporaryPassword,
+          email_confirm: true,
+          user_metadata: {
+            first_name: selectedUser.first_name,
+            last_name: selectedUser.last_name,
+            department: selectedUser.department || "",
+            job_title: selectedUser.job_title || "",
+            requires_password_change: true,
+          },
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error("Failed to create auth account");
+        
+        authUserId = authData.user.id;
+
+        // Update profile with new user_id
+        const { error: linkError } = await supabase
+          .from("profiles")
+          .update({ user_id: authUserId })
+          .eq("id", selectedUser.id);
+
+        if (linkError) throw linkError;
+      } else {
+        // Update existing user's password
+        const { error: updateError } = await supabase.auth.admin.updateUserById(
+          authUserId,
+          { 
+            password: temporaryPassword,
+            user_metadata: {
+              requires_password_change: true
+            }
+          }
+        );
+
+        if (updateError) throw updateError;
       }
 
       // Update profile to admin
@@ -253,7 +298,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       const { error: roleError } = await supabase
         .from("user_roles")
         .insert({
-          user_id: selectedUser.user_id,
+          user_id: authUserId,
           role: "admin",
           created_by: profile.user_id,
         });
@@ -261,22 +306,6 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       if (roleError && roleError.code !== '23505') {
         console.error("Error adding admin role:", roleError);
       }
-
-      // Generate new temporary password
-      const temporaryPassword = generateTemporaryPassword();
-      
-      // Update user password
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
-        selectedUser.user_id,
-        { 
-          password: temporaryPassword,
-          user_metadata: {
-            requires_password_change: true
-          }
-        }
-      );
-
-      if (updateError) throw updateError;
 
       // Send welcome email
       const loginUrl = "https://emailsigdash.cioafrica.co/";
@@ -448,8 +477,8 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
     );
   }
 
-  // Filter non-admin users for promotion
-  const nonAdminUsers = allUsers.filter(u => !u.is_admin && u.user_id);
+  // Filter non-admin users for promotion (now includes users without auth accounts)
+  const nonAdminUsers = allUsers.filter(u => !u.is_admin);
 
   return (
     <div className="space-y-6">
@@ -500,8 +529,9 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
                   <p className="text-sm font-medium">⚡ Actions:</p>
                   <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• User will be promoted to Administrator</li>
-                    <li>• New temporary password will be generated</li>
-                    <li>• Welcome email will be sent with new credentials</li>
+                    <li>• Login account will be created if needed</li>
+                    <li>• Temporary password will be generated</li>
+                    <li>• Welcome email will be sent to https://emailsigdash.cioafrica.co/</li>
                   </ul>
                 </div>
 
