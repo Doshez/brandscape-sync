@@ -127,7 +127,7 @@ export const CompanySettings = ({ profile }: CompanySettingsProps) => {
   <tr>
     <td style="padding-right: 20px; vertical-align: top;">
       {{#LOGO_URL}}
-      <img src="{{LOGO_URL}}" alt="{{COMPANY_NAME}}" style="max-width: 120px; height: auto;" />
+      <img src="{{LOGO_URL}}" alt="" style="max-width: 120px; height: auto;" />
       {{/LOGO_URL}}
     </td>
     <td style="border-left: 3px solid {{PRIMARY_COLOR}}; padding-left: 20px; vertical-align: top;">

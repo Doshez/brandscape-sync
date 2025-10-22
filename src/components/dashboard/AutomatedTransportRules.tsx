@@ -809,7 +809,7 @@ Write-Host "Creating rules for Group ${ruleIndex} (${userCount} user(s))..." -Fo
         if (scriptType === "signature") {
           // Create unique signature marker that matches the exception check
           const uniqueSignatureMarker = `signature-${groupId}`;
-          const uniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
+          const uniqueText = ``; // Empty marker - no visible text
           // Place marker at the beginning - use CSS clip for complete invisibility
           const wrappedSignature = `<div style="border-top: 1px solid #e9ecef; margin-top: 30px; padding-top: 20px;"><span style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;border:0;">${uniqueText}</span>${group.signatureHtml}</div>`;
           // Proper PowerShell escaping: escape special characters and remove line breaks
@@ -850,7 +850,7 @@ Write-Host ""
           // Create a unique identifier for this banner to prevent duplicates
           const bannerId = group.bannerId || `banner_${groupId}`;
           const uniqueMarker = `banner-id-${bannerId}`;
-          const uniqueText = `BANNER_MARKER_${uniqueMarker.replace('banner-id-', '')}`;
+          const uniqueText = ``; // Empty marker - no visible text
           // Hidden marker - opacity:0 so Exchange can detect it, fully invisible to users
           const hiddenMarker = `<span style="position:absolute;left:-9999px;top:-9999px;opacity:0;width:0;height:0;overflow:hidden;font-size:0;line-height:0;color:transparent;background:transparent;border:none;padding:0;margin:0;max-width:0;max-height:0;">${uniqueText}</span>`;
           
@@ -914,8 +914,8 @@ Write-Host ""
             const bannerId = group.bannerId || `banner_${groupId}`;
             const uniqueBannerMarker = `banner-id-${bannerId}`;
             const uniqueSignatureMarker = `signature-${groupId}`;
-            const bannerUniqueText = `BANNER_MARKER_${uniqueBannerMarker.replace('banner-id-', '')}`;
-            const signatureUniqueText = `SIG_MARKER_${uniqueSignatureMarker}`;
+            const bannerUniqueText = ``; // Empty marker - no visible text
+            const signatureUniqueText = ``; // Empty marker - no visible text
             // Hidden markers - use CSS clip for complete invisibility while keeping in DOM
             const hiddenBannerMarker = `<span style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;border:0;">${bannerUniqueText}</span>`;
             const hiddenSignatureMarker = `<span style="position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;border:0;">${signatureUniqueText}</span>`;

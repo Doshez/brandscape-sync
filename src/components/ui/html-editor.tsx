@@ -56,7 +56,7 @@ export const HtmlEditor: React.FC<HtmlEditorProps> = ({
         .getPublicUrl(filePath);
 
       // Insert image HTML at cursor position or append
-      const imageHtml = `<img src="${publicUrl}" alt="Uploaded image" style="max-width: 100%; height: auto;" />`;
+      const imageHtml = `<img src="${publicUrl}" alt="" style="max-width: 100%; height: auto;" />`;
       onChange(value + '\n' + imageHtml);
 
       toast({
@@ -123,7 +123,7 @@ export const HtmlEditor: React.FC<HtmlEditorProps> = ({
   const insertCenteredImage = () => {
     const imageUrl = prompt('Enter image URL (or upload an image using the Image button):');
     if (imageUrl) {
-      const centeredImageHtml = `<div style="text-align: center; margin: 10px 0;"><img src="${imageUrl}" alt="Centered image" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
+      const centeredImageHtml = `<div style="text-align: center; margin: 10px 0;"><img src="${imageUrl}" alt="" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
       onChange(value + '\n' + centeredImageHtml);
     }
   };

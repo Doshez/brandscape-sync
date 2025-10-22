@@ -164,7 +164,7 @@ export const EnhancedSignatureManager = ({ profile }: EnhancedSignatureManagerPr
       if (selectedImage) {
         const imageUrl = await handleImageUpload(selectedImage);
         if (imageUrl) {
-          htmlContent = `<img src="${imageUrl}" alt="Signature Image" style="max-width: 100%; height: auto;" /><br/>${htmlContent}`;
+          htmlContent = `<img src="${imageUrl}" alt="" style="max-width: 100%; height: auto;" /><br/>${htmlContent}`;
         }
       }
 
