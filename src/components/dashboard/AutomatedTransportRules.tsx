@@ -460,6 +460,112 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
     }
   };
 
+  const generateBulkDeleteScript = () => {
+    const selectedAssignments = assignments.filter(a => selectedUserIds.has(a.userId));
+    
+    if (selectedAssignments.length === 0) {
+      toast({
+        title: "No Users Selected",
+        description: "Please select at least one user to generate delete script for",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let script = `# Bulk Delete Transport Rules for Selected Users
+# Generated: ${new Date().toISOString()}
+# Selected Users: ${selectedAssignments.length}
+
+# Connect to Exchange Online
+Connect-ExchangeOnline
+
+Write-Host "=== DELETING TRANSPORT RULES FOR SELECTED USERS ===" -ForegroundColor Cyan
+Write-Host ""
+
+$deletedCount = 0
+$notFoundCount = 0
+
+`;
+
+    selectedAssignments.forEach((assignment) => {
+      const userName = assignment.userName || assignment.userEmail.split('@')[0];
+      const sanitizedUserName = userName.replace(/[^a-zA-Z0-9]/g, '_');
+      
+      script += `# ========================================
+# User: ${assignment.userName} (${assignment.userEmail})
+# ========================================
+
+Write-Host "Processing rules for: ${assignment.userName}" -ForegroundColor White
+
+# Find all signature rules for this user (handles both single and group rules)
+$signatureRules = Get-TransportRule | Where-Object { 
+    $_.Name -like "SIGNATURE_${sanitizedUserName}*" -and 
+    ($_.From -contains "${assignment.userEmail}" -or $_.From -match "${assignment.userEmail.replace('.', '\\.')}")
+}
+
+if ($signatureRules) {
+    Write-Host "  Found $($signatureRules.Count) signature rule(s)" -ForegroundColor Yellow
+    $signatureRules | ForEach-Object {
+        Write-Host "    Deleting: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+        if ($?) {
+            $deletedCount++
+            Write-Host "      ✓ Deleted successfully" -ForegroundColor Green
+        }
+    }
+} else {
+    Write-Host "  No signature rules found" -ForegroundColor Gray
+    $notFoundCount++
+}
+
+# Find all banner rules for this user
+$bannerRules = Get-TransportRule | Where-Object { 
+    $_.Name -like "BANNER_${sanitizedUserName}*" -and 
+    ($_.From -contains "${assignment.userEmail}" -or $_.From -match "${assignment.userEmail.replace('.', '\\.')}")
+}
+
+if ($bannerRules) {
+    Write-Host "  Found $($bannerRules.Count) banner rule(s)" -ForegroundColor Yellow
+    $bannerRules | ForEach-Object {
+        Write-Host "    Deleting: $($_.Name)" -ForegroundColor Red
+        Remove-TransportRule -Identity $_.Name -Confirm:$false -ErrorAction SilentlyContinue
+        if ($?) {
+            $deletedCount++
+            Write-Host "      ✓ Deleted successfully" -ForegroundColor Green
+        }
+    }
+} else {
+    Write-Host "  No banner rules found" -ForegroundColor Gray
+}
+
+Write-Host ""
+
+`;
+    });
+
+    script += `# ========================================
+# Summary
+# ========================================
+
+Write-Host "=== DELETION COMPLETE ===" -ForegroundColor Green
+Write-Host "Total rules deleted: $deletedCount" -ForegroundColor White
+if ($notFoundCount -gt 0) {
+    Write-Host "Users with no rules found: $notFoundCount" -ForegroundColor Yellow
+}
+Write-Host ""
+Write-Host "To verify, run: Get-TransportRule | Format-Table Name, State" -ForegroundColor Cyan
+Write-Host ""
+
+Disconnect-ExchangeOnline -Confirm:$false
+`;
+
+    setPowershellScript(script);
+    toast({
+      title: "Delete Script Generated",
+      description: `Script ready to remove rules for ${selectedAssignments.length} user(s)`,
+    });
+  };
+
   const generateCleanupScript = () => {
     const script = `# ULTRA-AGGRESSIVE CLEANUP SCRIPT - Remove ALL Disclaimer/Signature/Banner Rules
 # Generated: ${new Date().toISOString()}
@@ -1598,12 +1704,22 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 
               <div className="space-y-2">
                 <Button
+                  onClick={generateBulkDeleteScript}
+                  variant="destructive"
+                  className="w-full"
+                  disabled={selectedUserIds.size === 0}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Generate Bulk Delete Script for {selectedUserIds.size} Selected User{selectedUserIds.size !== 1 ? 's' : ''}
+                </Button>
+
+                <Button
                   onClick={generateCleanupScript}
                   variant="destructive"
                   className="w-full"
                 >
                   <AlertCircle className="h-4 w-4 mr-2" />
-                  Step 1: Generate Cleanup Script (Remove ALL Old Rules)
+                  Generate Cleanup Script (Remove ALL Old Rules)
                 </Button>
                 
                 <Button
@@ -1612,7 +1728,7 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                   className="w-full"
                 >
                   <Terminal className="h-4 w-4 mr-2" />
-                  {generating ? "Generating..." : `Step 2: Generate ${scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only"} Script for ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`}
+                  {generating ? "Generating..." : `Generate ${scriptType === "both" ? "Signature + Banner" : scriptType === "signature" ? "Signature Only" : "Banner Only"} Script for ${selectedUserIds.size} User${selectedUserIds.size !== 1 ? 's' : ''}`}
                 </Button>
               </div>
             </div>
