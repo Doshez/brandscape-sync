@@ -21,9 +21,26 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { recipientEmail, senderUserId }: TestEmailRequest = await req.json();
+    const requestBody = await req.json();
+    console.log("Received request body:", JSON.stringify(requestBody));
+    
+    const { recipientEmail, senderUserId } = requestBody as TestEmailRequest;
 
     console.log("Sending test email with user assignments:", { recipientEmail, senderUserId });
+
+    if (!recipientEmail || !senderUserId) {
+      console.error("Missing required fields:", { recipientEmail, senderUserId });
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Missing required fields: recipientEmail and senderUserId are required" 
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

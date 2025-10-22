@@ -115,11 +115,18 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
     if (!profile?.id) {
       toast({
         title: "Error",
-        description: "User profile not found",
+        description: "User profile not found. Please refresh the page.",
         variant: "destructive",
       });
+      console.error("Profile missing:", profile);
       return;
     }
+
+    console.log("Sending test email with:", {
+      recipientEmail: testEmail,
+      senderUserId: profile.id,
+      profile: profile
+    });
 
     setTesting(true);
     try {
@@ -129,6 +136,8 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
           senderUserId: profile.id,
         },
       });
+
+      console.log("Edge function response:", { data, error });
 
       if (error) throw error;
 
@@ -144,7 +153,7 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
       console.error("Test email error:", error);
       toast({
         title: "Test Failed",
-        description: error.message || "Failed to send test email",
+        description: error.message || "Failed to send test email. Check console for details.",
         variant: "destructive",
       });
     } finally {
