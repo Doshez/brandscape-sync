@@ -112,22 +112,36 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
       return;
     }
 
+    if (!profile?.id) {
+      toast({
+        title: "Error",
+        description: "User profile not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setTesting(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-test-email", {
         body: {
-          to: testEmail,
-          smtpSettings,
+          recipientEmail: testEmail,
+          senderUserId: profile.id,
         },
       });
 
       if (error) throw error;
 
-      toast({
-        title: "Test Email Sent",
-        description: `A test email has been sent to ${testEmail}`,
-      });
+      if (data?.success) {
+        toast({
+          title: "Test Email Sent",
+          description: `A test email with your signature and banner has been sent to ${testEmail}`,
+        });
+      } else {
+        throw new Error(data?.error || "Failed to send test email");
+      }
     } catch (error: any) {
+      console.error("Test email error:", error);
       toast({
         title: "Test Failed",
         description: error.message || "Failed to send test email",
@@ -228,6 +242,10 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
 
           <div className="space-y-3">
             <Label>Test Email Routing</Label>
+            <p className="text-xs text-muted-foreground">
+              Send a test email to verify your signature and banner are attached correctly. 
+              This will use your assigned signature and banner from the dashboard.
+            </p>
             <div className="flex gap-2">
               <Input
                 type="email"
@@ -253,9 +271,8 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
           <div className="space-y-2">
             <p><strong>Important:</strong> SMTP credentials are securely stored and used only for email routing.</p>
             <p>
-              <strong>Signature & Banner Attachment:</strong> Once configured, every email sent through this route will 
-              automatically have the user's assigned signature and banners attached. No additional setup needed - just assign 
-              signatures/banners to users in the dashboard and they'll be applied automatically.
+              <strong>Test Email:</strong> The test feature uses your assigned signature and banner from the dashboard. 
+              Make sure you have a signature and banner assigned in the "User Assignments" section before testing.
             </p>
             <p className="text-xs">
               For Exchange Online, you can alternatively use the "Deploy to Exchange" section with Transport Rules.
