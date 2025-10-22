@@ -328,7 +328,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const fetchAssignments = async () => {
     setLoading(true);
     try {
-      console.log("🔍 Fetching user email assignments from user_email_assignments table...");
+      console.log("🔍 Fetching user email assignments (optimized batch mode)...");
       
       // Get all active user assignments
       const { data: userAssignments, error } = await supabase
@@ -340,105 +340,108 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
 
       console.log(`✓ Found ${userAssignments?.length || 0} active user assignments`);
 
-      const assignmentsData: UserAssignment[] = [];
-      const seenUserIds = new Set<string>(); // Track to prevent duplicates
+      if (!userAssignments || userAssignments.length === 0) {
+        setAssignments([]);
+        setSelectedUserIds(new Set());
+        toast({
+          title: "No Assignments",
+          description: "No active user assignments found",
+        });
+        setLoading(false);
+        return;
+      }
 
-      for (const assignment of userAssignments || []) {
-        console.log(`\n📧 Processing assignment ID: ${assignment.id}`);
-        
-        // Skip if we've already processed this user (prevent duplicates)
-        if (seenUserIds.has(assignment.user_id)) {
-          console.log(`  ⏭️ Skipping duplicate assignment for user_id: ${assignment.user_id}`);
-          continue;
+      // Collect all unique IDs for batch fetching
+      const seenUserIds = new Set<string>();
+      const uniqueAssignments = userAssignments.filter(a => {
+        if (seenUserIds.has(a.user_id)) return false;
+        seenUserIds.add(a.user_id);
+        return true;
+      });
+
+      const userIds = uniqueAssignments.map(a => a.user_id);
+      const signatureIds = uniqueAssignments.map(a => a.signature_id).filter(Boolean);
+      const assignmentIds = uniqueAssignments.map(a => a.id);
+
+      console.log(`📦 Batch fetching data for ${uniqueAssignments.length} unique assignments...`);
+
+      // Batch fetch all profiles at once
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email, first_name, last_name")
+        .in("id", userIds);
+
+      // Batch fetch all signatures at once
+      const { data: signatures } = await supabase
+        .from("email_signatures")
+        .select("id, html_content, template_name")
+        .in("id", signatureIds);
+
+      // Batch fetch all banner assignments at once
+      const { data: bannerAssignments } = await supabase
+        .from("user_banner_assignments")
+        .select(`
+          user_assignment_id,
+          banner_id,
+          display_order,
+          banners (
+            id,
+            html_content,
+            click_url,
+            name
+          )
+        `)
+        .in("user_assignment_id", assignmentIds)
+        .order("display_order", { ascending: true });
+
+      console.log(`✓ Fetched ${profiles?.length || 0} profiles, ${signatures?.length || 0} signatures, ${bannerAssignments?.length || 0} banner assignments`);
+
+      // Create lookup maps for fast access
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      const signatureMap = new Map(signatures?.map(s => [s.id, s]) || []);
+      const bannerMap = new Map<string, any>();
+      
+      // Group banners by assignment ID (take first one per assignment)
+      bannerAssignments?.forEach(ba => {
+        if (!bannerMap.has(ba.user_assignment_id)) {
+          bannerMap.set(ba.user_assignment_id, ba);
         }
-        
-        // Get profile for this user
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email, first_name, last_name")
-          .eq("id", assignment.user_id)
-          .single();
+      });
+
+      // Build assignments array
+      const assignmentsData: UserAssignment[] = [];
+
+      for (const assignment of uniqueAssignments) {
+        const profile = profileMap.get(assignment.user_id);
+        const signature = signatureMap.get(assignment.signature_id);
+        const bannerAssignment = bannerMap.get(assignment.id);
 
         if (!profile) {
-          console.log(`  ⚠️ No profile found for user_id: ${assignment.user_id}`);
-          continue;
-        }
-        
-        seenUserIds.add(assignment.user_id); // Mark as processed
-        console.log(`  ✓ Profile: ${profile.email}`);
-
-        // Get signature
-        console.log(`  🔍 Fetching signature ID: ${assignment.signature_id} from email_signatures table`);
-        const { data: signature } = await supabase
-          .from("email_signatures")
-          .select("html_content, template_name")
-          .eq("id", assignment.signature_id)
-          .single();
-
-        if (!signature) {
-          console.log(`  ⚠️ No signature found for ID ${assignment.signature_id}`);
+          console.log(`⚠️ No profile found for user_id: ${assignment.user_id}`);
           continue;
         }
 
-        console.log(`  ✓ Signature: "${signature.template_name}" (${signature.html_content?.length || 0} chars)`);
-
-        // Skip if signature HTML is empty
-        if (!signature.html_content || signature.html_content.trim() === '') {
-          console.log(`  ⚠️ Signature HTML is empty, skipping this assignment`);
+        if (!signature || !signature.html_content || signature.html_content.trim() === '') {
+          console.log(`⚠️ No valid signature for assignment ${assignment.id}`);
           continue;
         }
 
-        // Get banners for this assignment - take only the first one
-        console.log(`  🔍 Fetching banners from user_banner_assignments table for assignment ID: ${assignment.id}`);
-        const { data: bannerAssignments } = await supabase
-          .from("user_banner_assignments")
-          .select(`
-            banner_id,
-            banners (
-              id,
-              html_content,
-              click_url,
-              name
-            )
-          `)
-          .eq("user_assignment_id", assignment.id)
-          .order("display_order", { ascending: true })
-          .limit(1);
-
-        const bannerData = bannerAssignments?.[0]?.banners;
-        const bannerHtml = bannerData?.html_content;
-        const bannerId = bannerData?.id;
-        const clickUrl = bannerData?.click_url;
-        const bannerName = bannerData?.name;
-
-        if (bannerHtml) {
-          if (clickUrl) {
-            console.log(`  ✓ Banner: "${bannerName}" with click URL: ${clickUrl}`);
-          } else {
-            console.log(`  ✓ Banner: "${bannerName}" (no click URL)`);
-          }
-        } else {
-          console.log(`  ℹ️ No banner assigned`);
-        }
-
-        console.log(`  ✅ Added to assignments list\n`);
+        const bannerData = bannerAssignment?.banners;
 
         assignmentsData.push({
           userId: assignment.user_id,
           userEmail: profile.email,
           userName: `${profile.first_name} ${profile.last_name}`.trim(),
           signatureHtml: signature.html_content,
-          bannerHtml: bannerHtml || undefined,
-          bannerId: bannerId,
-          bannerClickUrl: clickUrl,
+          bannerHtml: bannerData?.html_content || undefined,
+          bannerId: bannerData?.id,
+          bannerClickUrl: bannerData?.click_url,
         });
       }
 
-      console.log(`\n🎉 Successfully loaded ${assignmentsData.length} complete assignment(s)\n`);
+      console.log(`🎉 Successfully loaded ${assignmentsData.length} complete assignment(s)`);
 
       setAssignments(assignmentsData);
-      
-      // Auto-select all users by default
       setSelectedUserIds(new Set(assignmentsData.map(a => a.userId)));
       
       toast({
