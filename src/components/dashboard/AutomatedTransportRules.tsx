@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle, Plus, Trash2, Mail, Image, FileText, Shield, Settings, Edit } from "lucide-react";
+import { Download, RefreshCw, Terminal, CheckCircle, AlertCircle, Plus, Trash2, Mail, Image, FileText, Shield, Settings, Edit, Info } from "lucide-react";
+import { DeploymentMethodSelector } from "./DeploymentMethodSelector";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -58,6 +59,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [domainWideMode, setDomainWideMode] = useState(false);
   const [domainName, setDomainName] = useState("cioaafrica.co");
   const [domainWideBanner, setDomainWideBanner] = useState("");
+  const [deploymentMethod, setDeploymentMethod] = useState<"transport-rules" | "client-side">("transport-rules");
   
   const { toast } = useToast();
 
@@ -1281,6 +1283,13 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         </AlertDescription>
       </Alert>
 
+      <DeploymentMethodSelector
+        selectedMethod={deploymentMethod}
+        onMethodChange={setDeploymentMethod}
+      />
+
+      {deploymentMethod === "transport-rules" && (
+      <>
       <Tabs defaultValue="assignments" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="assignments">User Assignments</TabsTrigger>
@@ -1796,6 +1805,179 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         onClose={() => setIsEmailPanelOpen(false)}
         profile={profile}
       />
+      </>
+      )}
+
+      {deploymentMethod === "client-side" && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Client-Side Signature Deployment</CardTitle>
+            <CardDescription>
+              Deploy signatures directly to user mailboxes using Microsoft Graph API or Exchange Online PowerShell
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Prerequisites:</strong> You need Microsoft Graph API permissions or Exchange Online PowerShell access to deploy roaming signatures.
+                This method sets signatures directly in user mailboxes where they'll appear above reply history.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Setup Instructions</h3>
+              
+              <div className="space-y-3">
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">Step 1: Register Azure AD Application</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-sm ml-2">
+                    <li>Go to Azure Portal → Azure Active Directory → App registrations</li>
+                    <li>Create a new registration (e.g., "Email Signature Manager")</li>
+                    <li>Note the Application (client) ID and Directory (tenant) ID</li>
+                  </ol>
+                </div>
+
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">Step 2: Configure API Permissions</h4>
+                  <p className="text-sm mb-2">Add the following Microsoft Graph Application permissions:</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm ml-2">
+                    <li><code className="text-xs bg-background px-1 py-0.5 rounded">MailboxSettings.ReadWrite</code> - Required for setting signatures</li>
+                    <li><code className="text-xs bg-background px-1 py-0.5 rounded">User.Read.All</code> - Required for reading user information</li>
+                  </ul>
+                  <p className="text-sm mt-2 text-muted-foreground">
+                    ⚠️ Don't forget to click "Grant admin consent" for your organization
+                  </p>
+                </div>
+
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">Step 3: Create Client Secret</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-sm ml-2">
+                    <li>In your app registration, go to Certificates & secrets</li>
+                    <li>Create a new client secret</li>
+                    <li>Copy the secret value immediately (it won't be shown again)</li>
+                  </ol>
+                </div>
+
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">Step 4: Exchange Online PowerShell Deployment (Recommended)</h4>
+                  <p className="text-sm mb-2">Use Exchange Online PowerShell for the best client-side control:</p>
+                  <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+{`# Install Exchange Online Management module (if not installed)
+Install-Module -Name ExchangeOnlineManagement
+
+# Connect to Exchange Online
+Connect-ExchangeOnline
+
+# Set roaming signature for a user
+$signatureHtml = @"
+<div style="font-family: Arial, sans-serif;">
+  <strong>John Doe</strong><br>
+  Sales Manager<br>
+  Company Name<br>
+  john.doe@company.com
+</div>
+"@
+
+# Set the signature with auto-add settings
+Set-MailboxMessageConfiguration -Identity "user@domain.com" \`
+  -SignatureHtml $signatureHtml \`
+  -AutoAddSignature $true \`
+  -AutoAddSignatureOnReply $true \`
+  -AutoAddSignatureOnMobile $true
+
+# This sets the signature in the user's mailbox settings
+# and it will appear above reply history in Outlook`}
+                  </pre>
+                </div>
+
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">Step 5: Bulk Deployment Script</h4>
+                  <p className="text-sm mb-2">Deploy to multiple users at once:</p>
+                  <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+{`# Connect to Exchange Online
+Connect-ExchangeOnline
+
+# Define users and their signatures
+$users = @(
+    @{Email="user1@domain.com"; Signature="<div>Signature 1 HTML</div>"},
+    @{Email="user2@domain.com"; Signature="<div>Signature 2 HTML</div>"}
+)
+
+# Deploy to each user
+foreach ($user in $users) {
+    Write-Host "Setting signature for $($user.Email)..." -ForegroundColor Cyan
+    
+    try {
+        Set-MailboxMessageConfiguration -Identity $user.Email \`
+          -SignatureHtml $user.Signature \`
+          -AutoAddSignature $true \`
+          -AutoAddSignatureOnReply $true \`
+          -AutoAddSignatureOnMobile $true \`
+          -ErrorAction Stop
+          
+        Write-Host "✓ Success: $($user.Email)" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "✗ Failed: $($user.Email) - $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+
+Write-Host "Deployment complete!" -ForegroundColor Green`}
+                  </pre>
+                </div>
+
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="font-semibold mb-2">Alternative: Microsoft Graph API Method</h4>
+                  <p className="text-sm mb-2">Use Graph API for programmatic deployment:</p>
+                  <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+{`# Install Microsoft Graph PowerShell module
+Install-Module Microsoft.Graph -Scope CurrentUser
+
+# Connect to Microsoft Graph with necessary scopes
+Connect-MgGraph -Scopes "MailboxSettings.ReadWrite", "User.Read.All"
+
+# Get user and set mailbox settings
+$userId = "user@domain.com"
+$signatureHtml = "<div>Your signature HTML</div>"
+
+# Note: Direct roaming signature API is limited
+# Best approach is using Exchange Online PowerShell above
+# Or use Outlook settings deployment via Intune/Group Policy`}
+                  </pre>
+                </div>
+
+                <Alert className="mt-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Important Limitation:</strong> Microsoft Graph API's support for roaming signatures 
+                    is currently limited. The recommended approach is:
+                    <ul className="list-disc list-inside mt-2 ml-2 text-sm">
+                      <li><strong>Best:</strong> Use Exchange Online PowerShell <code className="text-xs bg-background px-1 rounded">Set-MailboxMessageConfiguration</code> (shown above)</li>
+                      <li>Deploy via Microsoft Intune or Group Policy for on-premises</li>
+                      <li>Use third-party signature management tools</li>
+                      <li>Have users manually configure in Outlook → File → Options → Mail → Signatures</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Benefits of Client-Side Deployment:</strong>
+                    <ul className="list-disc list-inside mt-2 ml-2 text-sm">
+                      <li>Signatures appear above reply history (not after quoted text)</li>
+                      <li>Users can see signatures while composing emails</li>
+                      <li>Syncs across Outlook desktop, web, and mobile apps</li>
+                      <li>More natural email client experience</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
