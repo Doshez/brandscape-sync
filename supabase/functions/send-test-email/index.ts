@@ -59,13 +59,15 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("User not found");
     }
 
-    // Fetch user's email assignments using auth user ID
+    // Fetch user's email assignments using the profile ID (not auth user ID)
     const { data: assignment, error: assignmentError } = await supabase
       .from("user_email_assignments")
       .select("signature_id, id")
-      .eq("user_id", senderUserId)
+      .eq("user_id", user.id)
       .eq("is_active", true)
       .single();
+    
+    console.log("Assignment lookup:", { profileId: user.id, assignment, error: assignmentError });
 
     if (assignmentError || !assignment) {
       throw new Error("No active assignment found for this user");
