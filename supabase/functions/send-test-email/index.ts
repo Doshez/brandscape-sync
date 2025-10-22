@@ -47,21 +47,22 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch user details
+    // Fetch user details using user_id (auth user ID)
     const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("email, first_name, last_name")
-      .eq("id", senderUserId)
+      .select("email, first_name, last_name, id")
+      .eq("user_id", senderUserId)
       .single();
 
     if (userError || !user) {
+      console.error("User lookup error:", userError);
       throw new Error("User not found");
     }
 
-    // Fetch user's email assignments
+    // Fetch user's email assignments using auth user ID
     const { data: assignment, error: assignmentError } = await supabase
       .from("user_email_assignments")
-      .select("signature_id")
+      .select("signature_id, id")
       .eq("user_id", senderUserId)
       .eq("is_active", true)
       .single();
