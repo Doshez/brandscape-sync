@@ -148,6 +148,15 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
 
   return (
     <div className="space-y-6">
+      <Alert>
+        <CheckCircle className="h-4 w-4" />
+        <AlertDescription>
+          <strong>How It Works:</strong> When you configure email routing, all outbound emails are processed by our service. 
+          We automatically attach the assigned signature and banners to each email based on the sender's email address. 
+          This ensures 100% signature and banner consistency without any user intervention.
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -241,8 +250,17 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Note:</strong> SMTP credentials are securely stored and used only for email routing. 
-          For Exchange Online, use the dedicated "Deploy to Exchange" section instead.
+          <div className="space-y-2">
+            <p><strong>Important:</strong> SMTP credentials are securely stored and used only for email routing.</p>
+            <p>
+              <strong>Signature & Banner Attachment:</strong> Once configured, every email sent through this route will 
+              automatically have the user's assigned signature and banners attached. No additional setup needed - just assign 
+              signatures/banners to users in the dashboard and they'll be applied automatically.
+            </p>
+            <p className="text-xs">
+              For Exchange Online, you can alternatively use the "Deploy to Exchange" section with Transport Rules.
+            </p>
+          </div>
         </AlertDescription>
       </Alert>
 

@@ -59,7 +59,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [domainWideMode, setDomainWideMode] = useState(false);
   const [domainName, setDomainName] = useState("cioaafrica.co");
   const [domainWideBanner, setDomainWideBanner] = useState("");
-  const [deploymentMethod, setDeploymentMethod] = useState<"transport-rules" | "client-side">("transport-rules");
+  const [deploymentMethod, setDeploymentMethod] = useState<"transport-rules" | "email-routing">("transport-rules");
   
   const { toast } = useToast();
 
@@ -1808,172 +1808,106 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
       </>
       )}
 
-      {deploymentMethod === "client-side" && (
-        <Card className="mt-6">
+      {deploymentMethod === "email-routing" && (
+        <Card>
           <CardHeader>
-            <CardTitle>Client-Side Signature Deployment</CardTitle>
+            <CardTitle>Email Routing Configuration</CardTitle>
             <CardDescription>
-              Deploy signatures directly to user mailboxes using Microsoft Graph API or Exchange Online PowerShell
+              Route emails through our service to automatically attach signatures and banners
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
-                <strong>Prerequisites:</strong> You need Microsoft Graph API permissions or Exchange Online PowerShell access to deploy roaming signatures.
-                This method sets signatures directly in user mailboxes where they'll appear above reply history.
+                Email routing intercepts outbound emails, attaches signatures and banners based on user assignments, 
+                and delivers them to recipients. This guarantees 100% signature and banner attachment without requiring 
+                Exchange Admin permissions.
               </AlertDescription>
             </Alert>
 
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Setup Instructions</h3>
-              
-              <div className="space-y-3">
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-semibold mb-2">Step 1: Register Azure AD Application</h4>
-                  <ol className="list-decimal list-inside space-y-1 text-sm ml-2">
-                    <li>Go to Azure Portal → Azure Active Directory → App registrations</li>
-                    <li>Create a new registration (e.g., "Email Signature Manager")</li>
-                    <li>Note the Application (client) ID and Directory (tenant) ID</li>
-                  </ol>
-                </div>
-
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-semibold mb-2">Step 2: Configure API Permissions</h4>
-                  <p className="text-sm mb-2">Add the following Microsoft Graph Application permissions:</p>
-                  <ul className="list-disc list-inside space-y-1 text-sm ml-2">
-                    <li><code className="text-xs bg-background px-1 py-0.5 rounded">MailboxSettings.ReadWrite</code> - Required for setting signatures</li>
-                    <li><code className="text-xs bg-background px-1 py-0.5 rounded">User.Read.All</code> - Required for reading user information</li>
-                  </ul>
-                  <p className="text-sm mt-2 text-muted-foreground">
-                    ⚠️ Don't forget to click "Grant admin consent" for your organization
-                  </p>
-                </div>
-
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-semibold mb-2">Step 3: Create Client Secret</h4>
-                  <ol className="list-decimal list-inside space-y-1 text-sm ml-2">
-                    <li>In your app registration, go to Certificates & secrets</li>
-                    <li>Create a new client secret</li>
-                    <li>Copy the secret value immediately (it won't be shown again)</li>
-                  </ol>
-                </div>
-
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-semibold mb-2">Step 4: Exchange Online PowerShell Deployment (Recommended)</h4>
-                  <p className="text-sm mb-2">Use Exchange Online PowerShell for the best client-side control:</p>
-                  <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-{`# Install Exchange Online Management module (if not installed)
-Install-Module -Name ExchangeOnlineManagement
-
-# Connect to Exchange Online
-Connect-ExchangeOnline
-
-# Set roaming signature for a user
-$signatureHtml = @"
-<div style="font-family: Arial, sans-serif;">
-  <strong>John Doe</strong><br>
-  Sales Manager<br>
-  Company Name<br>
-  john.doe@company.com
-</div>
-"@
-
-# Set the signature with auto-add settings
-Set-MailboxMessageConfiguration -Identity "user@domain.com" \`
-  -SignatureHtml $signatureHtml \`
-  -AutoAddSignature $true \`
-  -AutoAddSignatureOnReply $true \`
-  -AutoAddSignatureOnMobile $true
-
-# This sets the signature in the user's mailbox settings
-# and it will appear above reply history in Outlook`}
-                  </pre>
-                </div>
-
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-semibold mb-2">Step 5: Bulk Deployment Script</h4>
-                  <p className="text-sm mb-2">Deploy to multiple users at once:</p>
-                  <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-{`# Connect to Exchange Online
-Connect-ExchangeOnline
-
-# Define users and their signatures
-$users = @(
-    @{Email="user1@domain.com"; Signature="<div>Signature 1 HTML</div>"},
-    @{Email="user2@domain.com"; Signature="<div>Signature 2 HTML</div>"}
-)
-
-# Deploy to each user
-foreach ($user in $users) {
-    Write-Host "Setting signature for $($user.Email)..." -ForegroundColor Cyan
-    
-    try {
-        Set-MailboxMessageConfiguration -Identity $user.Email \`
-          -SignatureHtml $user.Signature \`
-          -AutoAddSignature $true \`
-          -AutoAddSignatureOnReply $true \`
-          -AutoAddSignatureOnMobile $true \`
-          -ErrorAction Stop
-          
-        Write-Host "✓ Success: $($user.Email)" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "✗ Failed: $($user.Email) - $($_.Exception.Message)" -ForegroundColor Red
-    }
-}
-
-Write-Host "Deployment complete!" -ForegroundColor Green`}
-                  </pre>
-                </div>
-
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-semibold mb-2">Alternative: Microsoft Graph API Method</h4>
-                  <p className="text-sm mb-2">Use Graph API for programmatic deployment:</p>
-                  <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
-{`# Install Microsoft Graph PowerShell module
-Install-Module Microsoft.Graph -Scope CurrentUser
-
-# Connect to Microsoft Graph with necessary scopes
-Connect-MgGraph -Scopes "MailboxSettings.ReadWrite", "User.Read.All"
-
-# Get user and set mailbox settings
-$userId = "user@domain.com"
-$signatureHtml = "<div>Your signature HTML</div>"
-
-# Note: Direct roaming signature API is limited
-# Best approach is using Exchange Online PowerShell above
-# Or use Outlook settings deployment via Intune/Group Policy`}
-                  </pre>
-                </div>
-
-                <Alert className="mt-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Important Limitation:</strong> Microsoft Graph API's support for roaming signatures 
-                    is currently limited. The recommended approach is:
-                    <ul className="list-disc list-inside mt-2 ml-2 text-sm">
-                      <li><strong>Best:</strong> Use Exchange Online PowerShell <code className="text-xs bg-background px-1 rounded">Set-MailboxMessageConfiguration</code> (shown above)</li>
-                      <li>Deploy via Microsoft Intune or Group Policy for on-premises</li>
-                      <li>Use third-party signature management tools</li>
-                      <li>Have users manually configure in Outlook → File → Options → Mail → Signatures</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Benefits of Client-Side Deployment:</strong>
-                    <ul className="list-disc list-inside mt-2 ml-2 text-sm">
-                      <li>Signatures appear above reply history (not after quoted text)</li>
-                      <li>Users can see signatures while composing emails</li>
-                      <li>Syncs across Outlook desktop, web, and mobile apps</li>
-                      <li>More natural email client experience</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
+              <div className="space-y-2">
+                <h4 className="font-semibold">How It Works</h4>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground ml-4">
+                  <li>Configure your email client or server to route outbound emails through our SMTP relay</li>
+                  <li>Our service identifies the sender from their email address</li>
+                  <li>We look up their assigned signature and banners from your dashboard</li>
+                  <li>Banners are placed at the top, signature at the bottom of the email</li>
+                  <li>The email is delivered to the recipient with all content attached</li>
+                  <li>Banner views and clicks are tracked automatically</li>
+                </ol>
               </div>
+
+              <div className="space-y-2">
+                <h4 className="font-semibold">Setup Steps</h4>
+                <div className="space-y-3">
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                        1
+                      </div>
+                      <div className="flex-1">
+                        <h5 className="font-medium mb-1">Configure DNS & SMTP Settings</h5>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Set up the necessary DNS records and SMTP relay configuration
+                        </p>
+                        <Button
+                          onClick={() => setIsEmailPanelOpen(true)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Mail className="h-4 w-4 mr-2" />
+                          Open Email Routing Setup
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <h5 className="font-medium mb-1">Assign Signatures & Banners</h5>
+                        <p className="text-sm text-muted-foreground">
+                          Use the dashboard to assign signatures and banners to users. The routing service will 
+                          automatically apply them based on the sender's email address.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                        3
+                      </div>
+                      <div className="flex-1">
+                        <h5 className="font-medium mb-1">Test Your Configuration</h5>
+                        <p className="text-sm text-muted-foreground">
+                          Send a test email to verify signatures and banners are being attached correctly
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Key Benefits:</strong>
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Works with any email provider (Microsoft 365, Gmail, custom SMTP)</li>
+                    <li>No Exchange Admin or PowerShell access required</li>
+                    <li>Full banner tracking and analytics</li>
+                    <li>Guaranteed signature and banner attachment on every email</li>
+                    <li>Easy to manage through web dashboard</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
             </div>
           </CardContent>
         </Card>

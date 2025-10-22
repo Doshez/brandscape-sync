@@ -2,12 +2,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, Server, Monitor, CheckCircle2, XCircle } from "lucide-react";
+import { Info, Server, Mail, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface DeploymentMethodSelectorProps {
-  selectedMethod: "transport-rules" | "client-side";
-  onMethodChange: (method: "transport-rules" | "client-side") => void;
+  selectedMethod: "transport-rules" | "email-routing";
+  onMethodChange: (method: "transport-rules" | "email-routing") => void;
 }
 
 export const DeploymentMethodSelector = ({
@@ -81,51 +81,55 @@ export const DeploymentMethodSelector = ({
               </CardContent>
             </Card>
 
-            {/* Client-Side Option */}
-            <Card className={selectedMethod === "client-side" ? "border-primary" : ""}>
+            {/* Email Routing Option */}
+            <Card className={selectedMethod === "email-routing" ? "border-primary" : ""}>
               <CardContent className="pt-6">
                 <div className="flex items-start space-x-3">
-                  <RadioGroupItem value="client-side" id="client-side" />
+                  <RadioGroupItem value="email-routing" id="email-routing" />
                   <div className="flex-1 space-y-3">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="client-side" className="text-base font-semibold cursor-pointer">
-                        <Monitor className="inline h-4 w-4 mr-2" />
-                        Client-Side Roaming Signatures
+                      <Label htmlFor="email-routing" className="text-base font-semibold cursor-pointer">
+                        <Mail className="inline h-4 w-4 mr-2" />
+                        Email Routing (SMTP Relay)
                       </Label>
-                      <Badge variant="secondary">Office 365</Badge>
+                      <Badge variant="secondary">Advanced</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      Signatures are stored in user's mailbox and appear in Outlook compose window
+                      Route emails through our service to automatically attach signatures and banners before delivery
                     </p>
                     
                     <div className="space-y-2 mt-4">
                       <div className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>Signature appears above reply separator</span>
+                        <span>Guarantees signature and banner attachment on every email</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>Visible to users in Outlook compose window</span>
+                        <span>Works with any email client and provider</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>Users can manually edit if needed</span>
+                        <span>Advanced tracking and analytics for banners</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>Syncs across Outlook desktop, web, and mobile</span>
+                        <span>Dynamic content insertion per user</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>No Exchange Admin permissions required</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span>Requires Microsoft Graph API permissions</span>
+                        <span>Requires DNS configuration (MX or connector records)</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span>Users can accidentally modify or delete signatures</span>
+                        <span>Emails route through external service</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span>May not work with non-Microsoft email clients</span>
+                        <span>May add slight delivery delay (typically &lt;1 second)</span>
                       </div>
                     </div>
                   </div>
@@ -137,9 +141,9 @@ export const DeploymentMethodSelector = ({
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              <strong>Recommendation:</strong> Use <strong>Transport Rules</strong> for complete control 
-              and consistency. Use <strong>Client-Side</strong> if you need signatures to appear above 
-              reply history and want users to see them while composing.
+              <strong>Recommendation:</strong> Use <strong>Transport Rules</strong> for Exchange/Microsoft 365 
+              environments with admin access. Use <strong>Email Routing</strong> if you need guaranteed 
+              signature/banner attachment without Exchange admin permissions or want to work with any email provider.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -160,79 +164,84 @@ export const DeploymentMethodSelector = ({
                 <tr className="border-b">
                   <th className="text-left py-3 px-2 font-semibold">Feature</th>
                   <th className="text-left py-3 px-2 font-semibold">Transport Rules</th>
-                  <th className="text-left py-3 px-2 font-semibold">Client-Side</th>
+                  <th className="text-left py-3 px-2 font-semibold">Email Routing</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 <tr>
                   <td className="py-3 px-2 font-medium">Signature Placement</td>
                   <td className="py-3 px-2">Bottom of email (after all content)</td>
-                  <td className="py-3 px-2">Above reply separator</td>
+                  <td className="py-3 px-2">After banners, before message body</td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-2 font-medium">Banner Placement</td>
+                  <td className="py-3 px-2">Configurable via rules</td>
+                  <td className="py-3 px-2">Top of email (before message body)</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">Reply Behavior</td>
                   <td className="py-3 px-2">Appears after quoted text</td>
-                  <td className="py-3 px-2">Appears before quoted text</td>
+                  <td className="py-3 px-2">Intelligently placed based on content</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">User Visibility</td>
                   <td className="py-3 px-2">Not visible while composing</td>
-                  <td className="py-3 px-2">Visible in compose window</td>
+                  <td className="py-3 px-2">Not visible while composing</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">Management</td>
                   <td className="py-3 px-2">Admin-only via PowerShell</td>
-                  <td className="py-3 px-2">Via Microsoft Graph API</td>
+                  <td className="py-3 px-2">Via web dashboard</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">User Control</td>
                   <td className="py-3 px-2">None - enforced by server</td>
-                  <td className="py-3 px-2">Can edit/delete manually</td>
+                  <td className="py-3 px-2">None - enforced by routing service</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">Email Client Support</td>
                   <td className="py-3 px-2">All clients (universal)</td>
-                  <td className="py-3 px-2">Outlook only (desktop/web/mobile)</td>
+                  <td className="py-3 px-2">All clients (universal)</td>
+                </tr>
+                <tr>
+                  <td className="py-3 px-2 font-medium">Email Provider Support</td>
+                  <td className="py-3 px-2">Microsoft 365 / Exchange only</td>
+                  <td className="py-3 px-2">Any provider (Gmail, Outlook, etc.)</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">Deployment Speed</td>
                   <td className="py-3 px-2">Immediate (server-side)</td>
-                  <td className="py-3 px-2">May take minutes to sync</td>
+                  <td className="py-3 px-2">Immediate (routing layer)</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">Consistency</td>
                   <td className="py-3 px-2">100% guaranteed</td>
-                  <td className="py-3 px-2">Depends on user behavior</td>
+                  <td className="py-3 px-2">100% guaranteed</td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-2 font-medium">Mobile App Support</td>
-                  <td className="py-3 px-2">Yes (all mail apps)</td>
-                  <td className="py-3 px-2">Outlook mobile only</td>
+                  <td className="py-3 px-2 font-medium">Tracking & Analytics</td>
+                  <td className="py-3 px-2">Limited</td>
+                  <td className="py-3 px-2">Full banner view/click tracking</td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-2 font-medium">Webmail Support</td>
-                  <td className="py-3 px-2">Yes (OWA, Gmail, any)</td>
-                  <td className="py-3 px-2">Outlook Web only</td>
+                  <td className="py-3 px-2 font-medium">DNS Configuration</td>
+                  <td className="py-3 px-2">Not required</td>
+                  <td className="py-3 px-2">Required (MX or connector records)</td>
                 </tr>
                 <tr>
-                  <td className="py-3 px-2 font-medium">Banner Integration</td>
-                  <td className="py-3 px-2">Full support</td>
-                  <td className="py-3 px-2">Limited (part of signature)</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-2 font-medium">Dynamic Content</td>
-                  <td className="py-3 px-2">Server-based rules</td>
-                  <td className="py-3 px-2">Static at deployment</td>
+                  <td className="py-3 px-2 font-medium">Admin Permissions</td>
+                  <td className="py-3 px-2">Exchange Admin required</td>
+                  <td className="py-3 px-2">DNS access only</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">Setup Complexity</td>
-                  <td className="py-3 px-2">Requires Exchange Admin</td>
-                  <td className="py-3 px-2">Requires Graph API setup</td>
+                  <td className="py-3 px-2">Medium (PowerShell scripts)</td>
+                  <td className="py-3 px-2">Medium (DNS + SMTP configuration)</td>
                 </tr>
                 <tr>
                   <td className="py-3 px-2 font-medium">Best For</td>
-                  <td className="py-3 px-2">Enterprise compliance & branding</td>
-                  <td className="py-3 px-2">User-friendly experience</td>
+                  <td className="py-3 px-2">Microsoft 365 enterprises</td>
+                  <td className="py-3 px-2">Multi-provider or advanced tracking needs</td>
                 </tr>
               </tbody>
             </table>
@@ -263,16 +272,17 @@ export const DeploymentMethodSelector = ({
 
           <div>
             <h4 className="font-semibold mb-2 flex items-center gap-2">
-              <Monitor className="h-4 w-4" />
-              Choose Client-Side When:
+              <Mail className="h-4 w-4" />
+              Choose Email Routing When:
             </h4>
             <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground ml-6">
-              <li>Users need to see signatures while composing emails</li>
-              <li>Signature should appear above reply history for better visibility</li>
-              <li>Your organization exclusively uses Outlook (desktop, web, mobile)</li>
-              <li>Users want the ability to temporarily edit signatures</li>
-              <li>You prefer a more traditional email client experience</li>
-              <li>You don't have Exchange Admin access but have Graph API permissions</li>
+              <li>You need 100% guaranteed signature and banner attachment</li>
+              <li>You don't have Exchange Admin PowerShell access</li>
+              <li>You use multiple email providers (Gmail, Outlook, custom domains)</li>
+              <li>You want advanced banner tracking and analytics</li>
+              <li>You need dynamic content insertion per user</li>
+              <li>You want to avoid PowerShell scripts and manual rule management</li>
+              <li>Your organization values flexibility and provider independence</li>
             </ul>
           </div>
         </CardContent>
