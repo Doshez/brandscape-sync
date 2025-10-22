@@ -8,18 +8,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate("/dashboard");
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        // Check if password change is required
+        const requiresChange = session.user.user_metadata?.requires_password_change === true;
+        
+        if (requiresChange) {
+          setRequiresPasswordChange(true);
+          setShowPasswordDialog(true);
+        } else {
+          navigate("/dashboard");
+        }
       }
     });
 
@@ -53,7 +64,6 @@ const Auth = () => {
       setIsLoading(false);
     }
   };
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -106,6 +116,19 @@ const Auth = () => {
           </form>
         </CardContent>
       </Card>
+
+      <ChangePasswordDialog
+        open={showPasswordDialog}
+        onOpenChange={(open) => {
+          if (!requiresPasswordChange) {
+            setShowPasswordDialog(open);
+          }
+          if (!open && !requiresPasswordChange) {
+            navigate("/dashboard");
+          }
+        }}
+        required={requiresPasswordChange}
+      />
     </div>
   );
 };

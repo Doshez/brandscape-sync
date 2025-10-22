@@ -9,10 +9,11 @@ import { DashboardHome } from "@/components/dashboard/DashboardHome";
 import { EnhancedSignatureManager } from "@/components/dashboard/EnhancedSignatureManager";
 import { EnhancedBannerManager } from "@/components/dashboard/EnhancedBannerManager";
 import { AnalyticsReports } from "@/components/dashboard/AnalyticsReports";
+import { AutomatedTransportRules } from "@/components/dashboard/AutomatedTransportRules";
 import { CompanySettings } from "@/components/dashboard/CompanySettings";
 import { UserManager } from "@/components/dashboard/UserManager";
 import { UserAssignmentManager } from "@/components/dashboard/UserAssignmentManager";
-import { AutomatedTransportRules } from "@/components/dashboard/AutomatedTransportRules";
+import { AdminUserManagement } from "@/components/dashboard/AdminUserManagement";
 
 type DashboardView = "home" | "signatures" | "banners" | "analytics" | "settings" | "users" | "assignments" | "auto-transport-rules";
 
@@ -145,7 +146,7 @@ const Dashboard = () => {
       case "settings":
         return <CompanySettings profile={profile} />;
       case "users":
-        return <UserManager profile={profile} />;
+        return <AdminUserManagement profile={profile} />;
       case "assignments":
         return <UserAssignmentManager profile={profile} />;
       default:
