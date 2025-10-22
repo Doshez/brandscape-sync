@@ -124,7 +124,7 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
 
     console.log("Sending test email with:", {
       recipientEmail: testEmail,
-      senderUserId: profile.id,
+      senderUserId: profile.user_id,
       profile: profile
     });
 
@@ -133,7 +133,7 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
       const { data, error } = await supabase.functions.invoke("send-test-email", {
         body: {
           recipientEmail: testEmail,
-          senderUserId: profile.id,
+          senderUserId: profile.user_id,
         },
       });
 
