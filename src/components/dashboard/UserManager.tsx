@@ -113,7 +113,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const fetchData = async () => {
     try {
       const [usersResult, signaturesResult, bannersResult] = await Promise.all([
-        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("profiles").select("*").eq("is_admin", false).order("created_at", { ascending: false }),
         supabase.from("email_signatures").select("*").order("created_at", { ascending: false }),
         supabase.from("banners").select("*").order("created_at", { ascending: false })
       ]);

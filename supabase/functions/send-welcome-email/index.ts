@@ -15,6 +15,7 @@ interface WelcomeEmailRequest {
   lastName: string;
   temporaryPassword: string;
   loginUrl: string;
+  role?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -53,9 +54,9 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Parse request
-    const { email, firstName, lastName, temporaryPassword, loginUrl }: WelcomeEmailRequest = await req.json();
+    const { email, firstName, lastName, temporaryPassword, loginUrl, role = "User" }: WelcomeEmailRequest = await req.json();
 
-    console.log(`Sending welcome email to: ${email}`);
+    console.log(`Sending welcome email to: ${email} as ${role}`);
 
     // Send welcome email with temporary password
     const emailResponse = await resend.emails.send({
@@ -80,7 +81,7 @@ const handler = async (req: Request): Promise<Response> => {
             <h2 style="color: #1f2937; margin-top: 0;">Hello ${firstName} ${lastName},</h2>
             
             <p style="color: #4b5563; font-size: 16px; line-height: 1.8;">
-              Your account has been created by an administrator. You can now access the Email Signature Management System.
+              Your ${role} account has been created by an administrator. You can now access the Email Signature Management System.
             </p>
 
             <div style="background: #f3f4f6; border-left: 4px solid #667eea; padding: 20px; margin: 30px 0; border-radius: 4px;">

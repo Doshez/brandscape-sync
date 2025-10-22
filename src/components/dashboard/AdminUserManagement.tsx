@@ -24,13 +24,12 @@ interface UserProfile {
   created_at: string;
 }
 
-const userSchema = z.object({
+const adminSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }).max(255),
   firstName: z.string().trim().min(1, { message: "First name is required" }).max(100),
   lastName: z.string().trim().min(1, { message: "Last name is required" }).max(100),
   department: z.string().trim().max(100).optional(),
   jobTitle: z.string().trim().max(100).optional(),
-  role: z.enum(["user", "admin"]),
 });
 
 interface AdminUserManagementProps {
@@ -39,8 +38,10 @@ interface AdminUserManagementProps {
 
 export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]); // All users for selection
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
@@ -51,8 +52,9 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
     lastName: "",
     department: "",
     jobTitle: "",
-    role: "user" as "user" | "admin",
   });
+
+  const [selectedUserToPromote, setSelectedUserToPromote] = useState("");
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -63,13 +65,19 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch all users
+      const { data: allData, error: allError } = await supabase
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (allError) throw allError;
+      
+      // Filter admins only for display
+      const adminUsers = (allData || []).filter(user => user.is_admin);
+      setUsers(adminUsers);
+      setAllUsers(allData || []);
     } catch (error: any) {
       console.error("Error fetching users:", error);
       toast({
@@ -91,12 +99,12 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
     return password;
   };
 
-  const handleAddUser = async (e: React.FormEvent) => {
+  const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       // Validate form data
-      const validatedData = userSchema.parse(formData);
+      const validatedData = adminSchema.parse(formData);
       setSubmitting(true);
 
       // Generate temporary password
@@ -122,7 +130,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
         throw new Error("Failed to create user");
       }
 
-      // Update profile with additional details
+      // Update profile with additional details and set as admin
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -130,29 +138,27 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
           last_name: validatedData.lastName,
           department: validatedData.department || null,
           job_title: validatedData.jobTitle || null,
-          is_admin: validatedData.role === "admin",
+          is_admin: true,
         })
         .eq("user_id", authData.user.id);
 
       if (profileError) throw profileError;
 
-      // If admin role, add to user_roles table
-      if (validatedData.role === "admin") {
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: authData.user.id,
-            role: "admin",
-            created_by: profile.user_id,
-          });
+      // Add admin role to user_roles table
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert({
+          user_id: authData.user.id,
+          role: "admin",
+          created_by: profile.user_id,
+        });
 
-        if (roleError) {
-          console.error("Error adding admin role:", roleError);
-        }
+      if (roleError && roleError.code !== '23505') { // Ignore duplicate key error
+        console.error("Error adding admin role:", roleError);
       }
 
       // Send welcome email with temporary password
-      const loginUrl = window.location.origin;
+      const loginUrl = "https://emailsigdash.cioafrica.co/";
       
       const { error: emailError } = await supabase.functions.invoke("send-welcome-email", {
         body: {
@@ -161,6 +167,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
           lastName: validatedData.lastName,
           temporaryPassword: temporaryPassword,
           loginUrl: loginUrl,
+          role: "Administrator",
         },
       });
 
@@ -185,7 +192,6 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
         lastName: "",
         department: "",
         jobTitle: "",
-        role: "user",
       });
       setIsDialogOpen(false);
       fetchUsers();
@@ -217,6 +223,96 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
     }
   };
 
+  const handlePromoteExistingUser = async () => {
+    if (!selectedUserToPromote) {
+      toast({
+        title: "Error",
+        description: "Please select a user to promote",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const selectedUser = allUsers.find(u => u.id === selectedUserToPromote);
+      
+      if (!selectedUser || !selectedUser.user_id) {
+        throw new Error("Invalid user selection");
+      }
+
+      // Update profile to admin
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ is_admin: true })
+        .eq("id", selectedUser.id);
+
+      if (profileError) throw profileError;
+
+      // Add admin role
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert({
+          user_id: selectedUser.user_id,
+          role: "admin",
+          created_by: profile.user_id,
+        });
+
+      if (roleError && roleError.code !== '23505') {
+        console.error("Error adding admin role:", roleError);
+      }
+
+      // Generate new temporary password
+      const temporaryPassword = generateTemporaryPassword();
+      
+      // Update user password
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        selectedUser.user_id,
+        { 
+          password: temporaryPassword,
+          user_metadata: {
+            requires_password_change: true
+          }
+        }
+      );
+
+      if (updateError) throw updateError;
+
+      // Send welcome email
+      const loginUrl = "https://emailsigdash.cioafrica.co/";
+      const { error: emailError } = await supabase.functions.invoke("send-welcome-email", {
+        body: {
+          email: selectedUser.email,
+          firstName: selectedUser.first_name,
+          lastName: selectedUser.last_name,
+          temporaryPassword: temporaryPassword,
+          loginUrl: loginUrl,
+          role: "Administrator",
+        },
+      });
+
+      if (emailError) throw emailError;
+
+      toast({
+        title: "User Promoted to Administrator",
+        description: `${selectedUser.email} has been promoted and notified`,
+      });
+
+      setIsPromoteDialogOpen(false);
+      setSelectedUserToPromote("");
+      fetchUsers();
+    } catch (error: any) {
+      console.error("Error promoting user:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to promote user",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: string, email: string) => {
     if (!confirm(`Are you sure you want to delete user ${email}?`)) {
       return;
@@ -231,8 +327,8 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       if (error) throw error;
 
       toast({
-        title: "User Deleted",
-        description: `User ${email} has been deleted`,
+        title: "Administrator Deleted",
+        description: `Administrator ${email} has been deleted`,
       });
 
       fetchUsers();
@@ -260,7 +356,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       if (updateError) throw updateError;
 
       // Send welcome email
-      const loginUrl = window.location.origin;
+      const loginUrl = "https://emailsigdash.cioafrica.co/";
       const { error: emailError } = await supabase.functions.invoke("send-welcome-email", {
         body: {
           email: user.email,
@@ -268,6 +364,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
           lastName: user.last_name,
           temporaryPassword: temporaryPassword,
           loginUrl: loginUrl,
+          role: "Administrator",
         },
       });
 
@@ -298,31 +395,100 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
     );
   }
 
+  // Filter non-admin users for promotion
+  const nonAdminUsers = allUsers.filter(u => !u.is_admin && u.user_id);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Administrator Management</h1>
           <p className="text-muted-foreground">
-            Add and manage user accounts for the email signature system
+            Add and manage administrator accounts for the email signature system
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add User
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Dialog open={isPromoteDialogOpen} onOpenChange={setIsPromoteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Shield className="mr-2 h-4 w-4" />
+                Promote Existing User
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Promote User to Administrator</DialogTitle>
+                <DialogDescription>
+                  Select an existing user to promote to administrator role
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="userSelect">Select User</Label>
+                  <Select
+                    value={selectedUserToPromote}
+                    onValueChange={setSelectedUserToPromote}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a user..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {nonAdminUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.first_name} {user.last_name} ({user.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                  <p className="text-sm font-medium">⚡ Actions:</p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• User will be promoted to Administrator</li>
+                    <li>• New temporary password will be generated</li>
+                    <li>• Welcome email will be sent with new credentials</li>
+                  </ul>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsPromoteDialogOpen(false);
+                      setSelectedUserToPromote("");
+                    }}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handlePromoteExistingUser}
+                    disabled={submitting || !selectedUserToPromote}
+                  >
+                    {submitting ? "Promoting..." : "Promote to Admin"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add New Administrator
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
+              <DialogTitle>Add New Administrator</DialogTitle>
               <DialogDescription>
-                Create a new user account. A welcome email with temporary login credentials will be sent.
+                Create a new administrator account. A welcome email with temporary login credentials will be sent to https://emailsigdash.cioafrica.co/
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddUser} className="space-y-4">
+            <form onSubmit={handleAddAdmin} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name *</Label>
@@ -379,28 +545,13 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role *</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value: "user" | "admin") => setFormData({ ...formData, role: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="admin">Administrator</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="bg-muted/50 p-4 rounded-lg space-y-2">
                 <p className="text-sm font-medium">⚡ Automatic Actions:</p>
                 <ul className="text-sm text-muted-foreground space-y-1">
                   <li>• A temporary password will be generated automatically</li>
-                  <li>• User will receive a welcome email with login credentials</li>
-                  <li>• User must change password on first login</li>
+                  <li>• Administrator will receive a welcome email with login credentials</li>
+                  <li>• Administrator must change password on first login</li>
+                  <li>• Link: https://emailsigdash.cioafrica.co/</li>
                 </ul>
               </div>
 
@@ -414,27 +565,28 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? "Creating..." : "Create User & Send Email"}
+                  {submitting ? "Creating..." : "Create Administrator & Send Email"}
                 </Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All Users ({users.length})</CardTitle>
+          <CardTitle>All Administrators ({users.length})</CardTitle>
           <CardDescription>
-            Manage user accounts and access levels
+            Manage administrator accounts with system access
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading users...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading administrators...</div>
           ) : users.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No users found. Add your first user to get started.
+              No administrators found. Add your first administrator to get started.
             </div>
           ) : (
             <Table>
@@ -444,7 +596,6 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
                   <TableHead>Email</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Job Title</TableHead>
-                  <TableHead>Role</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -458,19 +609,6 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
                     <TableCell>{user.email}</TableCell>
                     <TableCell>{user.department || "—"}</TableCell>
                     <TableCell>{user.job_title || "—"}</TableCell>
-                    <TableCell>
-                      {user.is_admin ? (
-                        <Badge variant="default">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Admin
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">
-                          <User className="h-3 w-3 mr-1" />
-                          User
-                        </Badge>
-                      )}
-                    </TableCell>
                     <TableCell>
                       {new Date(user.created_at).toLocaleDateString()}
                     </TableCell>
