@@ -112,13 +112,23 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
 
     setVerifying(true);
     try {
-      const { data, error } = await supabase.functions.invoke("verify-domain-dns", {
-        body: { domain },
+      // Use the verify-dns-records function with our generated DNS records
+      const { data, error } = await supabase.functions.invoke("verify-dns-records", {
+        body: { 
+          domain,
+          records: dnsRecords.map(record => ({
+            type: record.type,
+            name: record.name,
+            expectedValue: record.value,
+            priority: record.priority
+          }))
+        },
       });
 
       if (error) throw error;
 
-      const status = data.verified ? "verified" : "failed";
+      const allVerified = data.results.every((r: any) => r.verified);
+      const status = allVerified ? "verified" : "failed";
       setVerificationStatus(status);
 
       // Save verification status to brand_colors JSON field
