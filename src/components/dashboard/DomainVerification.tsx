@@ -91,7 +91,7 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
       {
         type: "MX",
         name: `@`,
-        value: `${domainName}-com.mail.protection.outlook.com`,
+        value: `${domainName.replace(/\./g, "-")}.mail.protection.outlook.com`,
         priority: "0",
         description: "Mail Exchange - Email routing",
       },
