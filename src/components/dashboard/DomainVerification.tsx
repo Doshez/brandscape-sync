@@ -61,7 +61,7 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
       {
         type: "TXT",
         name: `@`,
-        value: `v=spf1 include:spf.protection.outlook.com -all`,
+        value: `v=spf1 include:spf.protection.outlook.com include:sendgrid.net -all`,
         description: "SPF Record - Authorizes email servers",
       },
       {
