@@ -18,6 +18,7 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
     host: "",
     port: "587",
     username: "",
+    password: "",
     secure: true,
   });
   const [testEmail, setTestEmail] = useState("");
@@ -230,6 +231,20 @@ export const EmailRouting = ({ profile }: EmailRoutingProps) => {
                 value={smtpSettings.username}
                 onChange={(e) => setSmtpSettings({ ...smtpSettings, username: e.target.value })}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="smtp-password">Password / API Key</Label>
+              <Input
+                id="smtp-password"
+                type="password"
+                placeholder="Your SMTP password or SendGrid API key"
+                value={smtpSettings.password}
+                onChange={(e) => setSmtpSettings({ ...smtpSettings, password: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                For SendGrid, use your API key (starts with SG.)
+              </p>
             </div>
 
             <Button onClick={saveSmtpSettings} disabled={saving} className="w-full">
