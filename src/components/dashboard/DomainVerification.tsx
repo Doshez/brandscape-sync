@@ -20,6 +20,14 @@ interface DNSRecord {
   value: string;
   priority?: string;
   description: string;
+  optional?: boolean;
+}
+
+interface VerificationResult {
+  type: string;
+  name: string;
+  verified: boolean;
+  message?: string;
 }
 
 export const DomainVerification = ({ profile }: DomainVerificationProps) => {
@@ -27,6 +35,7 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
   const [verifying, setVerifying] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<"pending" | "verified" | "failed" | null>(null);
   const [dnsRecords, setDnsRecords] = useState<DNSRecord[]>([]);
+  const [verificationResults, setVerificationResults] = useState<VerificationResult[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -74,13 +83,15 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
         type: "CNAME",
         name: `selector1._domainkey`,
         value: `selector1-${domainName.replace(/\./g, "-")}._domainkey.${domainName}`,
-        description: "DKIM Record 1 - Email signing",
+        description: "DKIM Record 1 - Email signing (Configure in Microsoft 365 Admin Center first)",
+        optional: true,
       },
       {
         type: "CNAME",
         name: `selector2._domainkey`,
         value: `selector2-${domainName.replace(/\./g, "-")}._domainkey.${domainName}`,
-        description: "DKIM Record 2 - Email signing (backup)",
+        description: "DKIM Record 2 - Email signing backup (Configure in Microsoft 365 Admin Center first)",
+        optional: true,
       },
       {
         type: "CNAME",
@@ -127,8 +138,22 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
 
       if (error) throw error;
 
-      const allVerified = data.results.every((r: any) => r.verified);
-      const status = allVerified ? "verified" : "failed";
+      // Store detailed results
+      const results: VerificationResult[] = data.results.map((r: any) => ({
+        type: r.type,
+        name: r.name,
+        verified: r.verified,
+        message: r.message || (r.verified ? "Verified" : "Not found or incorrect value"),
+      }));
+      setVerificationResults(results);
+
+      // Check if all required (non-optional) records are verified
+      const requiredRecords = dnsRecords.filter(r => !r.optional);
+      const requiredResults = results.filter(r => 
+        requiredRecords.some(req => req.type === r.type && req.name === r.name)
+      );
+      const allRequiredVerified = requiredResults.every(r => r.verified);
+      const status = allRequiredVerified ? "verified" : "failed";
       setVerificationStatus(status);
 
       // Save verification status to brand_colors JSON field
@@ -160,11 +185,14 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
           });
       }
 
+      const failedRequired = requiredResults.filter(r => !r.verified);
+      const failedOptional = results.filter(r => !r.verified && !requiredResults.includes(r));
+      
       toast({
         title: status === "verified" ? "Domain Verified" : "Verification Failed",
-        description: data.message || (status === "verified" 
-          ? "All DNS records are configured correctly" 
-          : "Some DNS records are missing or incorrect"),
+        description: status === "verified" 
+          ? "All required DNS records are configured correctly" 
+          : `${failedRequired.length} required record(s) failed. ${failedOptional.length > 0 ? `${failedOptional.length} optional record(s) not configured.` : ''}`,
         variant: status === "verified" ? "default" : "destructive",
       });
 
@@ -304,10 +332,49 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
         </CardContent>
       </Card>
 
+      {verificationResults.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Verification Results</CardTitle>
+            <CardDescription>
+              Status of each DNS record verification
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {verificationResults.map((result, index) => {
+                const record = dnsRecords.find(r => r.type === result.type && r.name === result.name);
+                return (
+                  <div key={index} className="flex items-start gap-3 p-3 rounded-lg border">
+                    {result.verified ? (
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline">{result.type}</Badge>
+                        <span className="text-sm font-medium">{result.name}</span>
+                        {record?.optional && (
+                          <Badge variant="secondary" className="text-xs">Optional</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {result.message}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {dnsRecords.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Required DNS Records</CardTitle>
+            <CardTitle>DNS Records to Configure</CardTitle>
             <CardDescription>
               Add these records to your domain's DNS settings
             </CardDescription>
@@ -317,9 +384,12 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
               {dnsRecords.map((record, index) => (
                 <div key={index} className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline">{record.type}</Badge>
                       <span className="text-sm font-medium">{record.description}</span>
+                      {record.optional && (
+                        <Badge variant="secondary" className="text-xs">Optional</Badge>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
@@ -358,6 +428,7 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
         <AlertDescription>
           <div className="space-y-2">
             <p><strong>Important:</strong> DNS changes can take up to 48 hours to propagate.</p>
+            <p className="text-sm"><strong>DKIM Records:</strong> These must be configured in Microsoft 365 Admin Center first. Go to Microsoft 365 Admin → Settings → Domains → Select your domain → Enable DKIM signing. Microsoft will provide the correct CNAME values.</p>
             <p className="text-sm">For Exchange Online deployment, use the dedicated "Deploy to Exchange" section with automated transport rules.</p>
           </div>
         </AlertDescription>
