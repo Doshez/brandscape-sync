@@ -82,16 +82,16 @@ export const DomainVerification = ({ profile }: DomainVerificationProps) => {
       {
         type: "CNAME",
         name: `selector1._domainkey`,
-        value: `selector1-${domainName.replace(/\./g, "-")}._domainkey.${domainName}`,
-        description: "DKIM Record 1 - Email signing (Configure in Microsoft 365 Admin Center first)",
-        optional: true,
+        value: `selector1-${domainName.replace(/\./g, "-")}._domainkey.africane.r-v1.dkim.mail.microsoft`,
+        description: "DKIM Record 1 - Email signing",
+        optional: false,
       },
       {
         type: "CNAME",
         name: `selector2._domainkey`,
-        value: `selector2-${domainName.replace(/\./g, "-")}._domainkey.${domainName}`,
-        description: "DKIM Record 2 - Email signing backup (Configure in Microsoft 365 Admin Center first)",
-        optional: true,
+        value: `selector2-${domainName.replace(/\./g, "-")}._domainkey.africane.r-v1.dkim.mail.microsoft`,
+        description: "DKIM Record 2 - Email signing backup",
+        optional: false,
       },
       {
         type: "CNAME",
