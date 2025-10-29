@@ -36,33 +36,31 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    console.log('SMTP Relay: Received request from SendGrid Inbound Parse webhook');
+    console.log('SMTP Relay: Received request');
     console.log('Content-Type:', req.headers.get('content-type'));
+    console.log('User-Agent:', req.headers.get('user-agent'));
 
-    // Validate relay secret for security
+    // Optional: Validate relay secret for security (only if provided)
     const authHeader = req.headers.get('x-relay-secret');
-    if (!authHeader) {
-      console.error('SMTP Relay: Missing relay secret header');
-      return new Response(JSON.stringify({ error: 'Missing relay secret' }), { 
-        status: 401, 
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
-    }
+    if (authHeader) {
+      console.log('Validating relay secret...');
+      const { data: relayConfig, error: relayError } = await supabase
+        .from('smtp_relay_config')
+        .select('relay_secret')
+        .eq('relay_secret', authHeader)
+        .eq('is_active', true)
+        .single();
 
-    // Verify relay secret against database
-    const { data: relayConfig, error: relayError } = await supabase
-      .from('smtp_relay_config')
-      .select('relay_secret')
-      .eq('relay_secret', authHeader)
-      .eq('is_active', true)
-      .single();
-
-    if (relayError || !relayConfig) {
-      console.error('SMTP Relay: Invalid relay secret', relayError);
-      return new Response(JSON.stringify({ error: 'Invalid relay secret' }), { 
-        status: 401, 
-        headers: { 'Content-Type': 'application/json', ...corsHeaders }
-      });
+      if (relayError || !relayConfig) {
+        console.error('SMTP Relay: Invalid relay secret', relayError);
+        return new Response(JSON.stringify({ error: 'Invalid relay secret' }), { 
+          status: 401, 
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+      console.log('Relay secret validated successfully');
+    } else {
+      console.log('No relay secret provided - allowing request (SendGrid Inbound Parse mode)');
     }
 
     // Check content type to determine how to parse the request

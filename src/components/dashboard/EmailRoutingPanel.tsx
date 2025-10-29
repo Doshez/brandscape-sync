@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Shield } from "lucide-react";
+import { Mail, Shield, BookOpen } from "lucide-react";
 import { EmailRouting } from "./EmailRouting";
 import { DomainVerification } from "./DomainVerification";
+import { EmailRoutingSetup } from "./EmailRoutingSetup";
 
 interface EmailRoutingPanelProps {
   isOpen: boolean;
@@ -23,17 +24,25 @@ export const EmailRoutingPanel = ({ isOpen, onClose, profile }: EmailRoutingPane
         </SheetHeader>
 
         <div className="mt-6">
-          <Tabs defaultValue="routing" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs defaultValue="setup" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="setup" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Setup Guide
+              </TabsTrigger>
               <TabsTrigger value="routing" className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                Email Routing
+                Testing
               </TabsTrigger>
               <TabsTrigger value="verification" className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
-                Domain Verification
+                DNS Verification
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="setup" className="mt-6">
+              <EmailRoutingSetup />
+            </TabsContent>
 
             <TabsContent value="routing" className="mt-6">
               <EmailRouting profile={profile} />
