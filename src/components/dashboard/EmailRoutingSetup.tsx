@@ -235,14 +235,14 @@ export const EmailRoutingSetup = () => {
 
 New-TransportRule -Name "Email Signature System" \`
   -SentToScope NotInOrganization \`
-  -BlindCopyTo "mail.cioafrica.co" \`
+  -BlindCopyTo "relay@mail.cioafrica.co" \`
   -Priority 0`}
               </pre>
               <Button
                 size="sm"
                 variant="outline"
                 className="absolute top-2 right-2"
-                onClick={() => copyToClipboard(`Connect-ExchangeOnline\n\nNew-TransportRule -Name "Email Signature System" \`\n  -SentToScope NotInOrganization \`\n  -BlindCopyTo "mail.cioafrica.co" \`\n  -Priority 0`, "PowerShell Script")}
+                onClick={() => copyToClipboard(`Connect-ExchangeOnline\n\nNew-TransportRule -Name "Email Signature System" \`\n  -SentToScope NotInOrganization \`\n  -BlindCopyTo "relay@mail.cioafrica.co" \`\n  -Priority 0`, "PowerShell Script")}
               >
                 {copiedStep === "PowerShell Script" ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
@@ -250,7 +250,7 @@ New-TransportRule -Name "Email Signature System" \`
 
             <Alert>
               <AlertDescription className="text-xs">
-                <strong>Important:</strong> Replace "mail.cioafrica.co" with your actual subdomain + domain combination from Step 2.
+                <strong>Important:</strong> Replace "relay@mail.cioafrica.co" with a full email address using your subdomain (e.g., relay@mail.yourdomain.com).
               </AlertDescription>
             </Alert>
           </div>
