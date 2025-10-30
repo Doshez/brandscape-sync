@@ -11,6 +11,7 @@ const SENDGRID_API_KEY = Deno.env.get('SENDGRID_API_KEY');
 interface EmailData {
   from: string;
   to: string[];
+  cc?: string[];
   subject: string;
   htmlBody: string;
   textBody?: string;
@@ -88,6 +89,7 @@ const handler = async (req: Request): Promise<Response> => {
     const contentType = req.headers.get('content-type') || '';
     let sender: string;
     let recipient: string | string[];
+    let cc: string | string[] | undefined;
     let subject: string;
     let htmlBody: string;
     let textBody: string;
@@ -99,12 +101,13 @@ const handler = async (req: Request): Promise<Response> => {
       const jsonData = await req.json();
       sender = jsonData.from;
       recipient = jsonData.to;
+      cc = jsonData.cc;
       subject = jsonData.subject;
       htmlBody = jsonData.htmlBody || jsonData.html || jsonData.text || '';
       textBody = jsonData.textBody || jsonData.text || '';
       messageId = jsonData.messageId || `test-${Date.now()}@relay`;
       
-      console.log('SMTP Relay: Processing JSON email from:', sender, 'to:', recipient);
+      console.log('SMTP Relay: Processing JSON email from:', sender, 'to:', recipient, 'cc:', cc);
       console.log('JSON email has html:', !!htmlBody, 'text:', !!textBody);
     } else {
       // Handle form data (from SendGrid Inbound Parse webhook)
@@ -117,6 +120,7 @@ const handler = async (req: Request): Promise<Response> => {
       
       sender = formData.get('from') as string;
       recipient = formData.get('to') as string;
+      cc = formData.get('cc') as string;
       subject = formData.get('subject') as string;
       
       // SendGrid sends the full raw email in the 'email' field
@@ -279,13 +283,25 @@ const handler = async (req: Request): Promise<Response> => {
       
       messageId = formData.get('headers') as string;
       
-      console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
+      console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient, 'cc:', cc);
       console.log('Form data has html:', !!htmlBody, 'text:', !!textBody);
     }
 
     // Normalize recipient to array format
     const recipientArray = Array.isArray(recipient) ? recipient : [recipient];
     const primaryRecipient = recipientArray[0];
+    
+    // Normalize CC to array format if present
+    let ccArray: string[] | undefined;
+    if (cc) {
+      // Split CC string by comma if it's a string with multiple addresses
+      if (typeof cc === 'string') {
+        ccArray = cc.split(',').map(email => email.trim()).filter(email => email);
+      } else if (Array.isArray(cc)) {
+        ccArray = cc;
+      }
+      console.log('CC recipients:', ccArray);
+    }
 
     if (!sender || !primaryRecipient || !subject) {
       console.error('SMTP Relay: Missing required email fields');
@@ -298,6 +314,7 @@ const handler = async (req: Request): Promise<Response> => {
     const emailData: EmailData = {
       from: sender,
       to: recipientArray,
+      cc: ccArray,
       subject,
       htmlBody: htmlBody || textBody || '',
       textBody,
@@ -553,12 +570,22 @@ async function forwardEmail(emailData: EmailData) {
       ? emailData.from.substring(0, emailData.from.indexOf('<')).trim().replace(/^["']|["']$/g, '')
       : '';
     
+    const personalizations: any = {
+      to: emailData.to.map(recipient => ({
+        email: extractEmailAddress(recipient)
+      })),
+    };
+    
+    // Add CC recipients if present
+    if (emailData.cc && emailData.cc.length > 0) {
+      personalizations.cc = emailData.cc.map(recipient => ({
+        email: extractEmailAddress(recipient)
+      }));
+      console.log('Adding CC recipients:', personalizations.cc);
+    }
+    
     const sendGridPayload: any = {
-      personalizations: [{
-        to: emailData.to.map(recipient => ({
-          email: extractEmailAddress(recipient)
-        })),
-      }],
+      personalizations: [personalizations],
       from: {
         email: senderEmail,
         ...(senderName && { name: senderName })
