@@ -370,12 +370,23 @@ async function forwardEmail(emailData: EmailData) {
   try {
     console.log('Forwarding email via Resend to:', emailData.to);
     
+    // Ensure we have at least HTML or text content
+    const html = emailData.htmlBody || undefined;
+    const text = emailData.textBody || (emailData.htmlBody ? stripHtml(emailData.htmlBody) : undefined);
+    
+    // Validate we have content to send
+    if (!html && !text) {
+      throw new Error('Email has no content - both HTML and text body are empty');
+    }
+    
+    console.log('Sending email with html:', !!html, 'text:', !!text);
+    
     const emailResponse = await resend.emails.send({
       from: emailData.from,
       to: emailData.to,
       subject: emailData.subject,
-      html: emailData.htmlBody,
-      text: emailData.textBody,
+      html: html,
+      text: text,
       headers: {
         'X-Processed-By-Relay': 'true',
         'X-Skip-Transport-Rule': 'true'
@@ -394,6 +405,20 @@ async function forwardEmail(emailData: EmailData) {
     console.error('Error forwarding email via Resend:', error);
     throw new Error(`Failed to forward email: ${error.message}`);
   }
+}
+
+// Helper function to strip HTML tags for text version
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>.*?<\/style>/gi, '')
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
 }
 
 serve(handler);
