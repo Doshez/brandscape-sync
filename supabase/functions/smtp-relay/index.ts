@@ -279,10 +279,24 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
   // Inject signature and banners into email body
   let modifiedHtmlBody = emailData.htmlBody || '';
 
-  // Ensure we have a proper HTML structure
-  let bodyContent = modifiedHtmlBody;
+  // Extract preheader text (first 100-150 chars of body for inbox preview)
+  const stripHtmlTags = (html: string) => {
+    return html.replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
   
-  // Add banners at the top ONLY if not already present (prevent duplicates)
+  const preheaderText = stripHtmlTags(modifiedHtmlBody).substring(0, 150);
+  
+  // Build email structure: Preheader -> Banner -> Body -> Signature
+  let bodyContent = '';
+  
+  // 1. Add preheader text at the very top (hidden, but visible in inbox preview)
+  if (preheaderText) {
+    bodyContent += `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${preheaderText}</div>\n`;
+  }
+  
+  // 2. Add banners ONLY if not already present (prevent duplicates)
   if (bannersHtml) {
     const hasBannerMarker = modifiedHtmlBody.includes('<!-- tracking-applied -->') || 
                            modifiedHtmlBody.includes('data-tracking-applied="true"') ||
@@ -290,31 +304,22 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
     
     if (!hasBannerMarker) {
       console.log('Adding banner to email (no existing banner detected)');
-      // Add banner at the very top with proper spacing
-      bodyContent = `
-        <div style="margin-bottom: 20px;">
-          ${bannersHtml}
-        </div>
-        ${bodyContent}
-      `;
+      bodyContent += `<div style="margin-bottom: 20px;">${bannersHtml}</div>\n`;
     } else {
       console.log('Banner already exists in email - skipping duplicate banner');
     }
   }
+  
+  // 3. Add the main body content
+  bodyContent += modifiedHtmlBody;
 
-  // Add signature at the bottom ONLY if not already present (prevent duplicates)
+  // 4. Add signature at the bottom ONLY if not already present (prevent duplicates)
   if (signatureHtml) {
     const hasSignature = modifiedHtmlBody.includes(signatureHtml.substring(0, 50));
     
     if (!hasSignature) {
       console.log('Adding signature to email (no existing signature detected)');
-      // Add signature at the bottom with proper spacing
-      bodyContent = `
-        ${bodyContent}
-        <div style="margin-top: 20px;">
-          ${signatureHtml}
-        </div>
-      `;
+      bodyContent += `\n<div style="margin-top: 20px;">${signatureHtml}</div>`;
     } else {
       console.log('Signature already exists in email - skipping duplicate signature');
     }
