@@ -132,20 +132,20 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
               <div className="flex-1">
                 <h3 className="font-semibold mb-2">Create Transport Rule</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Create a rule to route all outbound emails through the connector. First, get the connector identity:
+                  Get the connector GUID and create a rule to route outbound emails:
                 </p>
-                <div className="relative mb-3">
-                  <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
-{`$connector = Get-OutboundConnector "SignatureConnector"`}
-                  </pre>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">Then create the transport rule:</p>
                 <div className="relative">
                   <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap">
-{`New-TransportRule -Name "Route via Signature Connector" \\
+{`# Get connector GUID
+$connector = Get-OutboundConnector "SignatureConnector"
+$connectorGuid = $connector.Identity.Guid
+
+# Create transport rule using GUID
+New-TransportRule -Name "Route via Signature Connector" \\
   -FromScope InOrganization \\
   -SentToScope NotInOrganization \\
-  -RouteMessageOutboundConnector $connector.Identity \\
+  -RouteMessageOutboundConnector $connectorGuid \\
+  -Comments "Routes outbound emails through signature service" \\
   -Priority 0`}
                   </pre>
                   <Button
@@ -153,13 +153,18 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
                     variant="ghost"
                     className="absolute top-2 right-2"
                     onClick={() => copyToClipboard(
-                      `$connector = Get-OutboundConnector "SignatureConnector"\nNew-TransportRule -Name "Route via Signature Connector" -FromScope InOrganization -SentToScope NotInOrganization -RouteMessageOutboundConnector $connector.Identity -Priority 0`,
+                      `$connector = Get-OutboundConnector "SignatureConnector"\n$connectorGuid = $connector.Identity.Guid\nNew-TransportRule -Name "Route via Signature Connector" -FromScope InOrganization -SentToScope NotInOrganization -RouteMessageOutboundConnector $connectorGuid -Comments "Routes outbound emails through signature service" -Priority 0`,
                       3
                     )}
                   >
                     {copiedStep === 3 ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
+                <Alert className="mt-3">
+                  <AlertDescription className="text-xs">
+                    <strong>Note:</strong> If you still get the "not scoped" error, wait 1-2 minutes after creating the connector for Exchange to sync, then try again.
+                  </AlertDescription>
+                </Alert>
               </div>
             </div>
           </div>
