@@ -109,6 +109,12 @@ const handler = async (req: Request): Promise<Response> => {
     } else {
       // Handle form data (from SendGrid Inbound Parse webhook)
       const formData = await req.formData();
+      
+      // Log all available form data keys for debugging
+      const formDataKeys = Array.from(formData.keys());
+      console.log('Available form data keys:', formDataKeys);
+      console.log('Form data size:', formDataKeys.length);
+      
       sender = formData.get('from') as string;
       recipient = formData.get('to') as string;
       subject = formData.get('subject') as string;
@@ -172,21 +178,31 @@ const handler = async (req: Request): Promise<Response> => {
       const attachmentInfoStr = formData.get('attachment-info') as string;
       let attachmentMetadata: any = {};
       
+      console.log('Looking for attachments...');
+      console.log('attachment-info field exists:', !!attachmentInfoStr);
+      
       if (attachmentInfoStr) {
         try {
           attachmentMetadata = JSON.parse(attachmentInfoStr);
-          console.log('Attachment metadata:', attachmentMetadata);
+          console.log('Attachment metadata:', JSON.stringify(attachmentMetadata, null, 2));
         } catch (e) {
           console.error('Failed to parse attachment-info:', e);
         }
+      } else {
+        console.log('No attachment-info field found');
       }
       
       // Extract actual attachment files
       // SendGrid sends them as attachment1, attachment2, etc.
+      console.log('Checking for attachment files in formData...');
       let attachmentIndex = 1;
       while (true) {
         const attachmentFile = formData.get(`attachment${attachmentIndex}`) as File;
-        if (!attachmentFile) break;
+        console.log(`Looking for attachment${attachmentIndex}:`, !!attachmentFile);
+        if (!attachmentFile) {
+          console.log(`No more attachments found after index ${attachmentIndex - 1}`);
+          break;
+        }
         
         try {
           // Read file as base64
@@ -224,7 +240,15 @@ const handler = async (req: Request): Promise<Response> => {
       }
       
       if (attachments.length > 0) {
-        console.log(`Total extracted: ${attachments.length} attachment(s)`);
+        console.log(`✅ Total extracted: ${attachments.length} attachment(s)`);
+        console.log('Attachment summary:', attachments.map(a => ({
+          name: a.filename,
+          type: a.type,
+          disposition: a.disposition,
+          size: `${Math.round(a.content.length / 1024)}KB`
+        })));
+      } else {
+        console.log('❌ No attachments extracted from email');
       }
       
       console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
