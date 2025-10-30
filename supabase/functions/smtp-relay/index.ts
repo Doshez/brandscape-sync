@@ -276,50 +276,50 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
     }
   }
 
-  // Inject signature and banners into email body
-  let modifiedHtmlBody = emailData.htmlBody || '';
+  // Preserve exact Outlook HTML body - only add banner (top) and signature (bottom)
+  const originalHtmlBody = emailData.htmlBody || '';
 
-  // Extract preheader text (first 100-150 chars of body for inbox preview)
+  // Extract preheader text (first 150 chars of body for inbox preview)
   const stripHtmlTags = (html: string) => {
     return html.replace(/<[^>]*>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   };
   
-  const preheaderText = stripHtmlTags(modifiedHtmlBody).substring(0, 150);
+  const preheaderText = stripHtmlTags(originalHtmlBody).substring(0, 150);
   
-  // Build email structure: Preheader -> Banner -> Body -> Signature
+  // Build email: Preheader (hidden) -> Banner -> Original Body (unchanged) -> Signature
   let bodyContent = '';
   
-  // 1. Add preheader text at the very top (hidden, but visible in inbox preview)
+  // 1. Add hidden preheader for inbox preview
   if (preheaderText) {
     bodyContent += `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${preheaderText}</div>\n`;
   }
   
-  // 2. Add banners ONLY if not already present (prevent duplicates)
+  // 2. Prepend banner at top (only if not already present)
   if (bannersHtml) {
-    const hasBannerMarker = modifiedHtmlBody.includes('<!-- tracking-applied -->') || 
-                           modifiedHtmlBody.includes('data-tracking-applied="true"') ||
-                           modifiedHtmlBody.includes('banner-view-pixel');
+    const hasBannerMarker = originalHtmlBody.includes('<!-- tracking-applied -->') || 
+                           originalHtmlBody.includes('data-tracking-applied="true"') ||
+                           originalHtmlBody.includes('banner-view-pixel');
     
     if (!hasBannerMarker) {
-      console.log('Adding banner to email (no existing banner detected)');
-      bodyContent += `<div style="margin-bottom: 20px;">${bannersHtml}</div>\n`;
+      console.log('Prepending banner to email header');
+      bodyContent += bannersHtml + '\n';
     } else {
       console.log('Banner already exists in email - skipping duplicate banner');
     }
   }
   
-  // 3. Add the main body content
-  bodyContent += modifiedHtmlBody;
+  // 3. Add the ORIGINAL body content without any modifications
+  bodyContent += originalHtmlBody;
 
-  // 4. Add signature at the bottom ONLY if not already present (prevent duplicates)
+  // 4. Append signature at footer (only if not already present)
   if (signatureHtml) {
-    const hasSignature = modifiedHtmlBody.includes(signatureHtml.substring(0, 50));
+    const hasSignature = originalHtmlBody.includes(signatureHtml.substring(0, 50));
     
     if (!hasSignature) {
-      console.log('Adding signature to email (no existing signature detected)');
-      bodyContent += `\n<div style="margin-top: 20px;">${signatureHtml}</div>`;
+      console.log('Appending signature to email footer');
+      bodyContent += '\n' + signatureHtml;
     } else {
       console.log('Signature already exists in email - skipping duplicate signature');
     }
