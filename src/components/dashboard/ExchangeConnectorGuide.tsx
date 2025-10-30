@@ -132,14 +132,20 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
               <div className="flex-1">
                 <h3 className="font-semibold mb-2">Create Transport Rule</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Create a rule to route all outbound emails through the connector:
+                  Create a rule to route all outbound emails through the connector. First, get the connector identity:
                 </p>
+                <div className="relative mb-3">
+                  <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
+{`$connector = Get-OutboundConnector "SignatureConnector"`}
+                  </pre>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">Then create the transport rule:</p>
                 <div className="relative">
                   <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap">
 {`New-TransportRule -Name "Route via Signature Connector" \\
   -FromScope InOrganization \\
   -SentToScope NotInOrganization \\
-  -RouteMessageOutboundConnector "SignatureConnector" \\
+  -RouteMessageOutboundConnector $connector.Identity \\
   -Priority 0`}
                   </pre>
                   <Button
@@ -147,7 +153,7 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
                     variant="ghost"
                     className="absolute top-2 right-2"
                     onClick={() => copyToClipboard(
-                      `New-TransportRule -Name "Route via Signature Connector" -FromScope InOrganization -SentToScope NotInOrganization -RouteMessageOutboundConnector "SignatureConnector" -Priority 0`,
+                      `$connector = Get-OutboundConnector "SignatureConnector"\nNew-TransportRule -Name "Route via Signature Connector" -FromScope InOrganization -SentToScope NotInOrganization -RouteMessageOutboundConnector $connector.Identity -Priority 0`,
                       3
                     )}
                   >
