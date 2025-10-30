@@ -122,8 +122,10 @@ const handler = async (req: Request): Promise<Response> => {
       // SendGrid sends the full raw email in the 'email' field
       const rawEmail = formData.get('email') as string;
       
-      // Try to extract HTML from raw email (basic parsing)
+      // Try to extract HTML, text, and attachments from raw email
       if (rawEmail) {
+        console.log('Parsing raw email (length:', rawEmail.length, 'bytes)');
+        
         // Look for HTML content between Content-Type: text/html and next boundary
         const htmlMatch = rawEmail.match(/Content-Type: text\/html[^\n]*\n([^\n]*\n)?([\s\S]*?)(?=\n--)/);
         if (htmlMatch && htmlMatch[2]) {
@@ -157,6 +159,58 @@ const handler = async (req: Request): Promise<Response> => {
           }
           textBody = content;
         }
+        
+        // Parse attachments from raw email
+        // Look for Content-Disposition: attachment or inline parts
+        const attachmentPattern = /Content-Type: ([^\r\n;]+)[^\r\n]*[\r\n]+(?:Content-Transfer-Encoding: ([^\r\n]+)[\r\n]+)?(?:Content-Disposition: ([^\r\n]+)[\r\n]+)?(?:Content-ID: <([^>]+)>[\r\n]+)?[^\r\n]*name="?([^"\r\n]+)"?[^\r\n]*[\r\n]+[\r\n]+([\s\S]*?)(?=\r?\n--)/g;
+        
+        let attachmentMatch;
+        let attachmentCount = 0;
+        while ((attachmentMatch = attachmentPattern.exec(rawEmail)) !== null) {
+          const [, contentType, encoding, disposition, contentId, filename, content] = attachmentMatch;
+          
+          // Skip if it's text/html or text/plain (already handled)
+          if (contentType.includes('text/html') || contentType.includes('text/plain')) {
+            continue;
+          }
+          
+          // Only process if it has a filename or is explicitly marked as attachment/inline
+          if (filename || (disposition && (disposition.includes('attachment') || disposition.includes('inline')))) {
+            try {
+              // Clean up the content (remove whitespace/newlines for base64)
+              let cleanContent = content.trim().replace(/[\r\n]/g, '');
+              
+              // If it's base64 encoded, keep it as-is for SendGrid
+              // Otherwise, we need to encode it
+              if (!encoding || !encoding.includes('base64')) {
+                // Convert to base64 if not already
+                cleanContent = btoa(cleanContent);
+              }
+              
+              const isInline = disposition && disposition.includes('inline');
+              
+              attachments.push({
+                content: cleanContent,
+                filename: filename || `attachment${attachmentCount + 1}`,
+                type: contentType.trim(),
+                disposition: isInline ? 'inline' : 'attachment',
+                content_id: contentId || undefined
+              });
+              
+              attachmentCount++;
+              console.log(`Extracted attachment ${attachmentCount} from raw email: ${filename}`);
+              console.log(`  Type: ${contentType}, Encoding: ${encoding || 'none'}, Disposition: ${isInline ? 'inline' : 'attachment'}`);
+            } catch (e) {
+              console.error(`Failed to extract attachment ${attachmentCount + 1}:`, e);
+            }
+          }
+        }
+        
+        if (attachmentCount > 0) {
+          console.log(`✅ Extracted ${attachmentCount} attachment(s) from raw email`);
+        } else {
+          console.log('No attachments found in raw email');
+        }
       }
       
       // Fallback to direct fields if available
@@ -172,84 +226,6 @@ const handler = async (req: Request): Promise<Response> => {
       }
       
       messageId = formData.get('headers') as string;
-      
-      // Extract attachments from SendGrid Inbound Parse format
-      // SendGrid provides attachment metadata in the 'attachment-info' field
-      const attachmentInfoStr = formData.get('attachment-info') as string;
-      let attachmentMetadata: any = {};
-      
-      console.log('Looking for attachments...');
-      console.log('attachment-info field exists:', !!attachmentInfoStr);
-      
-      if (attachmentInfoStr) {
-        try {
-          attachmentMetadata = JSON.parse(attachmentInfoStr);
-          console.log('Attachment metadata:', JSON.stringify(attachmentMetadata, null, 2));
-        } catch (e) {
-          console.error('Failed to parse attachment-info:', e);
-        }
-      } else {
-        console.log('No attachment-info field found');
-      }
-      
-      // Extract actual attachment files
-      // SendGrid sends them as attachment1, attachment2, etc.
-      console.log('Checking for attachment files in formData...');
-      let attachmentIndex = 1;
-      while (true) {
-        const attachmentFile = formData.get(`attachment${attachmentIndex}`) as File;
-        console.log(`Looking for attachment${attachmentIndex}:`, !!attachmentFile);
-        if (!attachmentFile) {
-          console.log(`No more attachments found after index ${attachmentIndex - 1}`);
-          break;
-        }
-        
-        try {
-          // Read file as base64
-          const buffer = await attachmentFile.arrayBuffer();
-          const base64Content = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-          
-          // Get metadata for this attachment if available
-          const metadata = attachmentMetadata[`attachment${attachmentIndex}`] || {};
-          let contentId = metadata['content-id'] || metadata.cid;
-          
-          // Clean up content ID (remove angle brackets if present)
-          if (contentId) {
-            contentId = contentId.replace(/^<|>$/g, '');
-          }
-          
-          const isInline = contentId || metadata.disposition === 'inline';
-          
-          attachments.push({
-            content: base64Content,
-            filename: metadata.filename || attachmentFile.name,
-            type: metadata.type || attachmentFile.type || 'application/octet-stream',
-            disposition: isInline ? 'inline' : 'attachment',
-            content_id: contentId || undefined
-          });
-          
-          console.log(`Extracted attachment ${attachmentIndex}: ${attachmentFile.name}`);
-          console.log(`  Type: ${metadata.type || attachmentFile.type}`);
-          console.log(`  Disposition: ${isInline ? 'inline' : 'attachment'}`);
-          console.log(`  Content-ID: ${contentId || 'none'}`);
-        } catch (e) {
-          console.error(`Failed to process attachment${attachmentIndex}:`, e);
-        }
-        
-        attachmentIndex++;
-      }
-      
-      if (attachments.length > 0) {
-        console.log(`✅ Total extracted: ${attachments.length} attachment(s)`);
-        console.log('Attachment summary:', attachments.map(a => ({
-          name: a.filename,
-          type: a.type,
-          disposition: a.disposition,
-          size: `${Math.round(a.content.length / 1024)}KB`
-        })));
-      } else {
-        console.log('❌ No attachments extracted from email');
-      }
       
       console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
       console.log('Form data has html:', !!htmlBody, 'text:', !!textBody);
