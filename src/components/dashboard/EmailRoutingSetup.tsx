@@ -51,7 +51,7 @@ export const EmailRoutingSetup = () => {
             <span>→</span>
             <Badge variant="outline">Adds Signature/Banner</Badge>
             <span>→</span>
-            <Badge variant="outline">Resend</Badge>
+            <Badge variant="outline">SendGrid</Badge>
             <span>→</span>
             <Badge variant="outline">Recipient</Badge>
           </div>
