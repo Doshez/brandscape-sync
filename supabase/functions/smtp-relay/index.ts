@@ -147,11 +147,27 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
+// Helper function to extract email address from display name format
+function extractEmailAddress(emailString: string): string {
+  // Check if email is in format "Display Name <email@domain.com>"
+  const match = emailString.match(/<([^>]+)>/);
+  if (match) {
+    return match[1].trim();
+  }
+  
+  // Otherwise, return the string as-is (assuming it's already just an email)
+  return emailString.trim();
+}
+
 async function processEmail(emailData: EmailData): Promise<EmailData> {
   console.log('Processing email for user:', emailData.from);
 
+  // Extract just the email address from the sender field
+  const senderEmail = extractEmailAddress(emailData.from);
+  console.log('Extracted email address:', senderEmail);
+
   // Get user assignments for signature and banners
-  const assignment = await getUserAssignment(emailData.from);
+  const assignment = await getUserAssignment(senderEmail);
   
   if (!assignment) {
     console.log('No assignment found for user:', emailData.from);
