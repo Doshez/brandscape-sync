@@ -106,24 +106,40 @@ const handler = async (req: Request): Promise<Response> => {
       recipient = formData.get('to') as string;
       subject = formData.get('subject') as string;
       
-      // SendGrid sends body in 'html' or 'text' fields, but also check 'body-html' and 'body-plain'
-      htmlBody = (formData.get('html') as string) || 
-                 (formData.get('body-html') as string) || 
-                 (formData.get('text') as string) || 
-                 (formData.get('body-plain') as string) || 
-                 '';
+      // SendGrid sends the full raw email in the 'email' field
+      const rawEmail = formData.get('email') as string;
       
-      textBody = (formData.get('text') as string) || 
-                 (formData.get('body-plain') as string) || 
-                 '';
+      // Try to extract HTML from raw email (basic parsing)
+      if (rawEmail) {
+        // Look for HTML content between Content-Type: text/html and next boundary
+        const htmlMatch = rawEmail.match(/Content-Type: text\/html[^\n]*\n[^\n]*\n([\s\S]*?)(?=\n--)/);
+        if (htmlMatch && htmlMatch[1]) {
+          htmlBody = htmlMatch[1].trim();
+        }
+        
+        // Look for plain text content
+        const textMatch = rawEmail.match(/Content-Type: text\/plain[^\n]*\n[^\n]*\n([\s\S]*?)(?=\n--)/);
+        if (textMatch && textMatch[1]) {
+          textBody = textMatch[1].trim();
+        }
+      }
+      
+      // Fallback to direct fields if available
+      if (!htmlBody) {
+        htmlBody = (formData.get('html') as string) || 
+                   (formData.get('body-html') as string) || 
+                   textBody || '';
+      }
+      
+      if (!textBody) {
+        textBody = (formData.get('text') as string) || 
+                   (formData.get('body-plain') as string) || '';
+      }
       
       messageId = formData.get('headers') as string;
       
       console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
       console.log('Form data has html:', !!htmlBody, 'text:', !!textBody);
-      
-      // Debug: Log all form data keys to see what SendGrid actually sends
-      console.log('Available form data keys:', Array.from(formData.keys()).join(', '));
     }
 
     // Normalize recipient to array format
