@@ -132,28 +132,33 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
               <div className="flex-1">
                 <h3 className="font-semibold mb-2">Create Transport Rule</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Get the connector GUID and create a rule to route outbound emails:
+                  First verify the connector exists, then create the transport rule:
                 </p>
                 <div className="relative">
                   <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap">
-{`# Get connector GUID
+{`# Verify connector exists
 $connector = Get-OutboundConnector "SignatureConnector"
-$connectorGuid = $connector.Identity.Guid
-
-# Create transport rule using GUID
-New-TransportRule -Name "Route via Signature Connector" \\
-  -FromScope InOrganization \\
-  -SentToScope NotInOrganization \\
-  -RouteMessageOutboundConnector $connectorGuid \\
-  -Comments "Routes outbound emails through signature service" \\
-  -Priority 0`}
+if ($connector) {
+    Write-Host "Connector found: $($connector.Name)"
+    Write-Host "Connector GUID: $($connector.Identity)"
+    
+    # Create transport rule
+    New-TransportRule -Name "Route via Signature Connector" \\
+      -FromScope InOrganization \\
+      -SentToScope NotInOrganization \\
+      -RouteMessageOutboundConnector $connector.Identity \\
+      -Comments "Routes outbound emails through signature service" \\
+      -Priority 0
+} else {
+    Write-Host "ERROR: Connector not found. Please create it first."
+}`}
                   </pre>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="absolute top-2 right-2"
                     onClick={() => copyToClipboard(
-                      `$connector = Get-OutboundConnector "SignatureConnector"\n$connectorGuid = $connector.Identity.Guid\nNew-TransportRule -Name "Route via Signature Connector" -FromScope InOrganization -SentToScope NotInOrganization -RouteMessageOutboundConnector $connectorGuid -Comments "Routes outbound emails through signature service" -Priority 0`,
+                      `$connector = Get-OutboundConnector "SignatureConnector"\nif ($connector) {\n    Write-Host "Connector found: $($connector.Name)"\n    Write-Host "Connector GUID: $($connector.Identity)"\n    \n    New-TransportRule -Name "Route via Signature Connector" -FromScope InOrganization -SentToScope NotInOrganization -RouteMessageOutboundConnector $connector.Identity -Comments "Routes outbound emails through signature service" -Priority 0\n} else {\n    Write-Host "ERROR: Connector not found. Please create it first."\n}`,
                       3
                     )}
                   >
@@ -162,7 +167,7 @@ New-TransportRule -Name "Route via Signature Connector" \\
                 </div>
                 <Alert className="mt-3">
                   <AlertDescription className="text-xs">
-                    <strong>Note:</strong> If you still get the "not scoped" error, wait 1-2 minutes after creating the connector for Exchange to sync, then try again.
+                    <strong>Troubleshooting:</strong> If the connector is not found, wait 1-2 minutes for Exchange to sync after creating the connector, then run the command again. You can verify all connectors with: <code className="bg-muted px-1 py-0.5 rounded">Get-OutboundConnector | Format-Table Name, Identity</code>
                   </AlertDescription>
                 </Alert>
               </div>
