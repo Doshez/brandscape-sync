@@ -1,13 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm';
-import { Resend } from 'npm:resend@2.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-relay-secret',
 };
 
-const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
+const SENDGRID_API_KEY = Deno.env.get('SENDGRID_API_KEY');
 
 interface EmailData {
   from: string;
@@ -407,7 +406,7 @@ async function getBannersContent(bannerIds: string[]) {
 
 async function forwardEmail(emailData: EmailData) {
   try {
-    console.log('Forwarding email via Resend to:', emailData.to);
+    console.log('Forwarding email via SendGrid to:', emailData.to);
     
     // Ensure we have at least HTML or text content
     const html = emailData.htmlBody || undefined;
@@ -420,28 +419,43 @@ async function forwardEmail(emailData: EmailData) {
     
     console.log('Sending email with html:', !!html, 'text:', !!text);
     
-    const emailResponse = await resend.emails.send({
-      from: emailData.from,
+    const msg = {
       to: emailData.to,
+      from: emailData.from,
       subject: emailData.subject,
-      html: html,
       text: text,
+      html: html,
       headers: {
         'X-Processed-By-Relay': 'true',
         'X-Skip-Transport-Rule': 'true'
       }
+    };
+
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(msg),
     });
 
-    console.log('Email sent successfully via Resend:', emailResponse);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('SendGrid API error:', response.status, errorText);
+      throw new Error(`SendGrid API error: ${response.status} - ${errorText}`);
+    }
+
+    console.log('Email sent successfully via SendGrid');
     
     return {
       success: true,
       recipients: emailData.to,
-      resendId: emailResponse.data?.id,
+      sendgridResponse: response.status,
       timestamp: new Date().toISOString()
     };
   } catch (error: any) {
-    console.error('Error forwarding email via Resend:', error);
+    console.error('Error forwarding email via SendGrid:', error);
     throw new Error(`Failed to forward email: ${error.message}`);
   }
 }
