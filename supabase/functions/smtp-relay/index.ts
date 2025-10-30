@@ -336,7 +336,7 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
     }
   }
 
-  // Preserve exact Outlook HTML body - only add banner (top) and signature (bottom)
+  // Preserve exact Outlook HTML body - only add banner (header) and signature (footer)
   const originalHtmlBody = emailData.htmlBody || '';
 
   // Extract preheader text (first 150 chars of body for inbox preview) - remove styles first
@@ -353,45 +353,50 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
   
   const preheaderText = stripHtmlTags(originalHtmlBody).substring(0, 150);
   
-  // Build email: Preheader (hidden) -> Banner -> Original Body (unchanged) -> Signature
-  let bodyContent = '';
+  // Check if banner or signature already present
+  const hasBannerMarker = originalHtmlBody.includes('<!-- tracking-applied -->') || 
+                         originalHtmlBody.includes('data-tracking-applied="true"') ||
+                         originalHtmlBody.includes('banner-view-pixel');
+  const hasSignature = signatureHtml && originalHtmlBody.includes(signatureHtml.substring(0, 50));
+  
+  // Build proper HTML email structure with header, body, footer
+  let finalHtmlBody = '';
+  
+  // Start with proper email HTML structure
+  finalHtmlBody += '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;">\n';
   
   // 1. Add hidden preheader for inbox preview
   if (preheaderText) {
-    bodyContent += `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${preheaderText}</div>\n`;
+    finalHtmlBody += `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${preheaderText}</div>\n`;
   }
   
-  // 2. Prepend banner at top (only if not already present)
-  if (bannersHtml) {
-    const hasBannerMarker = originalHtmlBody.includes('<!-- tracking-applied -->') || 
-                           originalHtmlBody.includes('data-tracking-applied="true"') ||
-                           originalHtmlBody.includes('banner-view-pixel');
-    
-    if (!hasBannerMarker) {
-      console.log('Prepending banner to email header');
-      bodyContent += bannersHtml + '\n';
-    } else {
-      console.log('Banner already exists in email - skipping duplicate banner');
-    }
+  // 2. Header section with banner (only if not already present)
+  if (bannersHtml && !hasBannerMarker) {
+    console.log('Adding banner to email header section');
+    finalHtmlBody += '<header role="banner" style="display:block;width:100%;">\n';
+    finalHtmlBody += `  ${bannersHtml}\n`;
+    finalHtmlBody += '</header>\n';
+  } else if (hasBannerMarker) {
+    console.log('Banner already exists in email - skipping duplicate banner');
   }
   
-  // 3. Add the ORIGINAL body content without any modifications
-  bodyContent += originalHtmlBody;
+  // 3. Main body section - preserve ORIGINAL Outlook content unchanged
+  finalHtmlBody += '<main role="main" style="display:block;width:100%;">\n';
+  finalHtmlBody += `  ${originalHtmlBody}\n`;
+  finalHtmlBody += '</main>\n';
 
-  // 4. Append signature at footer (only if not already present)
-  if (signatureHtml) {
-    const hasSignature = originalHtmlBody.includes(signatureHtml.substring(0, 50));
-    
-    if (!hasSignature) {
-      console.log('Appending signature to email footer');
-      bodyContent += '\n' + signatureHtml;
-    } else {
-      console.log('Signature already exists in email - skipping duplicate signature');
-    }
+  // 4. Footer section with signature (only if not already present)
+  if (signatureHtml && !hasSignature) {
+    console.log('Adding signature to email footer section');
+    finalHtmlBody += '<footer role="contentinfo" style="display:block;width:100%;margin-top:20px;">\n';
+    finalHtmlBody += `  ${signatureHtml}\n`;
+    finalHtmlBody += '</footer>\n';
+  } else if (hasSignature) {
+    console.log('Signature already exists in email - skipping duplicate signature');
   }
-
-  // Final HTML body with banner, original content, and signature
-  const finalHtmlBody = bodyContent;
+  
+  // Close HTML structure
+  finalHtmlBody += '</body></html>';
 
   console.log('Email processed with signature and banners added');
 
