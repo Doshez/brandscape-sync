@@ -19,6 +19,8 @@ interface EmailData {
     content: string;
     filename: string;
     type: string;
+    disposition?: string;
+    content_id?: string;
   }>;
 }
 
@@ -165,24 +167,55 @@ const handler = async (req: Request): Promise<Response> => {
       
       messageId = formData.get('headers') as string;
       
-      // Extract attachments from form data
-      const attachmentCount = parseInt(formData.get('attachments') as string || '0');
-      if (attachmentCount > 0) {
-        for (let i = 1; i <= attachmentCount; i++) {
-          const attachmentFile = formData.get(`attachment${i}`) as File;
-          if (attachmentFile) {
-            // Read file as base64
-            const buffer = await attachmentFile.arrayBuffer();
-            const base64Content = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-            
-            attachments.push({
-              content: base64Content,
-              filename: attachmentFile.name,
-              type: attachmentFile.type || 'application/octet-stream'
-            });
-          }
+      // Extract attachments from SendGrid Inbound Parse format
+      // SendGrid provides attachment metadata in the 'attachment-info' field
+      const attachmentInfoStr = formData.get('attachment-info') as string;
+      let attachmentMetadata: any = {};
+      
+      if (attachmentInfoStr) {
+        try {
+          attachmentMetadata = JSON.parse(attachmentInfoStr);
+          console.log('Attachment metadata:', attachmentMetadata);
+        } catch (e) {
+          console.error('Failed to parse attachment-info:', e);
         }
-        console.log(`Extracted ${attachments.length} attachment(s)`);
+      }
+      
+      // Extract actual attachment files
+      // SendGrid sends them as attachment1, attachment2, etc.
+      let attachmentIndex = 1;
+      while (true) {
+        const attachmentFile = formData.get(`attachment${attachmentIndex}`) as File;
+        if (!attachmentFile) break;
+        
+        try {
+          // Read file as base64
+          const buffer = await attachmentFile.arrayBuffer();
+          const base64Content = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+          
+          // Get metadata for this attachment if available
+          const metadata = attachmentMetadata[`attachment${attachmentIndex}`] || {};
+          const contentId = metadata['content-id'] || metadata.cid;
+          const isInline = contentId || metadata.disposition === 'inline';
+          
+          attachments.push({
+            content: base64Content,
+            filename: metadata.filename || attachmentFile.name,
+            type: metadata.type || attachmentFile.type || 'application/octet-stream',
+            disposition: isInline ? 'inline' : 'attachment',
+            content_id: contentId
+          });
+          
+          console.log(`Extracted attachment ${attachmentIndex}: ${attachmentFile.name} (${isInline ? 'inline' : 'attachment'})`);
+        } catch (e) {
+          console.error(`Failed to process attachment${attachmentIndex}:`, e);
+        }
+        
+        attachmentIndex++;
+      }
+      
+      if (attachments.length > 0) {
+        console.log(`Total extracted: ${attachments.length} attachment(s)`);
       }
       
       console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
@@ -577,13 +610,22 @@ async function forwardEmail(emailData: EmailData) {
     
     // Add attachments if present
     if (emailData.attachments && emailData.attachments.length > 0) {
-      msg.attachments = emailData.attachments.map(att => ({
-        content: att.content,
-        filename: att.filename,
-        type: att.type,
-        disposition: 'attachment'
-      }));
-      console.log(`Adding ${emailData.attachments.length} attachment(s) to email`);
+      msg.attachments = emailData.attachments.map(att => {
+        const attachment: any = {
+          content: att.content,
+          filename: att.filename,
+          type: att.type,
+          disposition: att.disposition || 'attachment'
+        };
+        
+        // Add content_id for inline images
+        if (att.content_id) {
+          attachment.content_id = att.content_id;
+        }
+        
+        return attachment;
+      });
+      console.log(`Adding ${emailData.attachments.length} attachment(s) to email (${emailData.attachments.filter(a => a.disposition === 'inline').length} inline)`);
     }
 
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
