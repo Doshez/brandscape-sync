@@ -17,6 +17,7 @@ import { EmailRoutingPanel } from "./EmailRoutingPanel";
 import { EmailRouting } from "./EmailRouting";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { wrapBannerWithTracking } from "@/lib/bannerTracking";
+import { ExchangeConnectorGuide } from "./ExchangeConnectorGuide";
 
 
 interface UserAssignment {
@@ -41,6 +42,7 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [powershellScript, setPowershellScript] = useState<string>("");
   const [scriptType, setScriptType] = useState<"both" | "signature" | "banner">("both");
   const [isEmailPanelOpen, setIsEmailPanelOpen] = useState(false);
+  const [selectedDeploymentMethod, setSelectedDeploymentMethod] = useState<"transport-rules" | "email-routing" | "exchange-connector">("exchange-connector");
   
   // User assignment states
   const [users, setUsers] = useState<any[]>([]);
@@ -1281,11 +1283,15 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="transport-rules" className="w-full mt-6">
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs value={selectedDeploymentMethod} onValueChange={(value: any) => setSelectedDeploymentMethod(value)} className="w-full mt-6">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="transport-rules" className="flex items-center gap-2">
             <Terminal className="h-4 w-4" />
             Server-Side Transport Rules
+          </TabsTrigger>
+          <TabsTrigger value="exchange-connector" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Exchange Connector
           </TabsTrigger>
           <TabsTrigger value="email-routing" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
@@ -1833,7 +1839,12 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
             isOpen={isEmailPanelOpen}
             onClose={() => setIsEmailPanelOpen(false)}
             profile={profile}
+            deploymentMethod={selectedDeploymentMethod}
           />
+        </TabsContent>
+
+        <TabsContent value="exchange-connector" className="space-y-6 mt-6">
+          <ExchangeConnectorGuide />
         </TabsContent>
 
         <TabsContent value="email-routing" className="space-y-6 mt-6">

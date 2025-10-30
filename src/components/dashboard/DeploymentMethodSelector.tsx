@@ -2,12 +2,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, Server, Mail, CheckCircle2, XCircle } from "lucide-react";
+import { Info, Server, Mail, CheckCircle2, XCircle, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface DeploymentMethodSelectorProps {
-  selectedMethod: "transport-rules" | "email-routing";
-  onMethodChange: (method: "transport-rules" | "email-routing") => void;
+  selectedMethod: "transport-rules" | "email-routing" | "exchange-connector";
+  onMethodChange: (method: "transport-rules" | "email-routing" | "exchange-connector") => void;
 }
 
 export const DeploymentMethodSelector = ({
@@ -92,7 +92,7 @@ export const DeploymentMethodSelector = ({
                         <Mail className="inline h-4 w-4 mr-2" />
                         Email Routing (SMTP Relay)
                       </Label>
-                      <Badge variant="secondary">Advanced</Badge>
+                      <Badge variant="secondary">Legacy</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Route emails through our service to automatically attach signatures and banners before delivery
@@ -101,35 +101,67 @@ export const DeploymentMethodSelector = ({
                     <div className="space-y-2 mt-4">
                       <div className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>Guarantees signature and banner attachment on every email</span>
-                      </div>
-                      <div className="flex items-start gap-2 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                         <span>Works with any email client and provider</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>Advanced tracking and analytics for banners</span>
-                      </div>
-                      <div className="flex items-start gap-2 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>Dynamic content insertion per user</span>
-                      </div>
-                      <div className="flex items-start gap-2 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span>No Exchange Admin permissions required</span>
+                        <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                        <span>CC/BCC may not work correctly</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span>Requires DNS configuration (MX or connector records)</span>
+                        <span>Multiple recipients may cause issues</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
                         <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span>Emails route through external service</span>
+                        <span>Attachments may not work properly</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Exchange Connector Option */}
+            <Card className={selectedMethod === "exchange-connector" ? "border-primary" : ""}>
+              <CardContent className="pt-6">
+                <div className="flex items-start space-x-3">
+                  <RadioGroupItem value="exchange-connector" id="exchange-connector" />
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="exchange-connector" className="text-base font-semibold cursor-pointer">
+                        <Link2 className="inline h-4 w-4 mr-2" />
+                        Exchange Connector (Rocketseed Style)
+                      </Label>
+                      <Badge>Best Solution</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Exchange routes emails to our service → we add signatures/banners → forward via SendGrid with perfect preservation
+                    </p>
+                    
+                    <div className="space-y-2 mt-4">
+                      <div className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>Perfect CC/BCC handling - all recipients preserved</span>
                       </div>
                       <div className="flex items-start gap-2 text-sm">
-                        <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span>May add slight delivery delay (typically &lt;1 second)</span>
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>Multiple recipients work flawlessly</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>Original sender address preserved</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>Attachments remain intact</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>Full banner tracking and analytics</span>
+                      </div>
+                      <div className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        <span>Works with all Outlook versions and mobile</span>
                       </div>
                     </div>
                   </div>

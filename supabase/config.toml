@@ -3,6 +3,9 @@ project_id = "ddoihmeqpjjiumqndjgk"
 [functions.smtp-relay]
 verify_jwt = false
 
+[functions.exchange-connector-relay]
+verify_jwt = false
+
 [functions.microsoft-graph-auth]
 verify_jwt = false
 
