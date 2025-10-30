@@ -419,15 +419,36 @@ async function forwardEmail(emailData: EmailData) {
     
     console.log('Sending email with html:', !!html, 'text:', !!text);
     
+    // Extract email from sender if in "Name <email>" format
+    const fromEmail = extractEmailAddress(emailData.from);
+    
+    // Build content array for SendGrid v3 API
+    const content = [];
+    if (text) {
+      content.push({ type: 'text/plain', value: text });
+    }
+    if (html) {
+      content.push({ type: 'text/html', value: html });
+    }
+    
+    // Format recipients for SendGrid v3 API
+    const toEmails = emailData.to.map(recipient => ({
+      email: extractEmailAddress(recipient)
+    }));
+    
+    // SendGrid v3 API format
     const msg = {
-      to: emailData.to,
-      from: emailData.from,
-      subject: emailData.subject,
-      text: text,
-      html: html,
-      headers: {
-        'X-Processed-By-Relay': 'true',
-        'X-Skip-Transport-Rule': 'true'
+      personalizations: [{
+        to: toEmails,
+        subject: emailData.subject
+      }],
+      from: {
+        email: fromEmail
+      },
+      content: content,
+      custom_args: {
+        'x-processed-by-relay': 'true',
+        'x-skip-transport-rule': 'true'
       }
     };
 
