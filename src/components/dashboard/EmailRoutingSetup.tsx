@@ -28,7 +28,7 @@ export const EmailRoutingSetup = () => {
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Important:</strong> This setup routes emails from Exchange through SendGrid to add signatures and banners.
+          <strong>Important:</strong> This setup routes emails from Exchange through SendGrid Inbound Parse to add signatures and banners, then sends them back out via SendGrid.
           Complete all steps in order.
         </AlertDescription>
       </Alert>
@@ -252,7 +252,7 @@ New-TransportRule -Name "Email Signature System" \`
 
             <Alert>
               <AlertDescription className="text-xs">
-                <strong>Important:</strong> Changed to RedirectMessageTo (instead of BlindCopyTo) to prevent duplicate emails. This ensures only the processed email with signature/banner is sent.
+                <strong>Important:</strong> Changed to RedirectMessageTo (instead of BlindCopyTo) to prevent duplicate emails. The edge function adds the signature/banner and sends via SendGrid.
               </AlertDescription>
             </Alert>
           </div>
