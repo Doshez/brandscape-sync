@@ -105,12 +105,25 @@ const handler = async (req: Request): Promise<Response> => {
       sender = formData.get('from') as string;
       recipient = formData.get('to') as string;
       subject = formData.get('subject') as string;
-      htmlBody = formData.get('html') as string || formData.get('text') as string || '';
-      textBody = formData.get('text') as string || '';
+      
+      // SendGrid sends body in 'html' or 'text' fields, but also check 'body-html' and 'body-plain'
+      htmlBody = (formData.get('html') as string) || 
+                 (formData.get('body-html') as string) || 
+                 (formData.get('text') as string) || 
+                 (formData.get('body-plain') as string) || 
+                 '';
+      
+      textBody = (formData.get('text') as string) || 
+                 (formData.get('body-plain') as string) || 
+                 '';
+      
       messageId = formData.get('headers') as string;
       
       console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
       console.log('Form data has html:', !!htmlBody, 'text:', !!textBody);
+      
+      // Debug: Log all form data keys to see what SendGrid actually sends
+      console.log('Available form data keys:', Array.from(formData.keys()).join(', '));
     }
 
     // Normalize recipient to array format
