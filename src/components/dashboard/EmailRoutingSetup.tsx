@@ -236,13 +236,15 @@ export const EmailRoutingSetup = () => {
 New-TransportRule -Name "Email Signature System" \`
   -SentToScope NotInOrganization \`
   -BlindCopyTo "relay@mail.cioafrica.co" \`
+  -ExceptIfHeaderContainsMessageHeader "X-Processed-By-Relay" \`
+  -ExceptIfHeaderContainsWords "true" \`
   -Priority 0`}
               </pre>
               <Button
                 size="sm"
                 variant="outline"
                 className="absolute top-2 right-2"
-                onClick={() => copyToClipboard(`Connect-ExchangeOnline\n\nNew-TransportRule -Name "Email Signature System" \`\n  -SentToScope NotInOrganization \`\n  -BlindCopyTo "relay@mail.cioafrica.co" \`\n  -Priority 0`, "PowerShell Script")}
+                onClick={() => copyToClipboard(`Connect-ExchangeOnline\n\nNew-TransportRule -Name "Email Signature System" \`\n  -SentToScope NotInOrganization \`\n  -BlindCopyTo "relay@mail.cioafrica.co" \`\n  -ExceptIfHeaderContainsMessageHeader "X-Processed-By-Relay" \`\n  -ExceptIfHeaderContainsWords "true" \`\n  -Priority 0`, "PowerShell Script")}
               >
                 {copiedStep === "PowerShell Script" ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
@@ -250,7 +252,7 @@ New-TransportRule -Name "Email Signature System" \`
 
             <Alert>
               <AlertDescription className="text-xs">
-                <strong>Important:</strong> Use relay@mail.cioafrica.co (or any email address at your mail.cioafrica.co subdomain).
+                <strong>Important:</strong> The ExceptIf conditions prevent email loops by skipping already-processed messages.
               </AlertDescription>
             </Alert>
           </div>

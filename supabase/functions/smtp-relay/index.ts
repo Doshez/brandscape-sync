@@ -63,6 +63,21 @@ const handler = async (req: Request): Promise<Response> => {
       console.log('No relay secret provided - allowing request (SendGrid Inbound Parse mode)');
     }
 
+    // Check if email was already processed (prevent loops)
+    const alreadyProcessed = req.headers.get('x-processed-by-relay') === 'true' ||
+                             req.headers.get('x-skip-transport-rule') === 'true';
+    
+    if (alreadyProcessed) {
+      console.log('Email already processed - skipping to prevent loop');
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Email already processed, skipping duplicate' 
+      }), { 
+        status: 200, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
     // Check content type to determine how to parse the request
     const contentType = req.headers.get('content-type') || '';
     let sender: string;
@@ -360,7 +375,11 @@ async function forwardEmail(emailData: EmailData) {
       to: emailData.to,
       subject: emailData.subject,
       html: emailData.htmlBody,
-      text: emailData.textBody
+      text: emailData.textBody,
+      headers: {
+        'X-Processed-By-Relay': 'true',
+        'X-Skip-Transport-Rule': 'true'
+      }
     });
 
     console.log('Email sent successfully via Resend:', emailResponse);
