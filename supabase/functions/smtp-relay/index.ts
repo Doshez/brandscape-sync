@@ -444,7 +444,11 @@ async function forwardEmail(emailData: EmailData) {
     // Extract email from sender if in "Name <email>" format
     const fromEmail = extractEmailAddress(emailData.from);
     
-    // Build content array for SendGrid v3 API
+    // Extract display name from sender (if available)
+    const displayNameMatch = emailData.from.match(/^(.+?)\s*</);
+    const displayName = displayNameMatch ? displayNameMatch[1].replace(/["']/g, '').trim() : fromEmail.split('@')[0];
+    
+    // Build content array for SendGrid v3 API - ALWAYS put text/plain first
     const content = [];
     if (text) {
       content.push({ type: 'text/plain', value: text });
@@ -458,19 +462,36 @@ async function forwardEmail(emailData: EmailData) {
       email: extractEmailAddress(recipient)
     }));
     
-    // SendGrid v3 API format
+    // SendGrid v3 API format with improved deliverability headers
     const msg = {
       personalizations: [{
         to: toEmails,
         subject: emailData.subject
       }],
       from: {
-        email: fromEmail
+        email: fromEmail,
+        name: displayName  // Add sender name for better deliverability
+      },
+      reply_to: {
+        email: fromEmail,  // Set reply-to to original sender
+        name: displayName
       },
       content: content,
+      headers: {
+        // Headers to improve Primary inbox placement
+        'X-Priority': '3',  // Normal priority (not urgent, not low)
+        'X-Entity-Ref-ID': emailData.messageId,  // Reference to original message
+        'Importance': 'normal'  // Mark as normal personal email
+      },
       custom_args: {
         'x-processed-by-relay': 'true',
         'x-skip-transport-rule': 'true'
+      },
+      // Disable click/open tracking to avoid promotional categorization
+      tracking_settings: {
+        click_tracking: { enable: false },
+        open_tracking: { enable: false },
+        subscription_tracking: { enable: false }
       }
     };
 
