@@ -444,9 +444,20 @@ async function forwardEmail(emailData: EmailData) {
     // Extract email from sender if in "Name <email>" format
     const fromEmail = extractEmailAddress(emailData.from);
     
-    // Extract display name from sender (if available)
-    const displayNameMatch = emailData.from.match(/^(.+?)\s*</);
-    const displayName = displayNameMatch ? displayNameMatch[1].replace(/["']/g, '').trim() : fromEmail.split('@')[0];
+    // Extract display name from sender (if available) - preserve original Outlook name
+    let displayName = '';
+    const displayNameMatch = emailData.from.match(/^["']?([^"'<]+?)["']?\s*</);
+    if (displayNameMatch) {
+      displayName = displayNameMatch[1].trim();
+    } else {
+      // If no display name in angle brackets, check if the whole string is "Name" before @
+      const nameBeforeAt = emailData.from.split('@')[0];
+      displayName = nameBeforeAt.replace(/[._-]/g, ' ').trim();
+    }
+    
+    console.log('Original sender:', emailData.from);
+    console.log('Extracted email:', fromEmail);
+    console.log('Extracted display name:', displayName);
     
     // Build content array for SendGrid v3 API - ALWAYS put text/plain first
     const content = [];
@@ -462,32 +473,34 @@ async function forwardEmail(emailData: EmailData) {
       email: extractEmailAddress(recipient)
     }));
     
-    // SendGrid v3 API format with improved deliverability headers
+    // SendGrid v3 API format - use original sender's email and name
     const msg = {
       personalizations: [{
         to: toEmails,
         subject: emailData.subject
       }],
       from: {
-        email: fromEmail,
-        name: displayName  // Add sender name for better deliverability
+        email: fromEmail,  // Use original Outlook sender email
+        name: displayName   // Use original Outlook sender name
       },
       reply_to: {
-        email: fromEmail,  // Set reply-to to original sender
+        email: fromEmail,  // Ensure replies go to original sender
         name: displayName
       },
       content: content,
       headers: {
-        // Headers to improve Primary inbox placement
-        'X-Priority': '3',  // Normal priority (not urgent, not low)
-        'X-Entity-Ref-ID': emailData.messageId,  // Reference to original message
-        'Importance': 'normal'  // Mark as normal personal email
+        // Headers to improve Primary inbox placement and preserve sender identity
+        'X-Priority': '3',
+        'X-Entity-Ref-ID': emailData.messageId,
+        'Importance': 'normal',
+        'X-Original-Sender': fromEmail  // Preserve original sender info
       },
       custom_args: {
         'x-processed-by-relay': 'true',
-        'x-skip-transport-rule': 'true'
+        'x-skip-transport-rule': 'true',
+        'x-original-sender': fromEmail
       },
-      // Disable click/open tracking to avoid promotional categorization
+      // Disable tracking to avoid promotional categorization
       tracking_settings: {
         click_tracking: { enable: false },
         open_tracking: { enable: false },
