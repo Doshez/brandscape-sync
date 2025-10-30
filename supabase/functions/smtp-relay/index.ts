@@ -111,15 +111,37 @@ const handler = async (req: Request): Promise<Response> => {
       // Try to extract HTML from raw email (basic parsing)
       if (rawEmail) {
         // Look for HTML content between Content-Type: text/html and next boundary
-        const htmlMatch = rawEmail.match(/Content-Type: text\/html[^\n]*\n[^\n]*\n([\s\S]*?)(?=\n--)/);
-        if (htmlMatch && htmlMatch[1]) {
-          htmlBody = htmlMatch[1].trim();
+        const htmlMatch = rawEmail.match(/Content-Type: text\/html[^\n]*\n([^\n]*\n)?([\s\S]*?)(?=\n--)/);
+        if (htmlMatch && htmlMatch[2]) {
+          let content = htmlMatch[2].trim();
+          // Check if content is base64 encoded by looking at the Content-Transfer-Encoding header
+          const isBase64 = htmlMatch[1] && htmlMatch[1].includes('base64');
+          if (isBase64) {
+            try {
+              // Decode base64 content
+              content = atob(content.replace(/\n/g, ''));
+            } catch (e) {
+              console.error('Failed to decode base64 HTML:', e);
+            }
+          }
+          htmlBody = content;
         }
         
         // Look for plain text content
-        const textMatch = rawEmail.match(/Content-Type: text\/plain[^\n]*\n[^\n]*\n([\s\S]*?)(?=\n--)/);
-        if (textMatch && textMatch[1]) {
-          textBody = textMatch[1].trim();
+        const textMatch = rawEmail.match(/Content-Type: text\/plain[^\n]*\n([^\n]*\n)?([\s\S]*?)(?=\n--)/);
+        if (textMatch && textMatch[2]) {
+          let content = textMatch[2].trim();
+          // Check if content is base64 encoded
+          const isBase64 = textMatch[1] && textMatch[1].includes('base64');
+          if (isBase64) {
+            try {
+              // Decode base64 content
+              content = atob(content.replace(/\n/g, ''));
+            } catch (e) {
+              console.error('Failed to decode base64 text:', e);
+            }
+          }
+          textBody = content;
         }
       }
       
