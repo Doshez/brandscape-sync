@@ -247,9 +247,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Process email and add signature/banners
     const processedEmail = await processEmail(emailData);
 
-    // Forward the processed email via Microsoft Exchange
-    console.log('SMTP Relay: Forwarding email via Microsoft Exchange');
-    const forwardResult = await forwardViaExchange(processedEmail);
+    // Forward the processed email via SendGrid
+    console.log('SMTP Relay: Forwarding email via SendGrid');
+    const forwardResult = await forwardEmail(processedEmail);
 
     console.log('SMTP Relay: Email processed and forwarded successfully');
 
@@ -497,98 +497,15 @@ async function getBannersContent(bannerIds: string[]) {
   }
 }
 
-// Helper function to refresh Exchange token
-async function refreshExchangeToken(connection: any): Promise<string> {
-  console.log('Refreshing Exchange token for:', connection.email);
-  
-  const refreshResponse = await fetch("https://login.microsoftonline.com/organizations/oauth2/v2.0/token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
-      client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
-      refresh_token: connection.refresh_token,
-      grant_type: "refresh_token",
-      scope: "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite offline_access",
-    }),
-  });
-  
-  if (!refreshResponse.ok) {
-    const errorData = await refreshResponse.json();
-    console.error('Token refresh failed:', errorData);
-    throw new Error(`Failed to refresh Exchange token: ${errorData.error_description || errorData.error}`);
-  }
-  
-  const tokenData = await refreshResponse.json();
-  const newExpiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
-  
-  // Update the connection with new tokens
-  const { error: updateError } = await supabase
-    .from('exchange_connections')
-    .update({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token || connection.refresh_token,
-      token_expires_at: newExpiresAt.toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', connection.id);
-  
-  if (updateError) {
-    console.error('Failed to update connection:', updateError);
-    throw new Error('Failed to save refreshed tokens');
-  }
-  
-  console.log('Exchange token refreshed successfully');
-  return tokenData.access_token;
-}
-
-// New function to forward email via Microsoft Exchange
-async function forwardViaExchange(emailData: EmailData) {
+// Forward email via SendGrid
+async function forwardEmail(emailData: EmailData) {
   try {
-    console.log('Forwarding email via Microsoft Exchange to:', emailData.to);
+    console.log('Forwarding email via SendGrid to:', emailData.to);
     
-    // Extract sender email address
-    const senderEmail = extractEmailAddress(emailData.from);
-    console.log('Looking up Exchange connection for:', senderEmail);
-    
-    // Get the sender's Exchange connection
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .eq('email', senderEmail)
-      .single();
-    
-    if (profileError || !profile) {
-      console.error('Profile not found for sender:', senderEmail, profileError);
-      throw new Error(`No profile found for sender: ${senderEmail}`);
+    if (!SENDGRID_API_KEY) {
+      throw new Error('SENDGRID_API_KEY is not configured');
     }
-    
-    const { data: connection, error: connError } = await supabase
-      .from('exchange_connections')
-      .select('*')
-      .eq('email', senderEmail)
-      .eq('is_active', true)
-      .single();
-    
-    if (connError || !connection) {
-      console.error('No active Exchange connection found for:', senderEmail, connError);
-      throw new Error(`No active Exchange connection for: ${senderEmail}`);
-    }
-    
-    console.log('Found Exchange connection for:', connection.email);
-    
-    // Check if token is expired and refresh if needed
-    let accessToken = connection.access_token;
-    const tokenExpiresAt = new Date(connection.token_expires_at);
-    const now = new Date();
-    
-    if (tokenExpiresAt <= now) {
-      console.log('Access token expired, refreshing...');
-      accessToken = await refreshExchangeToken(connection);
-    }
-    
+
     // Prepare email content
     const html = emailData.htmlBody || undefined;
     const text = emailData.textBody || (emailData.htmlBody ? stripHtml(emailData.htmlBody) : undefined);
@@ -596,83 +513,66 @@ async function forwardViaExchange(emailData: EmailData) {
     if (!html && !text) {
       throw new Error('Email has no content');
     }
-    
-    // Build Microsoft Graph API email message
-    const message: any = {
-      subject: emailData.subject,
-      body: {
-        contentType: html ? 'HTML' : 'Text',
-        content: html || text
+
+    // Build SendGrid email payload
+    const sendGridPayload: any = {
+      personalizations: [{
+        to: emailData.to.map(recipient => ({
+          email: extractEmailAddress(recipient)
+        })),
+      }],
+      from: {
+        email: extractEmailAddress(emailData.from)
       },
-      toRecipients: emailData.to.map(recipient => ({
-        emailAddress: {
-          address: extractEmailAddress(recipient)
-        }
-      })),
-      importance: 'normal'
+      subject: emailData.subject,
+      content: [
+        ...(html ? [{ type: 'text/html', value: html }] : []),
+        ...(text ? [{ type: 'text/plain', value: text }] : [])
+      ],
+      // Add custom header to prevent processing loops
+      headers: {
+        'X-Processed-By-Relay': 'true'
+      }
     };
-    
+
     // Add attachments if present
     if (emailData.attachments && emailData.attachments.length > 0) {
-      message.attachments = emailData.attachments.map(att => ({
-        '@odata.type': att.disposition === 'inline' ? '#microsoft.graph.fileAttachment' : '#microsoft.graph.fileAttachment',
-        name: att.filename,
-        contentType: att.type,
-        contentBytes: att.content,
-        isInline: att.disposition === 'inline',
-        contentId: att.content_id || undefined
+      sendGridPayload.attachments = emailData.attachments.map(att => ({
+        content: att.content,
+        filename: att.filename,
+        type: att.type,
+        disposition: att.disposition || 'attachment',
+        content_id: att.content_id
       }));
-      console.log(`Adding ${emailData.attachments.length} attachment(s) to Exchange email`);
+      console.log(`Adding ${emailData.attachments.length} attachment(s) to SendGrid email`);
     }
-    
-    // Send email via Microsoft Graph API
-    const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+
+    // Send via SendGrid API
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message, saveToSentItems: true }),
+      body: JSON.stringify(sendGridPayload),
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Microsoft Graph API error:', response.status, errorText);
-      
-      // If token error, try refreshing once more
-      if (response.status === 401) {
-        console.log('Token might be invalid, attempting refresh...');
-        accessToken = await refreshExchangeToken(connection);
-        
-        // Retry the send
-        const retryResponse = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ message, saveToSentItems: true }),
-        });
-        
-        if (!retryResponse.ok) {
-          const retryError = await retryResponse.text();
-          throw new Error(`Microsoft Graph API error after refresh: ${retryResponse.status} - ${retryError}`);
-        }
-      } else {
-        throw new Error(`Microsoft Graph API error: ${response.status} - ${errorText}`);
-      }
+      console.error('SendGrid API error:', response.status, errorText);
+      throw new Error(`SendGrid API error: ${response.status} - ${errorText}`);
     }
-    
-    console.log('Email sent successfully via Microsoft Exchange');
+
+    console.log('Email sent successfully via SendGrid');
     
     return {
       success: true,
       recipients: emailData.to,
-      exchangeResponse: response.status,
+      sendGridResponse: response.status,
       timestamp: new Date().toISOString()
     };
   } catch (error: any) {
-    console.error('Error forwarding email via Exchange:', error);
+    console.error('Error forwarding email via SendGrid:', error);
     throw new Error(`Failed to forward email: ${error.message}`);
   }
 }
