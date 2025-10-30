@@ -98,17 +98,19 @@ const handler = async (req: Request): Promise<Response> => {
       messageId = jsonData.messageId || `test-${Date.now()}@relay`;
       
       console.log('SMTP Relay: Processing JSON email from:', sender, 'to:', recipient);
+      console.log('JSON email has html:', !!htmlBody, 'text:', !!textBody);
     } else {
       // Handle form data (from SendGrid Inbound Parse webhook)
       const formData = await req.formData();
       sender = formData.get('from') as string;
       recipient = formData.get('to') as string;
       subject = formData.get('subject') as string;
-      htmlBody = formData.get('html') as string || formData.get('text') as string;
-      textBody = formData.get('text') as string;
+      htmlBody = formData.get('html') as string || formData.get('text') as string || '';
+      textBody = formData.get('text') as string || '';
       messageId = formData.get('headers') as string;
       
       console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
+      console.log('Form data has html:', !!htmlBody, 'text:', !!textBody);
     }
 
     // Normalize recipient to array format
@@ -180,6 +182,14 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
   // Extract just the email address from the sender field
   const senderEmail = extractEmailAddress(emailData.from);
   console.log('Extracted email address:', senderEmail);
+
+  // Ensure we have some content to work with
+  if (!emailData.htmlBody && !emailData.textBody) {
+    console.log('Warning: Email has no content body');
+    // Set a minimal HTML body to avoid Resend rejection
+    emailData.htmlBody = '<p>This is an automated email.</p>';
+    emailData.textBody = 'This is an automated email.';
+  }
 
   // Get user assignments for signature and banners
   const assignment = await getUserAssignment(senderEmail);
