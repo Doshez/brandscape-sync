@@ -126,6 +126,11 @@ const handler = async (req: Request): Promise<Response> => {
       if (rawEmail) {
         console.log('Parsing raw email (length:', rawEmail.length, 'bytes)');
         
+        // Log first 2000 chars of raw email to understand structure
+        console.log('Raw email sample (first 2000 chars):');
+        console.log(rawEmail.substring(0, 2000));
+        console.log('...');
+        
         // Look for HTML content between Content-Type: text/html and next boundary
         const htmlMatch = rawEmail.match(/Content-Type: text\/html[^\n]*\n([^\n]*\n)?([\s\S]*?)(?=\n--)/);
         if (htmlMatch && htmlMatch[2]) {
