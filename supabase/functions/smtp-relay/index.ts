@@ -126,8 +126,8 @@ const handler = async (req: Request): Promise<Response> => {
       if (rawEmail) {
         console.log('Parsing raw email (length:', rawEmail.length, 'bytes)');
         
-        // Look for MIME boundaries
-        const boundaryMatch = rawEmail.match(/boundary="([^"]+)"/);
+        // Look for MIME boundaries (with or without quotes)
+        const boundaryMatch = rawEmail.match(/boundary[=:][\s"]*([^\s";]+)/i);
         const boundary = boundaryMatch ? boundaryMatch[1] : null;
         console.log('MIME boundary:', boundary);
         
@@ -178,56 +178,90 @@ const handler = async (req: Request): Promise<Response> => {
           textBody = content;
         }
         
-        // Parse attachments from raw email
-        // Look for Content-Disposition: attachment or inline parts
-        const attachmentPattern = /Content-Type: ([^\r\n;]+)[^\r\n]*[\r\n]+(?:Content-Transfer-Encoding: ([^\r\n]+)[\r\n]+)?(?:Content-Disposition: ([^\r\n]+)[\r\n]+)?(?:Content-ID: <([^>]+)>[\r\n]+)?[^\r\n]*name="?([^"\r\n]+)"?[^\r\n]*[\r\n]+[\r\n]+([\s\S]*?)(?=\r?\n--)/g;
-        
-        let attachmentMatch;
-        let attachmentCount = 0;
-        while ((attachmentMatch = attachmentPattern.exec(rawEmail)) !== null) {
-          const [, contentType, encoding, disposition, contentId, filename, content] = attachmentMatch;
+        // Parse attachments from raw email - simpler approach
+        // Split by boundaries and process each part
+        if (boundary) {
+          const parts = rawEmail.split(`--${boundary}`);
+          console.log(`Split email into ${parts.length} MIME parts using boundary: ${boundary}`);
           
-          // Skip if it's text/html or text/plain (already handled)
-          if (contentType.includes('text/html') || contentType.includes('text/plain')) {
-            continue;
-          }
-          
-          // Only process if it has a filename or is explicitly marked as attachment/inline
-          if (filename || (disposition && (disposition.includes('attachment') || disposition.includes('inline')))) {
+          let attachmentCount = 0;
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            
+            // Check if this part has Content-Disposition: attachment
+            const dispositionMatch = part.match(/Content-Disposition:\s*(attachment|inline)[^\r\n]*/i);
+            if (!dispositionMatch) continue;
+            
+            const isInline = dispositionMatch[1].toLowerCase() === 'inline';
+            
+            // Extract Content-Type
+            const contentTypeMatch = part.match(/Content-Type:\s*([^;\r\n]+)/i);
+            if (!contentTypeMatch) continue;
+            const contentType = contentTypeMatch[1].trim();
+            
+            // Skip text/html and text/plain
+            if (contentType.includes('text/html') || contentType.includes('text/plain')) {
+              continue;
+            }
+            
+            // Extract filename
+            const filenameMatch = part.match(/(?:filename|name)="?([^"\r\n]+)"?/i);
+            if (!filenameMatch) continue;
+            const filename = filenameMatch[1].trim();
+            
+            // Extract Content-Transfer-Encoding
+            const encodingMatch = part.match(/Content-Transfer-Encoding:\s*([^\r\n]+)/i);
+            const encoding = encodingMatch ? encodingMatch[1].trim().toLowerCase() : '';
+            
+            // Extract Content-ID for inline images
+            const contentIdMatch = part.match(/Content-ID:\s*<?([^>\r\n]+)>?/i);
+            const contentId = contentIdMatch ? contentIdMatch[1].trim() : undefined;
+            
+            // Extract content (after double newline)
+            const contentMatch = part.match(/\r?\n\r?\n([\s\S]+?)(?=\r?\n--|\r?\n$|$)/);
+            if (!contentMatch) {
+              console.log(`Part ${i}: No content found for ${filename}`);
+              continue;
+            }
+            
             try {
-              // Clean up the content (remove whitespace/newlines for base64)
-              let cleanContent = content.trim().replace(/[\r\n]/g, '');
+              let content = contentMatch[1].trim();
               
-              // If it's base64 encoded, keep it as-is for SendGrid
-              // Otherwise, we need to encode it
-              if (!encoding || !encoding.includes('base64')) {
-                // Convert to base64 if not already
-                cleanContent = btoa(cleanContent);
+              // If base64, remove all whitespace and newlines
+              if (encoding === 'base64') {
+                content = content.replace(/[\r\n\s]/g, '');
+              } else if (encoding === 'quoted-printable') {
+                // For quoted-printable, we'd need to decode it, but let's try as-is first
+                console.log(`Warning: quoted-printable encoding not fully supported for ${filename}`);
+              } else {
+                // Assume binary, encode to base64
+                content = btoa(content);
               }
               
-              const isInline = disposition && disposition.includes('inline');
-              
               attachments.push({
-                content: cleanContent,
-                filename: filename || `attachment${attachmentCount + 1}`,
-                type: contentType.trim(),
+                content: content,
+                filename: filename,
+                type: contentType,
                 disposition: isInline ? 'inline' : 'attachment',
-                content_id: contentId || undefined
+                content_id: contentId
               });
               
               attachmentCount++;
-              console.log(`Extracted attachment ${attachmentCount} from raw email: ${filename}`);
-              console.log(`  Type: ${contentType}, Encoding: ${encoding || 'none'}, Disposition: ${isInline ? 'inline' : 'attachment'}`);
+              console.log(`✅ Extracted attachment ${attachmentCount}: ${filename}`);
+              console.log(`   Type: ${contentType}, Encoding: ${encoding}, Disposition: ${isInline ? 'inline' : 'attachment'}`);
+              if (contentId) console.log(`   Content-ID: ${contentId}`);
             } catch (e) {
-              console.error(`Failed to extract attachment ${attachmentCount + 1}:`, e);
+              console.error(`❌ Failed to extract attachment ${filename}:`, e);
             }
           }
-        }
-        
-        if (attachmentCount > 0) {
-          console.log(`✅ Extracted ${attachmentCount} attachment(s) from raw email`);
+          
+          if (attachmentCount > 0) {
+            console.log(`🎉 Total extracted: ${attachmentCount} attachment(s) from raw email`);
+          } else {
+            console.log('No attachments extracted from email parts');
+          }
         } else {
-          console.log('No attachments found in raw email');
+          console.log('No MIME boundary found - cannot parse multipart email');
         }
       }
       
