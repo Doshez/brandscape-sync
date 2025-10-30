@@ -15,6 +15,11 @@ interface EmailData {
   htmlBody: string;
   textBody?: string;
   messageId: string;
+  attachments?: Array<{
+    content: string;
+    filename: string;
+    type: string;
+  }>;
 }
 
 interface UserAssignment {
@@ -85,6 +90,7 @@ const handler = async (req: Request): Promise<Response> => {
     let htmlBody: string;
     let textBody: string;
     let messageId: string;
+    let attachments: Array<{ content: string; filename: string; type: string }> = [];
 
     if (contentType.includes('application/json')) {
       // Handle JSON format (from test emails or direct API calls)
@@ -159,6 +165,26 @@ const handler = async (req: Request): Promise<Response> => {
       
       messageId = formData.get('headers') as string;
       
+      // Extract attachments from form data
+      const attachmentCount = parseInt(formData.get('attachments') as string || '0');
+      if (attachmentCount > 0) {
+        for (let i = 1; i <= attachmentCount; i++) {
+          const attachmentFile = formData.get(`attachment${i}`) as File;
+          if (attachmentFile) {
+            // Read file as base64
+            const buffer = await attachmentFile.arrayBuffer();
+            const base64Content = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+            
+            attachments.push({
+              content: base64Content,
+              filename: attachmentFile.name,
+              type: attachmentFile.type || 'application/octet-stream'
+            });
+          }
+        }
+        console.log(`Extracted ${attachments.length} attachment(s)`);
+      }
+      
       console.log('SMTP Relay: Processing form data email from:', sender, 'to:', recipient);
       console.log('Form data has html:', !!htmlBody, 'text:', !!textBody);
     }
@@ -181,7 +207,8 @@ const handler = async (req: Request): Promise<Response> => {
       subject,
       htmlBody: htmlBody || textBody || '',
       textBody,
-      messageId: messageId || `${Date.now()}@smtp-relay`
+      messageId: messageId || `${Date.now()}@smtp-relay`,
+      attachments: attachments.length > 0 ? attachments : undefined
     };
 
     // Process email and add signature/banners
@@ -279,9 +306,14 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
   // Preserve exact Outlook HTML body - only add banner (top) and signature (bottom)
   const originalHtmlBody = emailData.htmlBody || '';
 
-  // Extract preheader text (first 150 chars of body for inbox preview)
+  // Extract preheader text (first 150 chars of body for inbox preview) - remove styles first
   const stripHtmlTags = (html: string) => {
-    return html.replace(/<[^>]*>/g, ' ')
+    return html
+      .replace(/<style[^>]*>.*?<\/style>/gis, '') // Remove style tags first
+      .replace(/<script[^>]*>.*?<\/script>/gis, '') // Remove script tags
+      .replace(/<[^>]*>/g, ' ') // Remove all HTML tags
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&[a-z]+;/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   };
@@ -542,6 +574,17 @@ async function forwardEmail(emailData: EmailData) {
         bypass_list_management: { enable: true }
       }
     };
+    
+    // Add attachments if present
+    if (emailData.attachments && emailData.attachments.length > 0) {
+      msg.attachments = emailData.attachments.map(att => ({
+        content: att.content,
+        filename: att.filename,
+        type: att.type,
+        disposition: 'attachment'
+      }));
+      console.log(`Adding ${emailData.attachments.length} attachment(s) to email`);
+    }
 
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -575,14 +618,16 @@ async function forwardEmail(emailData: EmailData) {
 // Helper function to strip HTML tags for text version
 function stripHtml(html: string): string {
   return html
-    .replace(/<style[^>]*>.*?<\/style>/gi, '')
-    .replace(/<script[^>]*>.*?<\/script>/gi, '')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<style[^>]*>.*?<\/style>/gis, '') // Remove style tags and content (case insensitive, dotall)
+    .replace(/<script[^>]*>.*?<\/script>/gis, '') // Remove script tags
+    .replace(/<[^>]+>/g, '') // Remove all other HTML tags
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
 }
 
