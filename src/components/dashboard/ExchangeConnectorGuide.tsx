@@ -20,17 +20,29 @@ export const ExchangeConnectorGuide = () => {
 
   return (
     <div className="space-y-6">
+      <Alert className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+        <AlertDescription>
+          <strong>⚠️ Important Architecture Note:</strong> Exchange Connectors require an SMTP endpoint (mail server), not an HTTP endpoint. 
+          This approach requires setting up an SMTP relay service (like SendGrid Inbound Parse, Mailgun Routes, or a custom SMTP server) 
+          that receives emails from Exchange and forwards them to our edge function. This is more complex than the Transport Rules method.
+          <br/><br/>
+          <strong>Recommended:</strong> For most users, we suggest using the "Exchange Transport Rules (Graph API)" method instead, 
+          which is simpler to set up and doesn't require additional SMTP infrastructure.
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <CardHeader>
-          <CardTitle>Exchange Connector Setup Guide</CardTitle>
+          <CardTitle>Exchange Connector Setup Guide (Advanced)</CardTitle>
           <CardDescription>
-            Follow these steps to configure Exchange Online to route emails through our signature system (Rocketseed-style approach)
+            This method requires SMTP relay infrastructure. Only proceed if you have an SMTP service configured.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <Alert>
             <AlertDescription>
-              <strong>Prerequisites:</strong> You need Exchange Online admin access and PowerShell with Exchange Online Management module installed.
+              <strong>Prerequisites:</strong> You need Exchange Online admin access, PowerShell with Exchange Online Management module, 
+              and an SMTP relay service (SendGrid, Mailgun, or custom SMTP server) configured to forward to your edge function.
             </AlertDescription>
           </Alert>
 
@@ -76,13 +88,13 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
               <div className="flex-1">
                 <h3 className="font-semibold mb-2">Create Outbound Connector</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Create a connector to route outbound emails through our edge function:
+                  Create a connector to route emails through your SMTP relay service. Replace <code className="bg-muted px-1 py-0.5 rounded">smtp.your-relay.com</code> with your actual SMTP server address:
                 </p>
                 <div className="relative">
                   <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap">
 {`New-OutboundConnector -Name "SignatureConnector" \\
   -RecipientDomains * \\
-  -SmartHosts "${connectorUrl}" \\
+  -SmartHosts "smtp.your-relay.com" \\
   -TlsSettings DomainValidation \\
   -UseMXRecord $false \\
   -CloudServicesMailEnabled $false \\
@@ -94,16 +106,17 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
                     variant="ghost"
                     className="absolute top-2 right-2"
                     onClick={() => copyToClipboard(
-                      `New-OutboundConnector -Name "SignatureConnector" -RecipientDomains * -SmartHosts "${connectorUrl}" -TlsSettings DomainValidation -UseMXRecord $false -CloudServicesMailEnabled $false -RouteAllMessagesViaOnPremises $false -Enabled $true`,
+                      `New-OutboundConnector -Name "SignatureConnector" -RecipientDomains * -SmartHosts "smtp.your-relay.com" -TlsSettings DomainValidation -UseMXRecord $false -CloudServicesMailEnabled $false -RouteAllMessagesViaOnPremises $false -Enabled $true`,
                       2
                     )}
                   >
                     {copiedStep === 2 ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
-                <Alert className="mt-3">
+                <Alert className="mt-3 border-orange-500">
                   <AlertDescription className="text-xs">
-                    <strong>Note:</strong> The connector URL is: <code className="bg-muted px-1 py-0.5 rounded">{connectorUrl}</code>
+                    <strong>⚠️ Important:</strong> SmartHosts requires an SMTP server hostname (e.g., "smtp.sendgrid.net" or "smtp.mailgun.org"), NOT an HTTP URL. 
+                    You must configure your SMTP relay service to forward emails to: <code className="bg-muted px-1 py-0.5 rounded">{connectorUrl}</code>
                   </AlertDescription>
                 </Alert>
               </div>
@@ -201,7 +214,14 @@ Get-TransportRule "Route via Signature Connector" | Format-List`}
 
           <Alert>
             <AlertDescription>
-              <strong>How it works:</strong> When users send emails, Exchange routes them to our edge function, which adds signatures/banners based on user assignments, then forwards the complete email via SendGrid while preserving all recipients, attachments, and sender identity.
+              <strong>How it works:</strong> When users send emails, Exchange routes them to your SMTP relay → SMTP relay forwards to edge function → edge function adds signatures/banners → forwards via SendGrid preserving all recipients, attachments, and sender identity.
+            </AlertDescription>
+          </Alert>
+
+          <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+            <AlertDescription>
+              <strong>💡 Simpler Alternative:</strong> Consider using the "Exchange Transport Rules (Graph API)" method instead. 
+              It doesn't require SMTP infrastructure and is easier to maintain. Only use this Connector method if you specifically need SMTP-level routing.
             </AlertDescription>
           </Alert>
 
