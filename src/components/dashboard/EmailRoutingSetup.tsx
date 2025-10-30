@@ -250,25 +250,34 @@ export const EmailRoutingSetup = () => {
           <CardDescription>Route outbound emails through the system</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm">Run this PowerShell command in Exchange Online PowerShell:</p>
+          <p className="text-sm">Run these PowerShell commands in Exchange Online PowerShell to handle both internal and external emails:</p>
           
           <div className="space-y-3">
             <div className="relative">
               <pre className="bg-muted p-4 rounded text-xs overflow-x-auto">
 {`Connect-ExchangeOnline
 
-New-TransportRule -Name "Email Signature System" \`
+# Rule 1: External Emails (sent outside organization)
+New-TransportRule -Name "Email Signature System - External" \`
   -SentToScope NotInOrganization \`
   -RedirectMessageTo "relay@mail.cioafrica.co" \`
   -ExceptIfHeaderContainsMessageHeader "X-Processed-By-Relay" \`
   -ExceptIfHeaderContainsWords "true" \`
-  -Priority 0`}
+  -Priority 0
+
+# Rule 2: Internal Emails (sent within organization)
+New-TransportRule -Name "Email Signature System - Internal" \`
+  -SentToScope InOrganization \`
+  -RedirectMessageTo "relay@mail.cioafrica.co" \`
+  -ExceptIfHeaderContainsMessageHeader "X-Processed-By-Relay" \`
+  -ExceptIfHeaderContainsWords "true" \`
+  -Priority 1`}
               </pre>
               <Button
                 size="sm"
                 variant="outline"
                 className="absolute top-2 right-2"
-                onClick={() => copyToClipboard(`Connect-ExchangeOnline\n\nNew-TransportRule -Name "Email Signature System" \`\n  -SentToScope NotInOrganization \`\n  -RedirectMessageTo "relay@mail.cioafrica.co" \`\n  -ExceptIfHeaderContainsMessageHeader "X-Processed-By-Relay" \`\n  -ExceptIfHeaderContainsWords "true" \`\n  -Priority 0`, "PowerShell Script")}
+                onClick={() => copyToClipboard(`Connect-ExchangeOnline\n\n# Rule 1: External Emails (sent outside organization)\nNew-TransportRule -Name "Email Signature System - External" \`\n  -SentToScope NotInOrganization \`\n  -RedirectMessageTo "relay@mail.cioafrica.co" \`\n  -ExceptIfHeaderContainsMessageHeader "X-Processed-By-Relay" \`\n  -ExceptIfHeaderContainsWords "true" \`\n  -Priority 0\n\n# Rule 2: Internal Emails (sent within organization)\nNew-TransportRule -Name "Email Signature System - Internal" \`\n  -SentToScope InOrganization \`\n  -RedirectMessageTo "relay@mail.cioafrica.co" \`\n  -ExceptIfHeaderContainsMessageHeader "X-Processed-By-Relay" \`\n  -ExceptIfHeaderContainsWords "true" \`\n  -Priority 1`, "PowerShell Script")}
               >
                 {copiedStep === "PowerShell Script" ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
@@ -276,7 +285,7 @@ New-TransportRule -Name "Email Signature System" \`
 
             <Alert>
               <AlertDescription className="text-xs">
-                <strong>Important:</strong> Changed to RedirectMessageTo (instead of BlindCopyTo) to prevent duplicate emails. The edge function adds the signature/banner and sends via SendGrid.
+                <strong>Important:</strong> These rules now handle both internal and external emails. Both use RedirectMessageTo to prevent duplicate emails. The edge function processes the email and sends via SendGrid.
               </AlertDescription>
             </Alert>
           </div>
@@ -292,7 +301,8 @@ New-TransportRule -Name "Email Signature System" \`
         <CardContent className="space-y-3">
           <ol className="list-decimal list-inside space-y-2 text-sm">
             <li>Send a test email from Outlook to any external email address</li>
-            <li>The email should arrive with your signature and banner added via SendGrid</li>
+            <li>Send a test email from Outlook to an internal email address (@cioafrica.co)</li>
+            <li>Both emails should arrive with your signature and banner added via SendGrid</li>
             <li>Check the edge function logs if emails aren't being processed</li>
             <li>Verify in SendGrid Activity Feed that emails are being sent</li>
           </ol>
