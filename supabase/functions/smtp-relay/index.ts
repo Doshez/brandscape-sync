@@ -247,9 +247,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Process email and add signature/banners
     const processedEmail = await processEmail(emailData);
 
-    // Forward the processed email using Resend
-    console.log('SMTP Relay: Forwarding email via Resend');
-    const forwardResult = await forwardEmail(processedEmail);
+    // Forward the processed email via Microsoft Exchange
+    console.log('SMTP Relay: Forwarding email via Microsoft Exchange');
+    const forwardResult = await forwardViaExchange(processedEmail);
 
     console.log('SMTP Relay: Email processed and forwarded successfully');
 
@@ -497,162 +497,182 @@ async function getBannersContent(bannerIds: string[]) {
   }
 }
 
-async function forwardEmail(emailData: EmailData) {
+// Helper function to refresh Exchange token
+async function refreshExchangeToken(connection: any): Promise<string> {
+  console.log('Refreshing Exchange token for:', connection.email);
+  
+  const refreshResponse = await fetch("https://login.microsoftonline.com/organizations/oauth2/v2.0/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
+      client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
+      refresh_token: connection.refresh_token,
+      grant_type: "refresh_token",
+      scope: "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.ReadWrite offline_access",
+    }),
+  });
+  
+  if (!refreshResponse.ok) {
+    const errorData = await refreshResponse.json();
+    console.error('Token refresh failed:', errorData);
+    throw new Error(`Failed to refresh Exchange token: ${errorData.error_description || errorData.error}`);
+  }
+  
+  const tokenData = await refreshResponse.json();
+  const newExpiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
+  
+  // Update the connection with new tokens
+  const { error: updateError } = await supabase
+    .from('exchange_connections')
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || connection.refresh_token,
+      token_expires_at: newExpiresAt.toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', connection.id);
+  
+  if (updateError) {
+    console.error('Failed to update connection:', updateError);
+    throw new Error('Failed to save refreshed tokens');
+  }
+  
+  console.log('Exchange token refreshed successfully');
+  return tokenData.access_token;
+}
+
+// New function to forward email via Microsoft Exchange
+async function forwardViaExchange(emailData: EmailData) {
   try {
-    console.log('Forwarding email via SendGrid to:', emailData.to);
+    console.log('Forwarding email via Microsoft Exchange to:', emailData.to);
     
-    // Ensure we have at least HTML or text content
+    // Extract sender email address
+    const senderEmail = extractEmailAddress(emailData.from);
+    console.log('Looking up Exchange connection for:', senderEmail);
+    
+    // Get the sender's Exchange connection
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .eq('email', senderEmail)
+      .single();
+    
+    if (profileError || !profile) {
+      console.error('Profile not found for sender:', senderEmail, profileError);
+      throw new Error(`No profile found for sender: ${senderEmail}`);
+    }
+    
+    const { data: connection, error: connError } = await supabase
+      .from('exchange_connections')
+      .select('*')
+      .eq('email', senderEmail)
+      .eq('is_active', true)
+      .single();
+    
+    if (connError || !connection) {
+      console.error('No active Exchange connection found for:', senderEmail, connError);
+      throw new Error(`No active Exchange connection for: ${senderEmail}`);
+    }
+    
+    console.log('Found Exchange connection for:', connection.email);
+    
+    // Check if token is expired and refresh if needed
+    let accessToken = connection.access_token;
+    const tokenExpiresAt = new Date(connection.token_expires_at);
+    const now = new Date();
+    
+    if (tokenExpiresAt <= now) {
+      console.log('Access token expired, refreshing...');
+      accessToken = await refreshExchangeToken(connection);
+    }
+    
+    // Prepare email content
     const html = emailData.htmlBody || undefined;
     const text = emailData.textBody || (emailData.htmlBody ? stripHtml(emailData.htmlBody) : undefined);
     
-    // Validate we have content to send
     if (!html && !text) {
-      throw new Error('Email has no content - both HTML and text body are empty');
+      throw new Error('Email has no content');
     }
     
-    console.log('Sending email with html:', !!html, 'text:', !!text);
-    
-    // Extract email from sender if in "Name <email>" format
-    const fromEmail = extractEmailAddress(emailData.from);
-    
-    // Extract display name from sender (if available) - preserve original Outlook name
-    let displayName = '';
-    const displayNameMatch = emailData.from.match(/^["']?([^"'<]+?)["']?\s*</);
-    if (displayNameMatch) {
-      displayName = displayNameMatch[1].trim();
-    } else {
-      // If no display name in angle brackets, check if the whole string is "Name" before @
-      const nameBeforeAt = emailData.from.split('@')[0];
-      displayName = nameBeforeAt.replace(/[._-]/g, ' ').trim();
-    }
-    
-    console.log('Original sender:', emailData.from);
-    console.log('Extracted email:', fromEmail);
-    console.log('Extracted display name:', displayName);
-    
-    // Improve text content to match HTML content better (for better Gmail categorization)
-    let improvedText = text;
-    if (!text && html) {
-      // If no text version, create a better one from HTML
-      improvedText = stripHtml(html);
-    } else if (text && html) {
-      // Ensure text has meaningful content, not just stripped HTML
-      const textLength = text.trim().length;
-      const htmlStripped = stripHtml(html);
-      // If text is too short compared to HTML, use the stripped version
-      if (textLength < htmlStripped.length * 0.5) {
-        improvedText = htmlStripped;
-      }
-    }
-    
-    // Build content array for SendGrid v3 API - ALWAYS put text/plain first
-    const content = [];
-    if (improvedText) {
-      content.push({ type: 'text/plain', value: improvedText });
-    }
-    if (html) {
-      content.push({ type: 'text/html', value: html });
-    }
-    
-    // Format recipients for SendGrid v3 API
-    const toEmails = emailData.to.map(recipient => ({
-      email: extractEmailAddress(recipient)
-    }));
-    
-    // Generate unique message ID for threading
-    const messageId = `<${Date.now()}.${Math.random().toString(36).substring(7)}@${fromEmail.split('@')[1]}>`;
-    
-    // SendGrid v3 API format - optimized for Primary inbox
-    const msg = {
-      personalizations: [{
-        to: toEmails,
-        subject: emailData.subject
-      }],
-      from: {
-        email: fromEmail,  // Use original Outlook sender email
-        name: displayName   // Use original Outlook sender name
+    // Build Microsoft Graph API email message
+    const message: any = {
+      subject: emailData.subject,
+      body: {
+        contentType: html ? 'HTML' : 'Text',
+        content: html || text
       },
-      reply_to: {
-        email: fromEmail,  // Ensure replies go to original sender
-        name: displayName
-      },
-      content: content,
-      headers: {
-        // Personal email indicators
-        'X-Priority': '3',
-        'Importance': 'Normal',
-        'X-MSMail-Priority': 'Normal',
-        'Message-ID': messageId,
-        'X-Mailer': 'Microsoft Outlook 16.0',  // Mimic Outlook
-        'X-Original-Sender': fromEmail,
-        'X-Auto-Response-Suppress': 'OOF, AutoReply',
-        // Threading support
-        'References': emailData.messageId || messageId,
-        'In-Reply-To': emailData.messageId || messageId
-      },
-      custom_args: {
-        'x-processed-by-relay': 'true',
-        'x-skip-transport-rule': 'true',
-        'x-original-sender': fromEmail
-      },
-      // Critical: Disable all tracking
-      tracking_settings: {
-        click_tracking: { enable: false },
-        open_tracking: { enable: false },
-        subscription_tracking: { enable: false },
-        ganalytics: { enable: false }
-      },
-      // Use a higher mail priority for personal emails
-      mail_settings: {
-        bypass_list_management: { enable: true }
-      }
+      toRecipients: emailData.to.map(recipient => ({
+        emailAddress: {
+          address: extractEmailAddress(recipient)
+        }
+      })),
+      importance: 'normal'
     };
     
     // Add attachments if present
     if (emailData.attachments && emailData.attachments.length > 0) {
-      msg.attachments = emailData.attachments.map(att => {
-        const attachment: any = {
-          content: att.content,
-          filename: att.filename,
-          type: att.type,
-          disposition: att.disposition || 'attachment'
-        };
-        
-        // Add content_id for inline images
-        if (att.content_id) {
-          attachment.content_id = att.content_id;
-        }
-        
-        return attachment;
-      });
-      console.log(`Adding ${emailData.attachments.length} attachment(s) to email (${emailData.attachments.filter(a => a.disposition === 'inline').length} inline)`);
+      message.attachments = emailData.attachments.map(att => ({
+        '@odata.type': att.disposition === 'inline' ? '#microsoft.graph.fileAttachment' : '#microsoft.graph.fileAttachment',
+        name: att.filename,
+        contentType: att.type,
+        contentBytes: att.content,
+        isInline: att.disposition === 'inline',
+        contentId: att.content_id || undefined
+      }));
+      console.log(`Adding ${emailData.attachments.length} attachment(s) to Exchange email`);
     }
-
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    
+    // Send email via Microsoft Graph API
+    const response = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(msg),
+      body: JSON.stringify({ message, saveToSentItems: true }),
     });
-
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('SendGrid API error:', response.status, errorText);
-      throw new Error(`SendGrid API error: ${response.status} - ${errorText}`);
+      console.error('Microsoft Graph API error:', response.status, errorText);
+      
+      // If token error, try refreshing once more
+      if (response.status === 401) {
+        console.log('Token might be invalid, attempting refresh...');
+        accessToken = await refreshExchangeToken(connection);
+        
+        // Retry the send
+        const retryResponse = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message, saveToSentItems: true }),
+        });
+        
+        if (!retryResponse.ok) {
+          const retryError = await retryResponse.text();
+          throw new Error(`Microsoft Graph API error after refresh: ${retryResponse.status} - ${retryError}`);
+        }
+      } else {
+        throw new Error(`Microsoft Graph API error: ${response.status} - ${errorText}`);
+      }
     }
-
-    console.log('Email sent successfully via SendGrid');
+    
+    console.log('Email sent successfully via Microsoft Exchange');
     
     return {
       success: true,
       recipients: emailData.to,
-      sendgridResponse: response.status,
+      exchangeResponse: response.status,
       timestamp: new Date().toISOString()
     };
   } catch (error: any) {
-    console.error('Error forwarding email via SendGrid:', error);
+    console.error('Error forwarding email via Exchange:', error);
     throw new Error(`Failed to forward email: ${error.message}`);
   }
 }
