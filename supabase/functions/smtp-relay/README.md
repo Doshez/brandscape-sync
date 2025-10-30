@@ -45,11 +45,11 @@ Connect-ExchangeOnline
 
 New-TransportRule -Name "Email Signature System" `
   -SentToScope NotInOrganization `
-  -BlindCopyTo "mail.yourdomain.com" `
+  -BlindCopyTo "relay@mail.cioafrica.co" `
   -Priority 0
 ```
 
-**Replace** `mail.yourdomain.com` with your actual inbound parse address.
+**Replace** `relay@mail.cioafrica.co` with any email address at your mail subdomain (e.g., relay@mail.yourdomain.com).
 
 ## How It Works
 
