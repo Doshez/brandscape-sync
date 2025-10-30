@@ -531,8 +531,8 @@ async function forwardEmail(emailData: EmailData) {
       },
       subject: emailData.subject,
       content: [
-        ...(html ? [{ type: 'text/html', value: html }] : []),
-        ...(text ? [{ type: 'text/plain', value: text }] : [])
+        ...(text ? [{ type: 'text/plain', value: text }] : []),
+        ...(html ? [{ type: 'text/html', value: html }] : [])
       ],
       // Add custom header to prevent processing loops
       headers: {
