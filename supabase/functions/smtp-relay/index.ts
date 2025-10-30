@@ -126,10 +126,23 @@ const handler = async (req: Request): Promise<Response> => {
       if (rawEmail) {
         console.log('Parsing raw email (length:', rawEmail.length, 'bytes)');
         
-        // Log first 2000 chars of raw email to understand structure
-        console.log('Raw email sample (first 2000 chars):');
-        console.log(rawEmail.substring(0, 2000));
-        console.log('...');
+        // Look for MIME boundaries
+        const boundaryMatch = rawEmail.match(/boundary="([^"]+)"/);
+        const boundary = boundaryMatch ? boundaryMatch[1] : null;
+        console.log('MIME boundary:', boundary);
+        
+        // Count Content-Disposition occurrences
+        const dispositionMatches = rawEmail.match(/Content-Disposition:/g);
+        console.log('Found', dispositionMatches?.length || 0, 'Content-Disposition headers');
+        
+        // Log all Content-Type headers to understand structure
+        const contentTypeMatches = rawEmail.matchAll(/Content-Type: ([^\r\n]+)/g);
+        const contentTypes = Array.from(contentTypeMatches).map(m => m[1]);
+        console.log('Content-Types found:', contentTypes);
+        
+        // Look for attachment sections
+        const attachmentSections = rawEmail.matchAll(/Content-Disposition: attachment[^\r\n]*[\r\n]+([^\r\n]*[\r\n]+)*/g);
+        console.log('Attachment sections found:', Array.from(attachmentSections).length);
         
         // Look for HTML content between Content-Type: text/html and next boundary
         const htmlMatch = rawEmail.match(/Content-Type: text\/html[^\n]*\n([^\n]*\n)?([\s\S]*?)(?=\n--)/);
