@@ -95,7 +95,7 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
 {`New-OutboundConnector -Name "SignatureConnector" \\
   -RecipientDomains * \\
   -SmartHosts "smtp.your-relay.com" \\
-  -TlsSettings DomainValidation \\
+  -TlsSettings EncryptionOnly \\
   -UseMXRecord $false \\
   -CloudServicesMailEnabled $false \\
   -RouteAllMessagesViaOnPremises $false \\
@@ -106,7 +106,7 @@ Connect-ExchangeOnline -UserPrincipalName admin@yourdomain.com`}
                     variant="ghost"
                     className="absolute top-2 right-2"
                     onClick={() => copyToClipboard(
-                      `New-OutboundConnector -Name "SignatureConnector" -RecipientDomains * -SmartHosts "smtp.your-relay.com" -TlsSettings DomainValidation -UseMXRecord $false -CloudServicesMailEnabled $false -RouteAllMessagesViaOnPremises $false -Enabled $true`,
+                      `New-OutboundConnector -Name "SignatureConnector" -RecipientDomains * -SmartHosts "smtp.your-relay.com" -TlsSettings EncryptionOnly -UseMXRecord $false -CloudServicesMailEnabled $false -RouteAllMessagesViaOnPremises $false -Enabled $true`,
                       2
                     )}
                   >
