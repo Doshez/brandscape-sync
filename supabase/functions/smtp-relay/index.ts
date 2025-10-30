@@ -519,7 +519,12 @@ async function forwardEmail(emailData: EmailData) {
       throw new Error('Email has no content');
     }
 
-    // Build SendGrid email payload
+    // Build SendGrid email payload - preserve original sender info
+    const senderEmail = extractEmailAddress(emailData.from);
+    const senderName = emailData.from.includes('<') 
+      ? emailData.from.substring(0, emailData.from.indexOf('<')).trim().replace(/^["']|["']$/g, '')
+      : '';
+    
     const sendGridPayload: any = {
       personalizations: [{
         to: emailData.to.map(recipient => ({
@@ -527,7 +532,8 @@ async function forwardEmail(emailData: EmailData) {
         })),
       }],
       from: {
-        email: extractEmailAddress(emailData.from)
+        email: senderEmail,
+        ...(senderName && { name: senderName })
       },
       subject: emailData.subject,
       content: [
