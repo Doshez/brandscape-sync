@@ -459,10 +459,25 @@ async function forwardEmail(emailData: EmailData) {
     console.log('Extracted email:', fromEmail);
     console.log('Extracted display name:', displayName);
     
+    // Improve text content to match HTML content better (for better Gmail categorization)
+    let improvedText = text;
+    if (!text && html) {
+      // If no text version, create a better one from HTML
+      improvedText = stripHtml(html);
+    } else if (text && html) {
+      // Ensure text has meaningful content, not just stripped HTML
+      const textLength = text.trim().length;
+      const htmlStripped = stripHtml(html);
+      // If text is too short compared to HTML, use the stripped version
+      if (textLength < htmlStripped.length * 0.5) {
+        improvedText = htmlStripped;
+      }
+    }
+    
     // Build content array for SendGrid v3 API - ALWAYS put text/plain first
     const content = [];
-    if (text) {
-      content.push({ type: 'text/plain', value: text });
+    if (improvedText) {
+      content.push({ type: 'text/plain', value: improvedText });
     }
     if (html) {
       content.push({ type: 'text/html', value: html });
@@ -473,7 +488,10 @@ async function forwardEmail(emailData: EmailData) {
       email: extractEmailAddress(recipient)
     }));
     
-    // SendGrid v3 API format - use original sender's email and name
+    // Generate unique message ID for threading
+    const messageId = `<${Date.now()}.${Math.random().toString(36).substring(7)}@${fromEmail.split('@')[1]}>`;
+    
+    // SendGrid v3 API format - optimized for Primary inbox
     const msg = {
       personalizations: [{
         to: toEmails,
@@ -489,22 +507,33 @@ async function forwardEmail(emailData: EmailData) {
       },
       content: content,
       headers: {
-        // Headers to improve Primary inbox placement and preserve sender identity
+        // Personal email indicators
         'X-Priority': '3',
-        'X-Entity-Ref-ID': emailData.messageId,
-        'Importance': 'normal',
-        'X-Original-Sender': fromEmail  // Preserve original sender info
+        'Importance': 'Normal',
+        'X-MSMail-Priority': 'Normal',
+        'Message-ID': messageId,
+        'X-Mailer': 'Microsoft Outlook 16.0',  // Mimic Outlook
+        'X-Original-Sender': fromEmail,
+        'X-Auto-Response-Suppress': 'OOF, AutoReply',
+        // Threading support
+        'References': emailData.messageId || messageId,
+        'In-Reply-To': emailData.messageId || messageId
       },
       custom_args: {
         'x-processed-by-relay': 'true',
         'x-skip-transport-rule': 'true',
         'x-original-sender': fromEmail
       },
-      // Disable tracking to avoid promotional categorization
+      // Critical: Disable all tracking
       tracking_settings: {
         click_tracking: { enable: false },
         open_tracking: { enable: false },
-        subscription_tracking: { enable: false }
+        subscription_tracking: { enable: false },
+        ganalytics: { enable: false }
+      },
+      // Use a higher mail priority for personal emails
+      mail_settings: {
+        bypass_list_management: { enable: true }
       }
     };
 
