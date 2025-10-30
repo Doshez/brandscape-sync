@@ -325,13 +325,14 @@ async function processEmail(emailData: EmailData): Promise<EmailData> {
     }
   }
 
-  modifiedHtmlBody = bodyContent;
+  // Final HTML body with banner, original content, and signature
+  const finalHtmlBody = bodyContent;
 
   console.log('Email processed with signature and banners added');
 
   return {
     ...emailData,
-    htmlBody: modifiedHtmlBody
+    htmlBody: finalHtmlBody
   };
 }
 
