@@ -584,9 +584,17 @@ async function forwardEmail(emailData: EmailData) {
       console.log('Adding CC recipients:', personalizations.cc);
     }
     
+    // Use verified domain for FROM, put original sender in Reply-To
+    const relayFromEmail = 'noreply@cioafrica.co';
+    const relayFromName = senderName ? `${senderName} (via CIO Africa)` : 'CIO Africa Mail Relay';
+    
     const sendGridPayload: any = {
       personalizations: [personalizations],
       from: {
+        email: relayFromEmail,
+        name: relayFromName
+      },
+      reply_to: {
         email: senderEmail,
         ...(senderName && { name: senderName })
       },
@@ -595,9 +603,10 @@ async function forwardEmail(emailData: EmailData) {
         ...(text ? [{ type: 'text/plain', value: text }] : []),
         ...(html ? [{ type: 'text/html', value: html }] : [])
       ],
-      // Add custom header to prevent processing loops
+      // Add custom headers
       headers: {
-        'X-Processed-By-Relay': 'true'
+        'X-Processed-By-Relay': 'true',
+        'X-Original-From': emailData.from
       }
     };
 
