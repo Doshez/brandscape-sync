@@ -181,7 +181,7 @@ Connect-ExchangeOnline -UserPrincipalName admin@cioafrica.co`}
   -RecipientDomains * \\
   -SmartHosts "mail.cioafrica.co" \\
   -TlsSettings EncryptionOnly \\
-  -UseMXRecord $true \\
+  -UseMXRecord $false \\
   -CloudServicesMailEnabled $false \\
   -RouteAllMessagesViaOnPremises $false \\
   -Enabled $true`}
@@ -191,7 +191,7 @@ Connect-ExchangeOnline -UserPrincipalName admin@cioafrica.co`}
                     variant="ghost"
                     className="absolute top-2 right-2"
                     onClick={() => copyToClipboard(
-                      `New-OutboundConnector -Name "SignatureConnector" -RecipientDomains * -SmartHosts "mail.cioafrica.co" -TlsSettings EncryptionOnly -UseMXRecord $true -CloudServicesMailEnabled $false -RouteAllMessagesViaOnPremises $false -Enabled $true`,
+                      `New-OutboundConnector -Name "SignatureConnector" -RecipientDomains * -SmartHosts "mail.cioafrica.co" -TlsSettings EncryptionOnly -UseMXRecord $false -CloudServicesMailEnabled $false -RouteAllMessagesViaOnPremises $false -Enabled $true`,
                       4
                     )}
                   >
@@ -200,7 +200,7 @@ Connect-ExchangeOnline -UserPrincipalName admin@cioafrica.co`}
                 </div>
                 <Alert className="mt-3">
                   <AlertDescription className="text-xs">
-                    <strong>Key Setting:</strong> <code className="bg-muted px-1 py-0.5 rounded">-UseMXRecord $true</code> tells Exchange to use the MX record for mail.cioafrica.co (which points to SendGrid). This is how emails route: Exchange → mail.cioafrica.co MX lookup → mx.sendgrid.net → SendGrid Inbound Parse → Edge Function
+                    <strong>Key Setting:</strong> <code className="bg-muted px-1 py-0.5 rounded">-UseMXRecord $false</code> because we're using SmartHosts. Exchange will route directly to mail.cioafrica.co, then DNS MX lookup happens (mail.cioafrica.co → mx.sendgrid.net) to reach SendGrid Inbound Parse → Edge Function
                   </AlertDescription>
                 </Alert>
               </div>
