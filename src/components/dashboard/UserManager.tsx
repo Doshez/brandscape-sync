@@ -21,7 +21,7 @@ interface UserManagerProps {
 
 interface UserProfile {
   id: string;
-  user_id: string;
+  user_id: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -29,8 +29,8 @@ interface UserProfile {
   job_title: string | null;
   phone: string | null;
   mobile: string | null;
-  is_admin: boolean;
-  created_at: string;
+  is_admin: boolean | null;
+  created_at: string | null;
 }
 
 interface EmailSignature {
@@ -113,7 +113,7 @@ export const UserManager = ({ profile }: UserManagerProps) => {
   const fetchData = async () => {
     try {
       const [usersResult, signaturesResult, bannersResult] = await Promise.all([
-        supabase.from("profiles").select("*").eq("is_admin", false).order("created_at", { ascending: false }),
+        supabase.from("profiles").select("*").eq("is_admin", false).order("created_at", { ascending: false }) as any,
         supabase.from("email_signatures").select("*").order("created_at", { ascending: false }),
         supabase.from("banners").select("*").order("created_at", { ascending: false })
       ]);

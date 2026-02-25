@@ -15,13 +15,13 @@ import { z } from "zod";
 interface UserProfile {
   id: string;
   user_id: string | null;
-  email: string;
-  first_name: string;
-  last_name: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
   department: string | null;
   job_title: string | null;
-  is_admin: boolean;
-  created_at: string;
+  is_admin: boolean | null;
+  created_at: string | null;
 }
 
 const adminSchema = z.object({
@@ -70,7 +70,7 @@ export const AdminUserManagement = ({ profile }: AdminUserManagementProps) => {
       const { data: allData, error: allError } = await supabase
         .from("profiles")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }) as any;
 
       if (allError) throw allError;
       
