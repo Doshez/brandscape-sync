@@ -1658,19 +1658,105 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="includedRecipients">
-                    Apply ONLY to these senders (optional whitelist)
-                  </Label>
-                  <Textarea
-                    id="includedRecipients"
-                    placeholder="user1@cioafrica.co, user2@cioafrica.co"
-                    value={includedRecipients}
-                    onChange={(e) => setIncludedRecipients(e.target.value)}
-                    rows={2}
+                  <div className="flex items-center justify-between">
+                    <Label>Apply ONLY to these senders (optional whitelist)</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const filtered = users.filter(u =>
+                            u.email && (
+                              !includedUserSearch ||
+                              u.email.toLowerCase().includes(includedUserSearch.toLowerCase()) ||
+                              `${u.first_name || ""} ${u.last_name || ""}`.toLowerCase().includes(includedUserSearch.toLowerCase())
+                            )
+                          );
+                          setSelectedIncludedUserIds(new Set(filtered.map(u => u.user_id || u.id)));
+                        }}
+                      >
+                        Select all
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedIncludedUserIds(new Set())}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Input
+                    placeholder="Search registered users by name or email…"
+                    value={includedUserSearch}
+                    onChange={(e) => setIncludedUserSearch(e.target.value)}
                   />
+
+                  <ScrollArea className="h-48 rounded-md border p-2 bg-background">
+                    {users.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-2">No registered users found.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {users
+                          .filter(u => u.email)
+                          .filter(u =>
+                            !includedUserSearch ||
+                            u.email.toLowerCase().includes(includedUserSearch.toLowerCase()) ||
+                            `${u.first_name || ""} ${u.last_name || ""}`.toLowerCase().includes(includedUserSearch.toLowerCase())
+                          )
+                          .map(u => {
+                            const id = u.user_id || u.id;
+                            const checked = selectedIncludedUserIds.has(id);
+                            return (
+                              <label
+                                key={id}
+                                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/60 cursor-pointer text-sm"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    setSelectedIncludedUserIds(prev => {
+                                      const next = new Set(prev);
+                                      if (e.target.checked) next.add(id);
+                                      else next.delete(id);
+                                      return next;
+                                    });
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <span className="font-medium">
+                                  {(u.first_name || "") + " " + (u.last_name || "")}
+                                </span>
+                                <span className="text-muted-foreground text-xs">{u.email}</span>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </ScrollArea>
+
                   <p className="text-xs text-muted-foreground">
-                    If empty, the rule targets the entire @{domainName} domain.
+                    {selectedIncludedUserIds.size > 0
+                      ? `${selectedIncludedUserIds.size} registered user(s) selected.`
+                      : `If nothing is selected, the rule targets the entire @${domainName} domain.`}
                   </p>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="includedRecipients" className="text-xs text-muted-foreground">
+                      Additional senders not in the list (optional)
+                    </Label>
+                    <Textarea
+                      id="includedRecipients"
+                      placeholder="external.user@cioafrica.co, contractor@cioafrica.co"
+                      value={includedRecipients}
+                      onChange={(e) => setIncludedRecipients(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
