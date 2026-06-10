@@ -765,7 +765,7 @@ Connect-ExchangeOnline
 Write-Host "=== IMPORTANT: Check for Duplicate Rules ===" -ForegroundColor Red
 Write-Host "If you're seeing duplicate banners, you likely have OLD RULES that need to be removed" -ForegroundColor Yellow
 Write-Host "Run this command to list all banner rules:" -ForegroundColor White
-Write-Host "  Get-TransportRule | Where-Object {`$_.Name -like '*BANNER*'} | Format-Table Name,State" -ForegroundColor Cyan
+Write-Host "  Get-TransportRule | Where-Object {\`$_.Name -like '*BANNER*'} | Format-Table Name,State" -ForegroundColor Cyan
 Write-Host "To remove old rules, use: Remove-TransportRule -Identity 'RuleName'" -ForegroundColor White
 Write-Host ""
 
