@@ -1643,17 +1643,85 @@ Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
                 </div>
               </div>
 
+              <div className="space-y-3 rounded-md border p-4 bg-muted/30">
+                <div>
+                  <h4 className="text-sm font-semibold">Granular targeting</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Leave fields blank for default behavior. Comma- or newline-separated SMTP addresses / group aliases.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="includedRecipients">
+                    Apply ONLY to these senders (optional whitelist)
+                  </Label>
+                  <Textarea
+                    id="includedRecipients"
+                    placeholder="user1@cioafrica.co, user2@cioafrica.co"
+                    value={includedRecipients}
+                    onChange={(e) => setIncludedRecipients(e.target.value)}
+                    rows={2}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    If empty, the rule targets the entire @{domainName} domain.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="excludedRecipients">Excluded mailboxes</Label>
+                    <Textarea
+                      id="excludedRecipients"
+                      placeholder="ceo@cioafrica.co, noreply@cioafrica.co, shared@cioafrica.co"
+                      value={excludedRecipients}
+                      onChange={(e) => setExcludedRecipients(e.target.value)}
+                      rows={2}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Individual mailboxes, shared mailboxes, or service accounts to skip.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="excludedGroups">Excluded groups</Label>
+                    <Textarea
+                      id="excludedGroups"
+                      placeholder="executives@cioafrica.co, legal@cioafrica.co"
+                      value={excludedGroups}
+                      onChange={(e) => setExcludedGroups(e.target.value)}
+                      rows={2}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Distribution lists or mail-enabled security groups to skip.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="excludedDomains">Excluded recipient domains (optional)</Label>
+                  <Input
+                    id="excludedDomains"
+                    placeholder="cioafrica.co (skip internal-only mail)"
+                    value={excludedDomains}
+                    onChange={(e) => setExcludedDomains(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Useful to avoid stamping the banner on internal-only messages.
+                  </p>
+                </div>
+              </div>
+
               <Alert>
                 <CheckCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Note:</strong> This will generate a script that applies the selected banner to ALL users 
-                  sending from @{domainName}. This is separate from individual user assignments and will apply 
-                  regardless of user-specific settings.
+                  <strong>Safe deployment:</strong> Excluded mailboxes/groups are added as <code>ExceptIf*</code>
+                  conditions on a new dedicated rule. Existing transport rules and mail flow for excluded users are
+                  <strong> not</strong> modified.
                 </AlertDescription>
               </Alert>
 
               <Button
-                onClick={generatePowerShellScript}
+                onClick={generateDomainWideScript}
                 disabled={generating || !domainName || !domainWideBanner}
                 className="w-full"
               >
