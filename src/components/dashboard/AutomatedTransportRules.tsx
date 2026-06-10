@@ -708,11 +708,56 @@ Disconnect-ExchangeOnline -Confirm:$false
         .replace(/\s+/g, ' ')        // Collapse spaces
         .trim();
       
-      const script = `# Exchange Online Domain-Wide Banner Rule
+      // Parse inclusion / exclusion lists (comma or newline separated)
+      const parseList = (raw: string) =>
+        raw
+          .split(/[\s,;]+/)
+          .map(s => s.trim())
+          .filter(Boolean);
+
+      const includedList = parseList(includedRecipients);
+      const excludedMailboxes = parseList(excludedRecipients);
+      const excludedGroupsList = parseList(excludedGroups);
+      const excludedDomainsList = parseList(excludedDomains);
+
+      const psArray = (arr: string[]) =>
+        arr.map(v => `"${v.replace(/"/g, '`"')}"`).join(",");
+
+      // Build scoping (sender) clause
+      const senderScopeLine = includedList.length > 0
+        ? `    -From ${psArray(includedList)} \``
+        : `    -SenderDomainIs "${domainName}" \``;
+
+      // Build ExceptIf exclusions
+      const exceptionLines: string[] = [];
+      if (excludedMailboxes.length > 0) {
+        exceptionLines.push(`    -ExceptIfFrom ${psArray(excludedMailboxes)} \``);
+      }
+      if (excludedGroupsList.length > 0) {
+        exceptionLines.push(`    -ExceptIfFromMemberOf ${psArray(excludedGroupsList)} \``);
+      }
+      if (excludedDomainsList.length > 0) {
+        exceptionLines.push(`    -ExceptIfRecipientDomainIs ${psArray(excludedDomainsList)} \``);
+      }
+      const exceptionsBlock = exceptionLines.length > 0
+        ? "\n" + exceptionLines.join("\n")
+        : "";
+
+      const scopeSummary = includedList.length > 0
+        ? `selected senders (${includedList.length})`
+        : `ALL users @${domainName}`;
+
+      const script = `# Exchange Online Domain-Wide Banner Rule (with Exclusions)
 # Generated: ${new Date().toISOString()}
 # Domain: ${domainName}
 # Banner: ${banner.name}
-# Applies to: ALL users in domain
+# Applies to: ${scopeSummary}
+# Excluded mailboxes: ${excludedMailboxes.length}
+# Excluded groups: ${excludedGroupsList.length}
+# Excluded recipient domains: ${excludedDomainsList.length}
+#
+# NOTE: This rule uses ExceptIf* conditions so excluded users keep their
+# normal mail flow untouched. Existing transport rules are NOT modified.
 
 # Connect to Exchange Online
 Connect-ExchangeOnline
@@ -720,47 +765,69 @@ Connect-ExchangeOnline
 Write-Host "=== IMPORTANT: Check for Duplicate Rules ===" -ForegroundColor Red
 Write-Host "If you're seeing duplicate banners, you likely have OLD RULES that need to be removed" -ForegroundColor Yellow
 Write-Host "Run this command to list all banner rules:" -ForegroundColor White
-Write-Host "  Get-TransportRule | Where-Object {$_.Name -like '*BANNER*'} | Format-Table Name,State" -ForegroundColor Cyan
+Write-Host "  Get-TransportRule | Where-Object {`$_.Name -like '*BANNER*'} | Format-Table Name,State" -ForegroundColor Cyan
 Write-Host "To remove old rules, use: Remove-TransportRule -Identity 'RuleName'" -ForegroundColor White
 Write-Host ""
 
-Write-Host "=== Creating Domain-Wide Banner Rule ===" -ForegroundColor Cyan
-Write-Host "Existing rules will be preserved" -ForegroundColor Yellow
+# Validate that excluded recipients/groups exist (warn only — does not abort)
+$excludedMailboxes = @(${excludedMailboxes.length ? psArray(excludedMailboxes) : ""})
+$excludedGroups    = @(${excludedGroupsList.length ? psArray(excludedGroupsList) : ""})
+
+foreach ($mbx in $excludedMailboxes) {
+    try {
+        $r = Get-Recipient -Identity $mbx -ErrorAction Stop
+        Write-Host "  [OK] Excluded mailbox found: $($r.PrimarySmtpAddress)" -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARN] Excluded mailbox not found: $mbx" -ForegroundColor Yellow
+    }
+}
+foreach ($grp in $excludedGroups) {
+    try {
+        $g = Get-Recipient -Identity $grp -ErrorAction Stop
+        Write-Host "  [OK] Excluded group found: $($g.PrimarySmtpAddress)" -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARN] Excluded group not found: $grp" -ForegroundColor Yellow
+    }
+}
+
+Write-Host ""
+Write-Host "=== Creating Banner Rule (${scopeSummary}) ===" -ForegroundColor Cyan
+Write-Host "Existing transport rules will be preserved." -ForegroundColor Yellow
 Write-Host ""
 
-# Create domain-wide banner rule  
-# Applies to ALL users sending from @${domainName}
-# Exception check: Prevents duplicate banner application
+# Create the banner rule with sender scope + ExceptIf exclusions
 New-TransportRule -Name "BANNER_${groupId}_DomainWide_${domainName}" \`
     -FromScope InOrganization \`
     -SenderAddressLocation HeaderOrEnvelope \`
-    -SenderDomainIs "${domainName}" \`
+${senderScopeLine}
     -ApplyHtmlDisclaimerLocation Prepend \`
     -ApplyHtmlDisclaimerText '${escapedBanner}' \`
-    -ApplyHtmlDisclaimerFallbackAction Ignore \`
+    -ApplyHtmlDisclaimerFallbackAction Ignore \`${exceptionsBlock}
     -Enabled $true \`
     -Priority 0 \`
-    -Comments "Domain-wide banner for all users @${domainName}"
+    -Comments "Banner rule for ${scopeSummary} (excludes ${excludedMailboxes.length} mailboxes, ${excludedGroupsList.length} groups, ${excludedDomainsList.length} recipient domains)"
 
-Write-Host "✓ Domain-wide banner rule created successfully!" -ForegroundColor Green
+Write-Host "Banner rule created successfully!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Rule Details:" -ForegroundColor Cyan
-Write-Host "  - Applies to: ALL users @${domainName}" -ForegroundColor White
+Write-Host "  - Applies to: ${scopeSummary}" -ForegroundColor White
 Write-Host "  - Banner: ${banner.name}" -ForegroundColor White
 Write-Host "  - Location: Above email body (Prepend)" -ForegroundColor White
-Write-Host "  - Duplication prevention: Rule-based" -ForegroundColor White
+Write-Host "  - Excluded mailboxes: ${excludedMailboxes.length}" -ForegroundColor White
+Write-Host "  - Excluded groups: ${excludedGroupsList.length}" -ForegroundColor White
+Write-Host "  - Excluded recipient domains: ${excludedDomainsList.length}" -ForegroundColor White
 Write-Host ""
 
 Write-Host "=== Verifying Rule ===" -ForegroundColor Cyan
-Write-Host ""
-Get-TransportRule -Identity "BANNER_${groupId}_DomainWide_${domainName}" | Format-List Name, State, Priority, SenderDomainIs, ApplyHtmlDisclaimerLocation
+Get-TransportRule -Identity "BANNER_${groupId}_DomainWide_${domainName}" | Format-List Name, State, Priority, From, SenderDomainIs, ExceptIfFrom, ExceptIfFromMemberOf, ExceptIfRecipientDomainIs, ApplyHtmlDisclaimerLocation
 
 Write-Host ""
 Write-Host "=== COMPLETED ===" -ForegroundColor Green
-Write-Host "Domain-wide banner is now active for @${domainName}" -ForegroundColor White
+Write-Host "Banner is now active. Excluded users/groups will continue to send mail without the banner." -ForegroundColor White
 Write-Host ""
 Write-Host "To disconnect: Disconnect-ExchangeOnline" -ForegroundColor Gray
 `;
+
 
       // Save the updated counter to localStorage for next generation
       localStorage.setItem(COUNTER_KEY, persistentCounter.toString());
