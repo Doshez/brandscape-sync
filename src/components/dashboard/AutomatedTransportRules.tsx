@@ -718,7 +718,10 @@ Disconnect-ExchangeOnline -Confirm:$false
           .map(s => s.trim())
           .filter(Boolean);
 
-      const includedList = parseList(includedRecipients);
+      const selectedUserEmails = users
+        .filter(u => selectedIncludedUserIds.has(u.user_id || u.id) && u.email)
+        .map(u => u.email as string);
+      const includedList = Array.from(new Set([...selectedUserEmails, ...parseList(includedRecipients)]));
       const excludedMailboxes = parseList(excludedRecipients);
       const excludedGroupsList = parseList(excludedGroups);
       const excludedDomainsList = parseList(excludedDomains);
