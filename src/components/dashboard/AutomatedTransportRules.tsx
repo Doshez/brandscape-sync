@@ -62,6 +62,10 @@ export const AutomatedTransportRules = ({ profile }: AutomatedTransportRulesProp
   const [domainWideMode, setDomainWideMode] = useState(false);
   const [domainName, setDomainName] = useState("cioaafrica.co");
   const [domainWideBanner, setDomainWideBanner] = useState("");
+  const [includedRecipients, setIncludedRecipients] = useState(""); // optional whitelist of senders
+  const [excludedRecipients, setExcludedRecipients] = useState(""); // mailboxes to skip
+  const [excludedGroups, setExcludedGroups] = useState(""); // distribution / security groups to skip
+  const [excludedDomains, setExcludedDomains] = useState(""); // recipient domains to skip (e.g. internal-only)
   
   
   const { toast } = useToast();
